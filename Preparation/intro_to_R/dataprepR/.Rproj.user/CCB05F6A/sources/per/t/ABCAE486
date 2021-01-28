@@ -1,0 +1,22 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1551033051481.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3056731332",
+    "id" : "ABCAE486",
+    "lastKnownWriteTime" : 1551142040,
+    "last_content_update" : 1551142040484,
+    "path" : "~/Box Sync/AC_homes/dataprepR/data_prep.R",
+    "project_path" : "data_prep.R",
+    "properties" : {
+        "cursorPosition" : "446,6",
+        "scrollLine" : "438"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}
