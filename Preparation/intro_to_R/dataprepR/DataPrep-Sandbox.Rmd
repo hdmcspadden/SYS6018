@@ -1,0 +1,180 @@
+---
+title: "DataPrep-SandBox"
+author: "Diana McSpadden"
+date: "1/31/2021"
+output: html_document
+---
+```{r}
+library(tidyverse)
+
+options(tibble.print_min = 5)
+
+homes <- read_csv("https://raw.githubusercontent.com/uvastatlab/phdplus/master/data/albemarle_homes.csv")
+```
+
+
+```{r}
+homes
+```
+
+```{r}
+select(homes, totalvalue)
+```
+```{r}
+select(homes, totalvalue, city)
+```
+
+
+```{r}
+select(homes, 0:2) # select range of columns
+
+```
+
+
+```{r}
+select(homes, -c(yearbuilt,condition)) #: select every column but
+
+```
+
+```{r}
+select(homes, starts_with("f")) #: select columns that start with…
+
+
+```
+
+```{r}
+select(homes, contains("f"))
+
+```
+
+```{r}
+filter(homes, yearbuilt == 2006)
+```
+
+```{r}
+filter(homes, bedroom == (max(bedroom) - 15) & yearbuilt < 1980)
+```
+
+```{r}
+filter(homes, city %in% c("SCOTTSVILLE", "CROZET"))
+```
+
+## Boolean operators for multiple conditions
+
+* a & b: and
+* a | b: or
+* xor(a,b): exactly or
+* !a: not
+
+
+```{r}
+arrange(homes, finsqft)
+```
+
+```{r}
+arrange(homes, desc(finsqft))
+```
+
+## Pipes!
+
+The %>% is the pipe operator. It passes the result on left into the first argument of the function on the right, or “pipes” the previous output as the input for the next function. Read it in your head as then
+
+For example, if we just want the totalvalue and lotsize for homes in Scottsville arranged in descending order of lotsize, without the pipe, we’d:
+
+```{r}
+scottsville <- filter(homes, city == "SCOTTSVILLE")
+scottsville <- select(scottsville, totalvalue, lotsize)
+scottsville <- arrange(scottsville, desc(lotsize))
+scottsville
+```
+
+
+```{r}
+homes %>% 
+  filter(city == "SCOTTSVILLE") %>% 
+  select(totalvalue, lotsize) %>% 
+  arrange(desc(lotsize))
+```
+## Create new calculated columns
+```{r}
+homes %>% 
+  mutate(value_sqft = totalvalue/finsqft) %>% 
+  select(yearbuilt, condition, finsqft, totalvalue, city, value_sqft) %>% 
+  arrange(desc(value_sqft), condition)
+```
+
+```{r}
+homes %>% 
+  mutate(value_sqft = totalvalue/finsqft,
+         remodel = if_else(yearremodeled > 0, 1, 0)) %>% 
+  select(value_sqft, remodel, city) %>% 
+  arrange(value_sqft)
+```
+
+### mutate based on condition
+if_else(condition, value_if_true, value_if_false, value_if_na)
+
+### vectorize multiple if_else()
+case_when(condition1 ~ value1, condition2 ~ value2, condition3 ~ value3, TRUE ~ value_everything_else)
+
+## summarize()
+Compute table of summaries.
+```{r}
+homes %>% 
+  filter(yearbuilt > 0) %>% 
+  summarize(oldest = min(yearbuilt), 
+            newest = max(yearbuilt),
+            avgyear = floor(mean(yearbuilt)),
+            total = n())
+```
+
+### Summary functions include
+
+* first(): first value
+* last(): last value
+* nth(.x, n): nth value
+* n(): number of values
+* n_distinct(): number of distinct values
+* min(): minimum value
+* max(): maximum value
+* mean(): mean value
+* median(): median value
+* var(): variance
+* sd(): standard deviation
+* IQR(): interquartile range
+
+## Group By
+```{r}
+homes %>% 
+  filter(yearbuilt > 0) %>% 
+  group_by(city) %>% 
+  summarize(oldest = min(yearbuilt), 
+            newest = max(yearbuilt), 
+            avgyear = floor(mean(yearbuilt)),
+            total = n())
+```
+
+
+## Other funtions
+
+tally() - short hand for summarize(n())
+
+count() - short hand for group_by() + tally()
+
+summarize_all() - apply summary function to all variables
+
+summarize_at() - apply summary function to selected variables
+
+rename() - rename variables
+
+recode() - modify values of variables
+
+
+```{r}
+summary(homes)
+```
+
+## Factors for categorical variables
+
+
+
