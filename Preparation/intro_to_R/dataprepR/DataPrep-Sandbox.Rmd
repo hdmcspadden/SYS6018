@@ -176,5 +176,65 @@ summary(homes)
 
 ## Factors for categorical variables
 
+```{r}
+homes %>% count(condition) # currently a character
+```
+
+```{r}
+homes %>% 
+  mutate(condition = factor(condition)) %>% # make a factor
+  count(condition)
+```
+
+** set factor with category labels in an order**
+
+```{r}
+cond_levels <- c("Excellent", "Good", "Average", "Fair", "Poor", "Substandard")
+homes %>% 
+  mutate(condition = factor(condition, levels = cond_levels)) %>% 
+  count(condition)
+```
+### forcats
+
+The forcats package, part of the tidyverse, provides helper functions for working with factors. Including
+
+* fct_infreq(): reorder factor levels by frequency of levels
+* fct_reorder(): reorder factor levels by another variable
+* fct_relevel(): change order of factor levels by hand
+* fct_recode(): change factor levels by hand
+* fct_collapse(): collapse factor levels into defined groups
+* fct_lump(): collapse least/most frequent levels of factor into “other”
+
+## dplyr: Joins
+
+Often, a single data set won’t contain all of the information or attributes necessary to address your questions. Instead, we have to join or combine multiple data sets.
+
+**Mutating joins** use information from one data set to add variables to another data set (like mutate()).
+
+**Filtering joins** use information from one data set to extract rows from another data set (like filter())
+
+### mutating joins
+
+
+
+* full_join(): keeps all observations in x and y
+* left_join(): keeps all observations in x
+* right_join(): keeps all observations in y
+* inner_join(): keeps observations in both x and y
+* filtering joins
+
+## Filtering joins match observations in the same way, but rather than adding variables, it extracts observations.
+
+* semi_join(): keeps all observations in x that have a match in y
+* anti_join(): drops all observations in x that have a match in y
+
+
+
+```{r}
+?rm
+```
+
+
+
 
 

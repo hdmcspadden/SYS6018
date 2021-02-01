@@ -1,0 +1,139 @@
+---
+title: "DataViz-Sandbox"
+author: "Diana McSpadden"
+date: "1/31/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(scales)
+library(ggplot2)
+
+```
+
+## The Grammar of Graphics
+The Grammar of Graphics boiled down to 5 bullets, courtesy of Wickham (2016, p. 4):
+
+* a statistical graphic is a mapping from data to aesthetic attributes (location, color, shape, size) of geometric objects (points, lines, bars).
+
+* the geometric objects are drawn in a specific coordinate system.
+
+* scales control the mapping from data to aesthetics and provide tools to read the plot (ie, axes and legends).
+
+* the plot may also contain statistical transformations of the data (means, medians, bins of data, trend lines).
+
+* faceting can be used to generate the same plot for different subsets of the data.
+
+```{r}
+github_url <- "https://github.com/uvastatlab/phdplus/raw/master/data/albemarle_homes.rds"
+homes <- readRDS(url(github_url))
+```
+
+```{r}
+head(homes)
+```
+
+
+```{r}
+str(homes)
+```
+
+```{r}
+homes <- homes %>% 
+  mutate(isremodel = factor(remodel)) %>% # make a factor
+  mutate(isfp = factor(fp)) %>% # make a factor
+  mutate(landuse = factor(landuse)) %>% # make a factor
+  mutate(issub = factor(issub))
+
+
+str(homes)
+```
+```{r}
+print(is.factor(homes$landuse))
+homes$landuse <- factor(homes$landuse)
+is.factor(homes$landuse)
+```
+
+```{r}
+str(homes)
+```
+
+
+```{r}
+homes$insub <- factor(homes$insub)
+homes$remodel <- factor(homes$remodel)
+homes$fp <- factor(homes$fp)
+
+str(homes)
+```
+
+```{r}
+
+vars <- c("CHARLOTTESVILLE", "CROZET", "EARLYSVILLE", 
+          "KESWICK", "SCOTTSVILLE", "NORTH GARDEN")
+homes <- homes %>% 
+  filter(city %in% vars)
+homes$city <- droplevels(homes$city) # droplevels resets the available factor values after subsetting a dataframe
+```
+
+
+```{r}
+ggplot(homes, aes(x=finsqft, y=totalvalue, color=city)) + geom_point() 
+```
+
+```{r}
+ggplot(filter(homes, city == "SCOTTSVILLE"), aes(x=finsqft, y=totalvalue, 
+                 color=condition, size=bedroom)) + 
+  geom_point()
+```
+
+```{r}
+ggplot(homes, aes(x=finsqft, y=totalvalue, color=city)) + 
+  geom_point() + 
+  geom_smooth()
+```
+
+
+```{r}
+ggplot(homes, aes(x=city, y=finsqft)) + 
+  geom_boxplot()
+```
+
+## Moving beyond ggplot + geoms
+A natural next step in exploratory graphing is to create plots of subsets of data. These are called **facets** in ggplot2.
+
+Use facet_wrap() if you want to facet by one variable and have ggplot2 control the layout. Example:
+
++ facet_wrap( ~ var)
+
+Use facet_grid() if you want to facet by one and/or two variables and control layout yourself.
+
+Examples:
++ facet_grid(. ~ var1) - facets in columns
++ facet_grid(var1 ~ .) - facets in rows
++ facet_grid(var1 ~ var2) - facets in rows and columns
+
+```{r}
+ggplot(homes, aes(x=finsqft, y=totalvalue)) + 
+  geom_point() + facet_wrap(~ city)
+```
+
+
+```{r}
+ggplot(homes, aes(x=finsqft, y = stat(density))) +
+  geom_histogram() + facet_grid(city ~ .) 
+```
+
+
+```{r}
+```
+
+
+```{r}
+```
+
+
+
+
+

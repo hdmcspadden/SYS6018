@@ -49,6 +49,7 @@
 library(lubridate)
 library(tidyverse)
 
+
 # a.  read in card level data and have a peek
 card_level <- read_csv("CAMA_CardLevelData.txt")
 str(card_level)
