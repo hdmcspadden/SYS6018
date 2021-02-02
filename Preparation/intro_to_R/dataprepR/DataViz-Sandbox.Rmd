@@ -124,6 +124,84 @@ ggplot(homes, aes(x=finsqft, y=totalvalue)) +
 ggplot(homes, aes(x=finsqft, y = stat(density))) +
   geom_histogram() + facet_grid(city ~ .) 
 ```
+## Modifying the coordinate system
+* coord_cartesian allows us to zoom in on a plot, as if using magnifying glass
+* coord_fixed allows us to control “aspect ratio”
+* coord_flip allows us to flip the x and y axis
+
+### Zoom In:
+```{r}
+ggplot(homes, aes(x=finsqft, y=totalvalue, 
+                 color=city)) + geom_point() +
+  coord_cartesian(xlim = c(2000,3000), ylim = c(2e5, 5e5))
+```
+
+
+### Flip Axes:
+```{r}
+ggplot(homes, aes(x=city, y=finsqft)) + 
+  geom_boxplot() + 
+  coord_flip()
+```
+
+
+## Customizing scales
+
+All scale functions have a common naming scheme: scale _ name of aesthetic _ name of scale
+
+Examples: scale_y_continuous, scale_color_discrete, scale_fill_manual
+
+### update scales for the x and y-axis
+```{r}
+ggplot(homes, aes(x=finsqft, y=totalvalue, 
+                 color=city)) + geom_point() +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_x_continuous(labels = scales::comma)
+```
+### update scale for color
+Here we change the point colors, which in turn updates the legend. Notice that because the fp variable was stored as 0/1, we needed to convert it to a factor on-the-fly to map it to color.
+
+```{r}
+ggplot(homes, aes(x=finsqft, y=totalvalue, 
+                 color=factor(fp))) + geom_point() +
+  scale_color_manual(name="Fireplace",
+                     labels = c("No fireplace", "At least one fireplace"),
+                     values=c("blue","red"))
+```
+
+## Updating themes and labels
+
+Default theme is VERY good.
+
+However you can change the theme using ggplot2’s themeing system. To date, there are seven built-in themes:
+
+theme_gray (default)
+theme_bw
+theme_linedraw
+theme_light
+theme_dark
+theme_minimal
+theme_classic
+
+```{r}
+ggplot(homes, aes(x=finsqft, y=totalvalue, 
+                 color=city)) + geom_point() +
+  scale_y_continuous(labels = scales::dollar) +
+  scale_x_continuous(labels = scales::comma) + theme_minimal()
+```
+
+### update labels
+
+```{r}
+ggplot(homes, aes(x=finsqft, y=totalvalue, 
+                 color = city)) + geom_point() +
+  labs(title="Total Value versus Finished Square Feet", 
+       x="Finished Square Feet", y="Total Value (USD)") 
+```
+
+
+```{r}
+```
 
 
 ```{r}
@@ -132,8 +210,5 @@ ggplot(homes, aes(x=finsqft, y = stat(density))) +
 
 ```{r}
 ```
-
-
-
 
 

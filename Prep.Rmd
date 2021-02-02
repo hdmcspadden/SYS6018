@@ -126,6 +126,7 @@ college <- college[, -1]
 ```{r}
 fix (college )
 ```
+
 ```{r}
 summary(college)
 ```
