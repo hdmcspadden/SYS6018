@@ -11,9 +11,15 @@ output: html_document
 Complete exercises 1, 2, 6, 8, and 10 at the end of Chapter 2 of your textbook. Attempt each of these exercises prior to the live session since they will likely serve as material for discussion and interaction. 
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.width=12, fig.height=8)
+knitr::opts_chunk$set(echo = TRUE, fig.width=10, fig.height=8)
 ```
 
+
+```{r}
+library(tidyverse)
+library(scales)
+library(ggplot2)
+```
 
 ## Exercise 1
 For each of parts (a) through (d), indicate whether we would generally expect the performance of a flexible statistical learning method to be
@@ -142,8 +148,176 @@ boxplot(college$Outstate~college$Elite)
 
 #### v. Use the hist() function to produce some histograms with differing numbers of bins for a few of the quantitative variables.
 
+```{r q8cv-1}
+
+par(mfrow=c(5,2))
+
+hist(college$PhD, breaks=10, main="Perc Faculty with PhD - 10 bins")
+
+hist(college$PhD, breaks=20, main="Perc Faculty with PhD - 20 bins")
+
+hist(college$S.F.Ratio, breaks=10, main="Student Faculty Ratio - 10 bins")
+
+hist(college$Expend, breaks=5, main="Instructional Expend/Student - 10 bins")
+
+hist(college$Top10perc, breaks=10, main="Perc Students From Top 10% - 10 bins")
+
+hist(college$Top25perc, breaks=10, main="Perc Students From Top 25% - 10 bins")
+
+hist(college$Grad.Rate, breaks=10, main="Graduation Rate - 10 bins")
+
+hist(college$Grad.Rate, breaks=4, main="Graduation Rate - 4 bins")
+
+hist(college$Accept, breaks=10, main="Number Apps Accepted - 10 bins")
+
+hist(college$Accept, breaks=16, main="Number Apps Accepted - 16 bins")
+```
+
+#### v. Continue exploring the data, and provide a brief summary of what you discover.
+
+```{r q8cv-2}
+# scale/normalize the data
+college_standardized <- as.data.frame(scale(select(college, -c(Private,Elite))))
+head(college_standardized)
+
+```
 
 
+
+**Visualize the scaled data for a few fields
+```{r}
+
+
+par(mfrow=c(4,2))
+
+hist(college_standardized$PhD, breaks=10, main="Scaled Perc Faculty with PhD - 10 bins")
+
+hist(college_standardized$S.F.Ratio, breaks=10, main="Scaled Student Faculty Ratio - 10 bins")
+
+hist(college_standardized$Expend, breaks=5, main="Scaled Instructional Expend/Student - 10 bins")
+
+hist(college_standardized$Top10perc, breaks=10, main="Scaled Perc Students From Top 10% - 10 bins")
+
+hist(college_standardized$Top25perc, breaks=10, main="Scaled Perc Students From Top 25% - 10 bins")
+
+hist(college_standardized$Grad.Rate, breaks=10, main="Scaled Graduation Rate - 10 bins")
+
+hist(college_standardized$Accept, breaks=10, main="Scaled Number Apps Accepted - 10 bins")
+```
+
+```{r fig.height=15}
+par(mfrow=c(4,2))
+
+boxplot(college$P.Undergrad~college$Elite, main='Num Partime Undergrads by Elite Status')
+
+boxplot(college$Outstate~college$Elite, main='Out-of-state Tuition by Elite Status')
+
+boxplot(college$Room.Board~college$Elite, main='Room and Board Costs by Elite Status')
+
+boxplot(college$Books~college$Elite, main='Book Costs by Elite Status')
+
+boxplot(college$Personal~college$Elite, main='Personal Costs by Elite Status')
+
+boxplot(college$PhD~college$Elite, main='Perc Faculty with PhD by Elite Status')
+
+boxplot(college$Grad.Rate~college$Elite, main='Grad Rate by Elite Status')
+
+boxplot(college$perc.alumni~college$Elite, main='Perc Alumni Who Donate by Elite Status')
+```
+
+
+**Interesting Findings**
+
+1. Graduation Rate and Top25 Perc, have normal distributions across the colleges in the sample
+2. Across our sample, "Elite Colleges", defined by high school grads in top 10% of class make up 50% of admissions, have:
+  * higher graduation rates
+  * greater perc of alumni who donate
+  * higher perc of faculty with PhD's
+  * higher room and board costs
+  * and higher out-of-state tuition
+3. However, Elite Colleges have similar:
+  * book costs
+  * estimated personal spending
+  * and perc of part-time undergradutes
 
 
 ## Exercise 10
+This exercise involves the Boston housing data set.
+
+### (a) load in the Boston data set. 
+
+```{r q10a-1}
+library(MASS)
+?Boston
+dim(Boston)
+```
+
+The Boston data frame has 506 rows and 14 columns.
+
+* crim: per capita crime rate by town.
+* zn: proportion of residential land zoned for lots over 25,000 sq.ft.
+* indus: proportion of non-retail business acres per town.
+* chas: Charles River dummy variable (= 1 if tract bounds river; 0 otherwise).
+* nox: nitrogen oxides concentration (parts per 10 million).
+* rm: average number of rooms per dwelling.
+* age: proportion of owner-occupied units built prior to 1940.
+* dis: weighted mean of distances to five Boston employment centres.
+* rad: index of accessibility to radial highways.
+* tax: full-value property-tax rate per \$10,000.
+* ptratio: pupil-teacher ratio by town.
+* black: 1000(Bk - 0.63)^2 where Bk is the proportion of blacks by town.
+* lstat: lower status of the population (percent).
+* medv: median value of owner-occupied homes in \$1000s.
+
+
+**ANSWER: ** There are 506 rows and 14 columns in the Boston dataframe.
+
+```{r q10a-1}
+head(Boston)
+```
+
+
+### (b) Make some pairwise scatterplots ...
+of the predictors (columns) inthis data set. Describe your findings.
+
+
+
+### (c) Are any of the predictors associated with per capita crime rate?
+If so, explain the relationship.
+
+
+
+### (d) Do any of the suburbs of Boston appear to have ...
+* articularly high crime rates? 
+* Tax rates? 
+* Pupil-teacher ratios? 
+
+Comment on the range of each predictor.
+
+
+### (e) How many of the suburbs in this data set bound the Charles river?
+
+
+### (f) What is the median pupil-teacher ratio among the towns in this data set?
+
+
+
+### (g) Which suburb of Boston has lowest median value of owneroccupied homes? 
+What are the values of the other predictors for that suburb, and how do those values compare to the overall ranges for those predictors? Comment on your findings.
+
+
+### (h) In this data set, how many of the suburbs:
+
+* average more than seven rooms per dwelling? 
+* More than eight rooms per dwelling?
+
+Comment on the suburbs that average more than eight rooms per dwelling.
+
+
+
+
+
+
+
+
+
