@@ -1,0 +1,138 @@
+---
+title: "Disaster Relief Project: Part I"
+author: "Add your name here"
+date: "`r format(Sys.Date(), '%b %d, %Y')`"
+output:
+  html_document:
+    number_sections: true    
+    toc: true
+    toc_float: true
+    theme: cosmo
+    highlight: espresso    
+# You can make the format personal - this will get you started:  
+# https://bookdown.org/yihui/rmarkdown/html-document.html#appearance_and_style    
+---
+
+<!--- Below are global settings for knitr. You can override any of them by adding the changes to individual chunks --->
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(error=TRUE,        # Keep compiling upon error
+                      collapse=FALSE,    # collapse by default
+                      echo=TRUE,         # echo code by default
+                      comment = "#>",    # change comment character
+                      fig.width = 5.5,     # set figure width
+                      fig.align = "center",# set figure position
+                      out.width = "49%", # set width of displayed images
+                      warning=TRUE,      # show R warnings
+                      message=TRUE)      # show R messages
+```
+
+<!--- Change font sizes (or other css modifications) --->
+<style>
+h1.title {
+  font-size: 2.2em; /* Title font size */
+}
+h1 {
+  font-size: 2em;   /* Header 1 font size */
+}
+h2 {
+  font-size: 1.5em;
+}
+h3 { 
+  font-size: 1.2em;
+}
+pre {
+  font-size: 0.8em;  /* Code and R output font size */
+}
+</style>
+
+
+
+**SYS 6018 | Spring 2021 | University of Virginia **
+
+*******************************************
+
+# Introduction 
+
+Tell the reader what this project is about. Motivation. 
+
+# Training Data / EDA
+
+Load data, explore data, etc. 
+
+```{r load-packages, warning=FALSE, message=FALSE}
+# Load Required Packages
+library(tidyverse)
+```
+
+
+# Model Training
+
+## Set-up 
+
+## Logistic Regression
+
+## LDA
+
+## QDA
+
+## KNN
+
+### Tuning Parameter $k$
+
+How were tuning parameter(s) selected? What value is used? Plots/Tables/etc.
+
+## Penalized Logistic Regression (ElasticNet)
+
+### Tuning Parameters
+
+**NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**
+
+## Threshold Selection
+
+
+# Results (Cross-Validation)
+
+** CV Performance Table Here**
+
+
+# Conclusions
+
+### Conclusion \#1 
+
+### Conclusion \#2
+
+### Conclusion \#3
+
+
+```{r, echo=FALSE}
+# knitr::knit_exit()    # ignore everything after this
+## Uncomment this line for Part I
+## You can remove the entire code chunk for Part II
+```
+
+
+# Hold-out Data / EDA
+
+Load data, explore data, etc. 
+
+
+# Results (Hold-Out)
+
+**Hold-Out Performance Table Here**
+
+
+# Final Conclusions
+
+### Conclusion \#1 
+
+### Conclusion \#2
+
+### Conclusion \#3
+
+### Conclusion \#4 
+
+### Conclusion \#5
+
+### Conclusion \#6
+

@@ -10,15 +10,20 @@ output: html_document
 
 Complete exercises 1, 2, 6, 8, and 10 at the end of Chapter 2 of your textbook. Attempt each of these exercises prior to the live session since they will likely serve as material for discussion and interaction. 
 
-```{r setup, include=FALSE}
+```{r setup1, include=FALSE, echo=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.width=10, fig.height=8)
 ```
 
+```{r setup2, include=FALSE, echo=FALSE}
+#install.packages("GGally")
+```
 
-```{r}
+
+```{r setup3, echo=FALSE}
 library(tidyverse)
 library(scales)
 library(ggplot2)
+library("GGally")
 ```
 
 ## Exercise 1
@@ -89,13 +94,13 @@ head(college)
 ### (b) fix() ...
 ```{r q8b-1}
 rownames(college) = college[,1] # first column is the name of the university
-fix (college) #fix pops up a "fix" form to edit the data
+#fix (college) #fix pops up a "fix" form to edit the data
 ```
 
 
 ```{r q8b-2}
 college =college [,-1] #remove the first column
-fix (college )
+#fix (college )
 ```
 
 ### (c) summary() and plotting
@@ -114,7 +119,11 @@ pairs(college[,2:11])
 #### iii. plot() function
 ```{r q8ciii-1}
 # plot side by side boxplots of Outstate versus Private (Private universities have more out of state students):
-boxplot(college$Outstate~college$Private)
+#boxplot(college$Outstate~college$Private) # base R
+
+# ggplot
+ggplot(college, aes(x=Private, y=Outstate)) + 
+  geom_boxplot()
 ```
 
 #### iv. Create a new qualitative variable, called Elite, ...
@@ -143,34 +152,68 @@ summary(college)
 
 ```{r q8civ-4}
 
-boxplot(college$Outstate~college$Elite)
+#boxplot(college$Outstate~college$Elite) # base R
+
+# ggplot
+ggplot(college, aes(x=Elite, y=Outstate)) + 
+  geom_boxplot()
+
 ```
 
 #### v. Use the hist() function to produce some histograms with differing numbers of bins for a few of the quantitative variables.
+```{r echo=FALSE}
+#install.packages("gridExtra")
+
+library(gridExtra)
+```
 
 ```{r q8cv-1}
 
-par(mfrow=c(5,2))
+#hist(college$PhD, breaks=10, main="Perc Faculty with PhD - 10 bins") # base R
 
-hist(college$PhD, breaks=10, main="Perc Faculty with PhD - 10 bins")
+plot1 <- ggplot(college, aes(x = PhD, y = stat(density))) +
+  geom_histogram(bins=10) + 
+  ggtitle("Perc Faculty with PhD - 10 bins")
 
-hist(college$PhD, breaks=20, main="Perc Faculty with PhD - 20 bins")
+plot2 <- ggplot(college, aes(x = PhD, y = stat(density))) +
+  geom_histogram(bins=10) + 
+  ggtitle("Perc Faculty with PhD - 20 bins")
 
-hist(college$S.F.Ratio, breaks=10, main="Student Faculty Ratio - 10 bins")
+plot3 <- ggplot(college, aes(x = S.F.Ratio, y = stat(density))) +
+  geom_histogram(bins=20) + 
+  ggtitle("Student Faculty Ratio - 20 bins")
 
-hist(college$Expend, breaks=5, main="Instructional Expend/Student - 10 bins")
+plot4 <- ggplot(college, aes(x = Expend, y = stat(density))) +
+  geom_histogram(bins=10) + 
+  ggtitle("Instructional Expend/Student - 10 bins")
 
-hist(college$Top10perc, breaks=10, main="Perc Students From Top 10% - 10 bins")
+plot5 <- ggplot(college, aes(x = Top10perc, y = stat(density))) +
+  geom_histogram(bins=10) + 
+  ggtitle("Perc Students From Top 10% - 10 bins")
 
-hist(college$Top25perc, breaks=10, main="Perc Students From Top 25% - 10 bins")
+plot6 <- ggplot(college, aes(x = Top25perc, y = stat(density))) +
+  geom_histogram(bins=10) + 
+  ggtitle("Perc Students From Top 25% - 10 bins")
 
-hist(college$Grad.Rate, breaks=10, main="Graduation Rate - 10 bins")
+plot7 <- ggplot(college, aes(x = Grad.Rate, y = stat(density))) +
+  geom_histogram(bins=10) + 
+  ggtitle("Graduation Rate - 10 bins")
 
-hist(college$Grad.Rate, breaks=4, main="Graduation Rate - 4 bins")
+plot8 <- ggplot(college, aes(x = Grad.Rate, y = stat(density))) +
+  geom_histogram(bins = 4) + 
+  ggtitle("Graduation Rate - 4 bins")
 
-hist(college$Accept, breaks=10, main="Number Apps Accepted - 10 bins")
+plot9 <- ggplot(college, aes(x = Accept, y = stat(density))) +
+  geom_histogram(bins = 10) + 
+  ggtitle("Number Apps Accepted - 10 bins")
 
-hist(college$Accept, breaks=16, main="Number Apps Accepted - 16 bins")
+plot10 <- ggplot(college, aes(x = Accept, y = stat(density))) +
+  geom_histogram(bins = 16) + 
+  ggtitle("Number Apps Accepted - 16 bins")
+
+grid.arrange(plot1, plot2, plot3, plot4, plot5, plot6, plot7, plot8, plot9, plot10, nrow=5)
+
+
 ```
 
 #### v. Continue exploring the data, and provide a brief summary of what you discover.
@@ -185,9 +228,9 @@ head(college_standardized)
 
 
 **Visualize the scaled data for a few fields
-```{r}
+```{r q8cv-3}
 
-
+# these are all Base R plots
 par(mfrow=c(4,2))
 
 hist(college_standardized$PhD, breaks=10, main="Scaled Perc Faculty with PhD - 10 bins")
@@ -205,7 +248,8 @@ hist(college_standardized$Grad.Rate, breaks=10, main="Scaled Graduation Rate - 1
 hist(college_standardized$Accept, breaks=10, main="Scaled Number Apps Accepted - 10 bins")
 ```
 
-```{r fig.height=15}
+```{r q8cv-4, fig.height=15}
+# these are all Base R plots
 par(mfrow=c(4,2))
 
 boxplot(college$P.Undergrad~college$Elite, main='Num Partime Undergrads by Elite Status')
@@ -248,62 +292,203 @@ This exercise involves the Boston housing data set.
 
 ```{r q10a-1}
 library(MASS)
-?Boston
+#?Boston
 dim(Boston)
 ```
 
 The Boston data frame has 506 rows and 14 columns.
 
-* crim: per capita crime rate by town.
-* zn: proportion of residential land zoned for lots over 25,000 sq.ft.
-* indus: proportion of non-retail business acres per town.
-* chas: Charles River dummy variable (= 1 if tract bounds river; 0 otherwise).
-* nox: nitrogen oxides concentration (parts per 10 million).
-* rm: average number of rooms per dwelling.
-* age: proportion of owner-occupied units built prior to 1940.
-* dis: weighted mean of distances to five Boston employment centres.
-* rad: index of accessibility to radial highways.
-* tax: full-value property-tax rate per \$10,000.
-* ptratio: pupil-teacher ratio by town.
-* black: 1000(Bk - 0.63)^2 where Bk is the proportion of blacks by town.
-* lstat: lower status of the population (percent).
-* medv: median value of owner-occupied homes in \$1000s.
+1. crim: per capita crime rate by town.
+2. zn: proportion of residential land zoned for lots over 25,000 sq.ft.
+3. indus: proportion of non-retail business acres per town.
+4. chas: Charles River dummy variable (= 1 if tract bounds river; 0 otherwise).
+5. nox: nitrogen oxides concentration (parts per 10 million).
+6. rm: average number of rooms per dwelling.
+7. age: proportion of owner-occupied units built prior to 1940.
+8. dis: weighted mean of distances to five Boston employment centres.
+9. rad: index of accessibility to radial highways.
+10. tax: full-value property-tax rate per \$10,000.
+11. ptratio: pupil-teacher ratio by town.
+12. black: 1000(Bk - 0.63)^2 where Bk is the proportion of blacks by town.
+13. lstat: lower status of the population (percent).
+14. medv: median value of owner-occupied homes in \$1000s.
 
 
 **ANSWER: ** There are 506 rows and 14 columns in the Boston dataframe.
 
-```{r q10a-1}
+```{r q10a-2}
 head(Boston)
 ```
 
 
 ### (b) Make some pairwise scatterplots ...
-of the predictors (columns) inthis data set. Describe your findings.
+of the predictors (columns) in this data set. Describe your findings.
 
+```{r  q10b-1}
+
+#pairs(Boston[-4], main='Boston Crime data') # Base R version
+
+ggpairs(Boston[-4], lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
+
+
+
+```
+ 
+ **ANSWER**
+ There are positive crime correlations of note with:
+ 
+* indus: proportion of non-retail business acres per town.
+* age: proportion of owner-occupied units built prior to 1940
+* lstat: lower status of the population (percent)
+* rad: index of accessibility to radial highways - highest correlation
+* tax: full-value property-tax rate per \$10,000
+ 
+ 
+There are negative crime correlations of note with:
+
+* dis: weighted mean of distances to five Boston employment centres
+* medv: median value of owner-occupied homes in \$1000s
+* black: 1000(Bk - 0.63)^2 where Bk is the proportion of blacks by town
+
+The strongest correlations in the data set are between:
+
+* Positive correlation between **tax** and **rad**, i.e. greater tax rate as accessibility to radial highways increases
+* Negative correlation between **medv** and **lstat**, and the lower status of the population increases the median value of homes decreases
+* Negative correlation between **dist** and **nox** and **indus**, i.e. as the weighted mean of distances to five Boston employment centres increases the nitrogen oxides concentration decreases, and the proportion of non-retail business acres per town decreases.
+* Postive correlation between **age** and **nox**, i.e. as the proportion of owner-occupied units built prior to 1940 increases the nitrogen oxides concentration increases
 
 
 ### (c) Are any of the predictors associated with per capita crime rate?
 If so, explain the relationship.
 
+**ANSWER**:
 
+Two predictors have correlation of note with the per capita crime rate:
+
+* Positive correlation with rad: index of accessibility to radial highways - highest correlation
+* Positive correlation with tax: full-value property-tax rate per \$10,000
 
 ### (d) Do any of the suburbs of Boston appear to have ...
-* articularly high crime rates? 
+* particularly high crime rates? 
 * Tax rates? 
 * Pupil-teacher ratios? 
 
+
+
+```{r q10c-1, fig.height=4}
+plot1 <- ggplot(Boston, aes(y=crim)) + 
+  geom_boxplot()
+
+plot2 <- ggplot(Boston, aes(y=tax)) + 
+  geom_boxplot()
+
+plot3 <- ggplot(Boston, aes(y=ptratio)) + 
+  geom_boxplot()
+
+grid.arrange(plot1, plot2, plot3, nrow=1)
+```
+
+```{r q10c-2}
+print(summary(Boston[1]))
+print(summary(Boston[10]))
+print(summary(Boston[11]))
+```
+
+
 Comment on the range of each predictor.
+
+**ANSWER**
+
+There are many **outliers for high crime per capita**. One can see this represented in the box plot, and it is noticeable that the range of crime per capita has a median or 0.26, a mean of 3.6, and a max of 89. The range is crime per capita is large skewed right.
+
+
+Property tax rate per \$10,000 has **no outliers**, with a range of \$187 - \$711 per \$10,000 of property value.
+
+There are two low pupil-teacher ratio cities with a fewer than 13 pupils per teacher. The range of pupils to teachers is between 12.6 and 22 in the data.
 
 
 ### (e) How many of the suburbs in this data set bound the Charles river?
 
+```{r q10e-1}
+Boston %>%
+  group_by(chas) %>%
+  summarise(n = n())
+
+
+```
+
+**ANSWER**
+
+**35** suburbs in the data set bounds the river.
+
 
 ### (f) What is the median pupil-teacher ratio among the towns in this data set?
 
+```{r q10f-1}
+Boston %>%
+  group_by(chas) %>%
+  summarise(meanptratio = mean(ptratio), n = n())
+```
 
+
+**ANSWER**
+
+In suburbs that bound the Charles River the pupil-teacher ratio is **17.5** vs. the pupil-teacher of 18.5 in suburbs that do not bound the Charles River.
 
 ### (g) Which suburb of Boston has lowest median value of owneroccupied homes? 
+
 What are the values of the other predictors for that suburb, and how do those values compare to the overall ranges for those predictors? Comment on your findings.
+
+
+```{r q10g-1}
+Boston %>%
+  filter(medv == min(medv)) 
+
+```
+
+Retrieve the **min, median, mean, max** for each column: 
+```{r g10g-2}
+
+summary(Boston)
+
+```
+
+Research the **standard deviations** for each column: 
+```{r g10g-3}
+p
+apply(Boston,2,sd)
+```
+
+```{r g10g-4}
+Boston %>%
+  filter(medv == min(medv)) %>%
+  mutate(crimDif = max(crim) - min(crim), rmDif = max(rm) - min(rm), disDif = max(dis) - min(dis), blackDif = max(black) - min(black), lstatDif = max(lstat) - min(lstat), lstatDif = max(lstat) - min(lstat))
+```
+
+
+**ANSWER:**
+
+The lowest/minimum value of owner-occupied homes occurs in two suburbs. The minimum value is a median value of **$5000**. The criminal rate for the two neighborhoods is 38.4 and 67.9 which is a significant difference - outside three standard deviations. The two minimum median value neighborhoods are similar across almost all of the predictors; in fact, they are identical for:
+
+* zn (0)
+* indus (18.1)
+* chas (0)
+* nox (0.693)
+* age (100)
+* rad (24)
+* tax (666)
+* and ptratio (20.2)
+
+The neighborhoods differ on the response variable and a few predictors:
+
+* crim (response variable) (38.4 and 67.9) - 29.6 is a significant difference, as the standard deviation for the entire sample is 8.6, with a min of 0.006 and a max of 88.97620. Both neighborhoods are in the highest quartile of crim in the data set.
+* rm (5.453 and 5.683) - this difference is insignificant between the two values, but the value is within the first quartile in the data set.
+* dis(1.4896 and 1.4254) - this difference is insignificant, but the values is within the first quartile in the data set.
+* black (396.90	and 384.97) - the difference is approximately one standard deviation of black, and both values are above the mean and the higher value is above the median and in the highest quartile.
+* lstat (30.59 and 22.98) - the difference is approximately one standard deviation of lstat, and both values are within the highest quartile.
+
+
+**Comments Comparing These Regions With the Entire Data Set:** The two minimum value neighborhoods are correlated with high crime, low number of rooms, a short distance to the major employment centers, high black populations, and a high lower status population percentage.
 
 
 ### (h) In this data set, how many of the suburbs:
@@ -312,6 +497,25 @@ What are the values of the other predictors for that suburb, and how do those va
 * More than eight rooms per dwelling?
 
 Comment on the suburbs that average more than eight rooms per dwelling.
+
+**ANSWERS:**
+
+```{r q10h-1}
+print(paste("Number of suburbs where homes average more than 7 rooms per dwelling: ", sum(Boston$rm > 7)))
+
+print(paste("Number of suburbs where homes average more than 8 rooms per dwelling: ", sum(Boston$rm > 8)))
+```
+
+```{r q10h-2}
+
+Boston %>%
+  filter(rm > 8)
+  
+```
+
+**Comments:**
+
+Only 13 of the neighborhoods have an average above 8 rooms per dwelling. None of these neighborhoods have above average crime rates. Only one of the 13 neighborhoods has an above average tax rate. Most interestingly, only two of the neighborhoods has an average age of home in the lowest quartile, i.e. new homes.
 
 
 
