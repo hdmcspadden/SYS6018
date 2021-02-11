@@ -11,7 +11,7 @@ output: html_document
 Complete exercises 1, 2, 6, 8, and 10 at the end of Chapter 2 of your textbook. Attempt each of these exercises prior to the live session since they will likely serve as material for discussion and interaction. 
 
 ```{r setup1, include=FALSE, echo=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.width=10, fig.height=8)
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = TRUE, fig.width=10, fig.height=8)
 ```
 
 ```{r setup2, include=FALSE, echo=FALSE}
@@ -32,11 +32,11 @@ better or worse than an inflexible method. Justify your answer.
 
 #### (a) The sample size n is extremely large, and the number of predictors p is small.
 
-ANSWER: **Inflexible**, this is an ideal regression data set. We can possibly create an accurate model that is also interpretable.
+ANSWER: **Inflexible**, this is an ideal regression data set if there is a linear relationship, or if the parameters can be tranformed to allow the linear assumptions to be met. We can possibly create an accurate model that is also interpretable.
 
 #### (b) The number of predictors p is extremely large, and the number of observations n is small.
 
-ANSWER: **Inflexible** or **Flexible**, I could recommend two different approached: lasso method if the n is large enough and we want to select which of the parameters are most useful. Lasso will help with feature selection. However, if n is really small, a flexible method such a a support vector machine 
+ANSWER: **Inflexible** or **Flexible**, I could recommend two different approaches: lasso method if the n is large enough and we want to select which of the parameters are most useful. Lasso will help with feature selection. However, if n is really really small and we cannot get the n:p ratio large enough using lasso, then a flexible method such a a support vector machine is recommended.
 
 #### (c) The relationship between the predictors and response is highly non-linear.
 
@@ -44,7 +44,7 @@ ANSWER: **Flexible** because highly non-linear function decision boundaries requ
 
 #### (d) The variance of the error terms, i.e. σ2 = Var(E), is extremely high.
 
-ANSWER: This scenario requires a **flexible** method. Standard variance is an assumption for lasso, or regression methods and with a highly variable standard deviation
+ANSWER: This scenario requires a **flexible** method. Standard variance is an assumption for inflexible methods.
 
 ## Exercise 2
 Explain whether each scenario is a classification or regression problem, and indicate whether we are most interested in inference or prediction.
@@ -54,27 +54,33 @@ Finally, provide n and p.
 For each firm we record profit, number of employees, industry and the CEO salary. We are interested in understanding which factors affect CEO salary.
 
 
-ANSWER: This scenario is a **regression** problem specifically interested in determining **inference**, so an interpretable model is important. A regression solution will provide the coefficients for each parameter which allow comparison of parameter influence on CEO salary. n = 500, p = 3. 
+**ANSWER:**
+
+This scenario is a **regression** problem specifically interested in determining **inference**, so an interpretable model is important. A regression solution will provide the coefficients for each parameter which allow comparison of parameter influence on CEO salary. n = 500, p = 3. 
 
 #### (b) We are considering launching a new product and wish to know whether it will be a success or a failure...
 We collect data on 20 similar products that were previously launched. For each product we have recorded whether it was a success or failure, price charged for the product, marketing budget, competition price, and ten other variables.
 
 
-ANSWER: This is a **categorization** problem with "success" or "failure" categories. In this scenario we are interested in **predicting** whether our new product will succeed or fail. n = 20, p = 13.
+**ANSWER: **
+
+This is a **categorization** problem with "success" or "failure" categories. In this scenario we are interested in **predicting** whether our new product will succeed or fail. n = 20, p = 13.
 
 #### (c) We are interest in predicting the % change in the USD/Euro
 
-ANSWER: **Regression**, we are trying to **predict** a continuous value, not a condition. n = number of changes in USD/Euro in our data set. p = parameters in our data that we believe predict USD/Euro currency rate change.
+**ANSWER: **
+
+**Regression**, we are trying to **predict** a continuous value, not a condition. n = number of changes in USD/Euro in our data set. p = parameters in our data that we believe predict USD/Euro currency rate change.
 
 ## Exercise 6: 
 Describe the differences between a parametric and a non-parametric statistical learning approach. What are the advantages of a parametric approach to regression or classification (as opposed to a nonparametric approach)? What are its disadvantages?
 
 
-**ANSWER: **
+**ANSWER:**
 
-Parametric approaches assume the shape of the function will be a specific linear shape. The advantage of a parametric approach is that it simplifies the fitting problem to estimating coefficients in the function, typically by reducing squared error from the mean, while keeping a linear function for the range. THe downside to assuming the form of the function is that the estimated function could be far from the true form. However, parametric approaches are 
+Parametric approaches assume the shape of the function will be a specific shape/form. The advantage of a parametric approach is that it simplifies the fitting problem to estimating coefficients in the function, typically by reducing squared error from the mean, while keeping the specific form. THe downside to assuming the form of the function is that the estimated function could be far from the true form. However, parametric approaches are more simple to understand and implement that non-parametric methods.
 
-Non-parametric approaches assume no such restrictions on the model's form, and thus try to map to the data points as closely as possible while minimizing variance (as configured). Non-parametric approaches require a large number of observations in order to limit over-fitting. Non-parametric approaches can also introduce excess bias, but if bias and over-fitting are controlled they may provide a better estimation of the funciton.
+Non-parametric approaches assume no such restrictions on the model's form, and thus try to map to the data points as closely as possible while minimizing variance (as configured). Non-parametric approaches require a large number of observations in order to limit over-fitting. Non-parametric approaches can also introduce additional bias, but if bias and over-fitting are controlled they may provide a better estimation of the function.
 
 
 ## Execise 8
@@ -93,13 +99,22 @@ head(college)
 
 ### (b) fix() ...
 ```{r q8b-1}
-rownames(college) = college[,1] # first column is the name of the university
-#fix (college) #fix pops up a "fix" form to edit the data
+# base R
+#rownames(college) = college[,1] # first column is the name of the university
+
+
+# tidyverse option
+college %>%
+     remove_rownames() %>%
+     column_to_rownames(var = 'X')
+
+head(college)
 ```
 
 
 ```{r q8b-2}
-college =college [,-1] #remove the first column
+# for base R version
+#college =college [,-1] #remove the first column
 #fix (college )
 ```
 
@@ -113,11 +128,11 @@ summary(college) # display summary statistics and data information
 #### ii. Use the pairs() function 
 ```{r q8cii-1, out.width = '80%'}
 #?pairs
-pairs(college[,2:11])
+pairs(college[,3:11])
 ```
 
 #### iii. plot() function
-```{r q8ciii-1}
+```{r q8ciii-1, fig.width=3, fig.height=2}
 # plot side by side boxplots of Outstate versus Private (Private universities have more out of state students):
 #boxplot(college$Outstate~college$Private) # base R
 
@@ -150,7 +165,7 @@ head(college) # show with new Elite column
 summary(college)
 ```
 
-```{r q8civ-4}
+```{r q8civ-4, fig.width=3, fig.height=2}
 
 #boxplot(college$Outstate~college$Elite) # base R
 
@@ -404,7 +419,7 @@ There are many **outliers for high crime per capita**. One can see this represen
 
 Property tax rate per \$10,000 has **no outliers**, with a range of \$187 - \$711 per \$10,000 of property value.
 
-There are two low pupil-teacher ratio cities with a fewer than 13 pupils per teacher. The range of pupils to teachers is between 12.6 and 22 in the data.
+There are **two low pupil-teacher ratio cities** with a fewer than 13 pupils per teacher. The range of pupils to teachers is between 12.6 and 22 in the data.
 
 
 ### (e) How many of the suburbs in this data set bound the Charles river?
@@ -455,7 +470,6 @@ summary(Boston)
 
 Research the **standard deviations** for each column: 
 ```{r g10g-3}
-p
 apply(Boston,2,sd)
 ```
 

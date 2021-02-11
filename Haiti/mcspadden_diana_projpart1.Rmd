@@ -1,0 +1,241 @@
+---
+title: "Disaster Relief Project: Part I"
+author: "H. Diana McSpadden"
+date: "`r format(Sys.Date(), '%b %d, %Y')`"
+output:
+  html_document:
+    number_sections: true    
+    toc: true
+    toc_float: true
+    theme: cosmo
+    highlight: espresso    
+# You can make the format personal - this will get you started:  
+# https://bookdown.org/yihui/rmarkdown/html-document.html#appearance_and_style    
+---
+
+<!--- Below are global settings for knitr. You can override any of them by adding the changes to individual chunks --->
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(error=TRUE,        # Keep compiling upon error
+                      collapse=FALSE,    # collapse by default
+                      echo=TRUE,         # echo code by default
+                      comment = "#>",    # change comment character
+                      fig.width = 5.5,     # set figure width
+                      fig.align = "center",# set figure position
+                      out.width = "49%", # set width of displayed images
+                      warning=TRUE,      # show R warnings
+                      message=TRUE)      # show R messages
+```
+
+<!--- Change font sizes (or other css modifications) --->
+<style>
+h1.title {
+  font-size: 2.2em; /* Title font size */
+}
+h1 {
+  font-size: 2em;   /* Header 1 font size */
+}
+h2 {
+  font-size: 1.5em;
+}
+h3 { 
+  font-size: 1.2em;
+}
+pre {
+  font-size: 0.8em;  /* Code and R output font size */
+}
+</style>
+
+
+
+**SYS 6018 | Spring 2021 | University of Virginia **
+
+*******************************************
+
+# Introduction 
+
+Tell the reader what this project is about. Motivation. 
+
+# Training Data / EDA
+
+Load data, explore data, etc. 
+```{r echo=FALSE}
+#>install.packages("pROC")
+#>install.packages("randomForest")
+```
+
+
+```{r load-packages, warning=FALSE, message=FALSE}
+# Load Required Packages
+library(tidyverse)
+library(pROC)
+library(randomForest)
+library("GGally")
+```
+
+```{r load-data, message=FALSE}
+haiti <- read_csv("HaitiPixels.csv")
+print(dim(haiti))
+
+```
+```{r data-head1}
+head(haiti)
+```
+
+The dataframe contains 4 columns, and 63,241 rows. The Class column contains the correct label for the observation. Red, Green and Blue parameters are **NEED TO INCLUDE CORRECT DEFINITION**
+
+## Class Factor
+To prepare the data for exploratory data analysis I must make Class a factor.
+```{r factorClass}
+haiti %>% 
+  mutate(Class = factor(Class)) 
+```
+```{r summarizeByCategory}
+haiti %>%
+  group_by(Class) %>%
+  summarize(N = n()) %>%
+  mutate(Perc = round(N / sum(N), 2) * 100)
+```
+
+The records are not evenly distributed between the categories. Of the Classes Blue Tarp, our "positive" category if we are thinking a binary positive/negative identification, is only 3% of our sample. Soil and Vegetation make up the majority of our sample at 74%.
+
+## Binary Class Factor vs. 5 Class Factor
+It will be interesting to see performance predicting each of these categories, or a binary is or is not Blue Tarp.
+
+### Create Binary DataFrame
+
+Create a DataFrame that is only Blue Tarp, or not Blue Tarp:
+* 0 == Not a Blue Tarp
+* 1 == Is a Blue Tarp
+
+```{r createBinaryDataFrame}
+haitiBinary <- haiti %>%
+  mutate(ClassBinary = if_else(Class == 'Blue Tarp', '1', '0'), ClassBinary = factor(ClassBinary))
+
+```
+
+```{r summarizeBinaryByCategory}
+
+haitiBinary %>%
+  group_by(ClassBinary) %>%
+  summarize(N = n()) %>%
+  mutate(Perc = round(N / sum(N), 2) * 100)
+
+```
+
+### How are red, blue and green values distributed between the 5 categories?
+
+```{r colorValuesFiveCats}
+
+redplot <- ggplot(haiti, aes(x=Class, y=Red)) + 
+  geom_boxplot(col='red')
+
+greenplot <- ggplot(haiti, aes(x=Class, y=Green)) + 
+  geom_boxplot(col='darkgreen')
+
+blueplot <- ggplot(haiti, aes(x=Class, y=Blue)) + 
+  geom_boxplot(col='darkblue')
+
+grid.arrange(redplot, greenplot, blueplot)
+```
+
+
+### How are red, blue and green values distributed between the binary categories?
+
+```{r colorValuesBinaryCats}
+
+redplotB <- ggplot(haitiBinary, aes(x=ClassBinary, y=Red)) + 
+  geom_boxplot(col='red')
+
+greenplotB <- ggplot(haitiBinary, aes(x=ClassBinary, y=Green)) + 
+  geom_boxplot(col='darkgreen')
+
+blueplotB <- ggplot(haitiBinary, aes(x=ClassBinary, y=Blue)) + 
+  geom_boxplot(col='darkblue')
+
+grid.arrange(redplotB, greenplotB, blueplotB)
+```
+
+### Comments
+The following comments refer to "Blue Tarp" as the "positive" result, and other results as the "negative" result.
+
+1. The values of red have a larger range for negative results than for positive results, and the positive results have a similar median to the negative results.
+1. The values of green have a larger range for negative results than for positive results, and the positive results have a higher median than the negative results.
+1. There is almost no overlap in the blue data with non-blue tarps, and blue tarps.
+
+# Model Training
+
+## Set-up 
+
+Normalization does not need to be considered because the ranges of Red, Green and Blue are the same.
+
+### Training and Test Data
+
+The dataframe must be divided into trainng and test datasets.
+
+## Logistic Regression
+
+## LDA
+
+## QDA
+
+## KNN
+
+### Tuning Parameter $k$
+
+How were tuning parameter(s) selected? What value is used? Plots/Tables/etc.
+
+## Penalized Logistic Regression (ElasticNet)
+
+### Tuning Parameters
+
+**NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**
+
+## Threshold Selection
+
+
+# Results (Cross-Validation)
+
+** CV Performance Table Here**
+
+
+# Conclusions
+
+### Conclusion \#1 
+
+### Conclusion \#2
+
+### Conclusion \#3
+
+
+```{r, echo=FALSE}
+# knitr::knit_exit()    # ignore everything after this
+## Uncomment this line for Part I
+## You can remove the entire code chunk for Part II
+```
+
+
+# Hold-out Data / EDA
+
+Load data, explore data, etc. 
+
+
+# Results (Hold-Out)
+
+**Hold-Out Performance Table Here**
+
+
+# Final Conclusions
+
+### Conclusion \#1 
+
+### Conclusion \#2
+
+### Conclusion \#3
+
+### Conclusion \#4 
+
+### Conclusion \#5
+
+### Conclusion \#6
+
