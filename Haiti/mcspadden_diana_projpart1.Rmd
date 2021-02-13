@@ -60,8 +60,9 @@ Tell the reader what this project is about. Motivation.
 
 Load data, explore data, etc. 
 ```{r echo=FALSE}
-#>install.packages("pROC")
-#>install.packages("randomForest")
+#install.packages("pROC")
+#install.packages("randomForest")
+#install.packages("reticulate")
 ```
 
 
@@ -70,11 +71,20 @@ Load data, explore data, etc.
 library(tidyverse)
 library(pROC)
 library(randomForest)
-library("GGally")
+library(GGally)
+library(gridExtra)
+library(plotly)
+library(reticulate)
 ```
 
-```{r load-data, message=FALSE}
-haiti <- read_csv("HaitiPixels.csv")
+
+
+
+
+```{r load-data, message=FALSE, warning=FALSE}
+url = 'HaitiPixels.csv'
+#url = 'https://collab.its.virginia.edu/access/lessonbuilder/item/1707832/group/17f014a1-d43d-4c78-a5c6-698a9643404f/Module3/HaitiPixels.csv' #this url is beng 
+haiti <- read_csv(url)
 print(dim(haiti))
 
 ```
@@ -155,13 +165,65 @@ blueplotB <- ggplot(haitiBinary, aes(x=ClassBinary, y=Blue)) +
 
 grid.arrange(redplotB, greenplotB, blueplotB)
 ```
+**Box Plot Comments**
 
-### Comments
-The following comments refer to "Blue Tarp" as the "positive" result, and other results as the "negative" result.
+"Blue Tarp" as the "positive" result, and other results as the "negative" result.
 
-1. The values of red have a larger range for negative results than for positive results, and the positive results have a similar median to the negative results.
-1. The values of green have a larger range for negative results than for positive results, and the positive results have a higher median than the negative results.
-1. There is almost no overlap in the blue data with non-blue tarps, and blue tarps.
+Regarding the box plot of the five categories, of interest is that "Soil" and "Vegetation" are relatively unique in their non-outlier RGB values. "Rooftop" and "Various Non-Tarp" are more similar in their RBG values.
+
+If the classes are collapsed to binary values of "Blue Tarp (1)" and "Not Blue Tarp (0)" there is little overlap in the blue values for the two classes, and the ranges of red and green are much smaller for blue tarp than non-blue-tarp.
+
+Generally, the values of red have a larger range for negative results than for positive results, and the positive results have a similar median to the negative results.
+Green values have a larger range for negative results than for positive results, and the positive results have a higher median than the negative results, and there is ***almost*** **no overlap in the blue data** with non-blue tarps, and blue tarps.
+
+### View the correlation between Red, Green and Blue
+
+These correlations make sense as the pixels were of highly saturated colors, that are not pure Blue, Red or Green. There are few pixels in the data set with low values for R,G,B.
+
+```{r }
+ggpairs(haiti[-1], lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
+```
+### 3-D Scatterplot
+
+To view the relationship between the Red, Green, and Blue values between the five classes, and the binary classes, an interactive 3-D scatter plot is extremely useful.
+
+**References**
+https://plotly.com/python/3d-scatter-plots/
+
+https://plotly.com/r/figure-labels/
+
+#### Five Categories 3-D Scatterplot
+The scatter plot displays 
+
+```{r 3D5Class}
+
+fiveCat3D = plot_ly(x=haiti$Red, y=haiti$Blue, z=haiti$Green, type="scatter3d", mode="markers", color=haiti$Class, colors = c('blue2','azure4','chocolate4','coral2','chartreuse4'),
+marker = list(symbol = 'circle', sizemode = 'diameter', opacity =0.35))
+
+fiveCat3D = fiveCat3D %>%
+  layout(title="5 Category RBG Plot", scene = list(xaxis = list(title = "Red", color="red"), yaxis = list(title = "Blue", color="blue"), zaxis = list(title = "Green", color="green")))
+
+fiveCat3D
+
+```
+One can see that there are discernible groupings of pixel categories by RGB values. Unsurprisingly, the blue tarps are higher blue values, but they do have a range of red and green values.
+
+
+The 3D scatter plot is particularly useful because, by zooming in, one can see that there is a space in the 3D plot with significant mingling of "blue tarp" pixels and other pixel categories. That area of the data will provide a challenge for our model.
+
+```{r 3DBinary}
+binary3D = plot_ly(x=haitiBinary$Red, y=haitiBinary$Blue, z=haitiBinary$Green, type="scatter3d", mode="markers", color=haitiBinary$ClassBinary, colors = c('red','blue2'),
+marker = list(symbol = 'circle', sizemode = 'diameter', opacity =0.35))
+
+binary3D = binary3D %>%
+  layout(title="Binary RBG Plot", scene = list(xaxis = list(title = "Red", color="red"), yaxis = list(title = "Blue", color="blue"), zaxis = list(title = "Green", color="green")))
+
+binary3D
+```
+**Comments**
+
+Similar to the five category 3D scatter plot, the binary scatter plot shows distinct groupings for blue tarp and non-blue-tarp. As expected, there is mingling of blue tarp and non-blue-tarp pixels that will provide a challenge for a model.
+
 
 # Model Training
 
@@ -171,7 +233,9 @@ Normalization does not need to be considered because the ranges of Red, Green an
 
 ### Training and Test Data
 
-The dataframe must be divided into trainng and test datasets.
+The DataFrame must be divided into training and test data sets; however, the data set is unbalanced with few "positive" results, i.e. "Blue Tarp", compared with negative results.
+
+??? Use ROSE library: https://journal.r-project.org/archive/2014-1/menardi-lunardon-torelli.pdf ???
 
 ## Logistic Regression
 

@@ -1,0 +1,549 @@
+---
+title: "mod_2_mcspadden_diana"
+author: "Diana McSpadden"
+date: "2/12/2021"
+output: html_document
+---
+
+# Module 2 Homework
+## H. Diana McSpadden (hdm5s)
+
+You will complete exercises 9, 14, and 15 at the end of Chapter 3 of your textbook.
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(error=TRUE,        # Keep compiling upon error
+                      collapse=FALSE,    # collapse by default
+                      echo=TRUE,         # echo code by default
+                      comment = "#>",    # change comment character
+                      fig.width = 5.5,     # set figure width
+                      fig.align = "center",# set figure position
+                      out.width = "49%", # set width of displayed images
+                      warning=FALSE,     # do not show R warnings
+                      message=FALSE)     # do not show R messages
+```
+
+```{r setup}
+library(ggplot2)
+library(tidyverse)
+library(plotly)
+library(scales)
+library("GGally")
+library(ISLR)
+library(gridExtra)
+library(broom)
+```
+
+
+# 9. This question involves the use of multiple linear regression on the Auto data set.
+```{r q9}
+head(Auto)
+#view(Auto)
+```
+
+
+## (a) Produce a scatterplot matrix which includes all of the variables in the data set.
+
+```{r q9a-1, fig.width=10}
+ggpairs(Auto[-9], lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
+```
+
+## (b) Compute the matrix of correlations between the variables ...
+using the function cor(). You will need to exclude the name variable, cor() which is qualitative.
+
+```{r q9b-1}
+cor(Auto[,-9])
+```
+
+## (c) Use the lm() function to perform a multiple linear regression ...
+with mpg as the response and all other variables except name as the predictors. Use the summary() function to print the results. Comment on the output. 
+```{r q9c-1}
+lm.model.all  = lm(mpg~.-name, data=Auto)
+summary(lm.model.all)
+```
+
+**Is there a relationship between the predictors and the response?**
+
+Yes, there does appear to be a relationship between the predictors and response. The model is significant with an F-statistic of 252.4, and significant p-value. The model's R2 is 0.8215 indicating that ~82% of the variability in mpg can be explained by the model.
+
+
+**Which predictors appear to have a statistically significant relationship to the response?**
+
+In an additive model of mpg vs cylinders, displacement, horsepower, weight, acceleration, year, and origin I notice the following from the model summary:
+1. cylinders, horsepower, and acceleration are not statistically significant
+2. displacement, weight, year, and origin are statistically significant.
+
+
+**What does the coefficient for the year variable suggest?**
+
+The coefficient for year suggests that when the other predictors are held constant, for cars represented in the sample (years 1970 - 1982), a car that is one year newer than another car produces an increase of .75 in the miles per gallon efficiency of a car.
+
+
+## (d) Use the plot() function to produce diagnostic plots ... 
+of the linear regression fit. Comment on any problems you see with the fit. 
+
+Do the residual plots suggest any unusually large outliers? 
+
+Does the leverage plot identify any observations with unusually high leverage?
+
+**Useful Plotting Functions**
+Here are useful plotting functions referenced from Module 2 lab.
+
+I have commented the code to document parts I researched.
+```{r q9d-1, wanring=FALSE}
+# From Module 2 Lab, the Residual Plot
+scatterall <- function(lm.fit){
+  lm.fit %>% 
+  ggplot(aes(.fitted, .resid)) + geom_point() +
+    stat_smooth(method="loess") +
+    geom_hline(yintercept=0, col="red", linetype="dashed") +
+    labs(x="Fitted values", y="Residuals", title="Residual vs Fitted Plot") + 
+    theme_bw()
+}
+
+
+# From Module 2 lab and Tidyverse website, the qq plot # https://ggplot2.tidyverse.org/reference/geom_qq.html
+q_q <- function(lm.model.fit){
+  lm.model.fit %>% augment() %>% # augment adds the standardized residuals that we need
+  ggplot(aes(sample=.std.resid)) +
+  stat_qq() + stat_qq_line() + 
+  labs(x="Theoretical Quantiles", y="Sample Quantiles", title="Q-Q Plot") +
+  theme_bw()
+}
+
+# From Module 2 lab the residual vs. leverage
+# https://rpubs.com/therimalaya/43190
+resVlev <- function(lm.model.fit){
+  lm.model.fit %>% augment() %>% rownames_to_column() %>% # augment gives us residuals and hat values
+  ggplot(aes(.hat,.std.resid, label=rowname)) + # hat values and residuals
+    geom_point(aes(size=.cooksd), na.rm=TRUE) + 
+    stat_smooth(method="loess", na.rm=TRUE) + 
+    scale_x_continuous(name="Leverage") + 
+    scale_y_continuous(name="Standardized Residuals") + 
+    ggtitle("Residual vs Leverage Plot") + 
+    theme_bw() + theme(legend.position="bottom")
+}
+
+# Cooks Distance For Influential Data Points
+#A general rule of thumb is that any point with a Cook’s Distance over 4/n (where n is the total number of data points) is considered to be an outlier.
+cookVals <- function(lm.fit) {
+  lm.fit %>% augment() %>% 
+  ggplot(aes(seq_along(.cooksd), .cooksd))+
+  geom_bar(stat="identity", position="identity") + 
+  labs(x="Obs. Number", y=TeX("Cook's distance"), 
+       title="Cook's Distance - Influential Data Points") + theme_bw()
+}
+
+# plot the hat values by their sequence in the observations ??????
+hatVals <- lm.model.all %>% augment() %>% 
+  ggplot(aes(seq_along(.hat), .hat))+
+  geom_bar(stat="identity", position="identity") + 
+  labs(x="Obs. Number", y=TeX("Hat values"), 
+       title="Hat values") + theme_bw()
+
+```
+
+
+```{r q9d-2, fig.width=8, fig.height=8}
+
+
+grid.arrange(scatterall(lm.model.all), q_q(lm.model.all), cookVals(lm.model.all), resVlev(lm.model.all), 
+             widths=c(1,1),   
+             layout_matrix = rbind(c(1, 2),
+                                   c(3, 3),
+                                   c(4, 4),
+                                   c(5,5)))
+
+```
+```{r q9d-3}
+print(paste("High Cooks Value:", 4/nrow(Auto)))
+```
+```{r q9d-4}
+
+which.max(hatvalues(lm.model.all))
+```
+
+
+**Comments**
+
+From the Residual vs. Leverage plot there is clearly one value that is **high leverage**, i.e. past the 0.01 value (4/n). That is observation #14.
+
+
+## (e) Use the * and : symbols ...
+to fit linear regression models with interaction effects. Do any interactions appear to be statistically significant?
+
+**Comments**
+Weight and cylinders make the most sense to me as possibly have an interaction effect. As cyclinders are added to the engine, I would imagine that additional weight would have an even great impact on mpg. I will try a model with an interaction effect between cylinders and weight.
+
+I ran this model a few times, trying to tweak it for better results. The first time I ran with all predictors + an interaction between weight and cyclinders. The interaction was statistically significant (p-value < 2e-16); however, the acceleration predictor was insignificant. The Adjusted R2 value was .85 (an increase from the full model without interaction with an Adjusted R2 of .82).
+
+I then removed acceleration from the model; however, the R2 did not improve.
+
+I then added another interaction of year * cylinders, due to thinking that new technology the number of cylinders may have had a different effect on mpg. This increased the Adjusted R2 to .86. Displacement was no longer significant in this model.
+```{r q9e-1}
+#lm.model.int.w.c = lm(mpg~.-name+(weight*cylinders), data=Auto)
+
+#lm.model.int.w.c = lm(mpg~.-name-acceleration+(weight*cylinders), data=Auto)
+
+lm.model.int.w.c = lm(mpg~.-name-acceleration+(weight*cylinders)+(year*cylinders), data=Auto)
+summary(lm.model.int.w.c)
+```
+
+
+## (f) Try a few different transformations of the variables, such as log(X), and sqrt(X), and X^2
+Comment on your findings.
+
+**Process**
+
+From the correlation scatter plots it appears there is a non-linear relationship between:
+* mpg and weight
+* mpg and displacement
+* and mpg and horsepower.
+
+I removed displacement and accelerations from the full model because they were no longer significant after the additive terms were included. 
+
+To correct for the non-linear residuals, I will attempt some transformations on the predictor variables. From the residual plot it appears a quadratic relationship exists. Individually, I added square terms for both weight and horsepower. 
+
+This results in a R Adjusted of .87 and even more importantly, the non-linear residual plot issue has been corrected. However, with the quadratic terms for weight and horsepower, we now have 3 high leverage points.
+
+```{r q9f-1, fig.width=8, fig.height=8}
+#lm.model.int.trans = lm(mpg~.-name-acceleration+(weight*cylinders)+(year*cylinders), data=Auto)
+
+lm.model.int.trans = lm(mpg~.-name-acceleration-displacement+(year*cylinders)+I(weight^2)+I(horsepower^2), data=Auto)
+
+summary(lm.model.int.trans)
+
+grid.arrange(scatterall(lm.model.int.trans), q_q(lm.model.int.trans), cookVals(lm.model.int.trans), resVlev(lm.model.int.trans), 
+             widths=c(1,1),   
+             layout_matrix = rbind(c(1, 2),
+                                   c(3, 3),
+                                   c(4, 4),
+                                   c(5,5)))
+
+
+```
+
+# 14 This problem focuses on the collinearity problem.
+
+## (a) Perform the following commands in R:
+
+set .seed (1) <br />
+x1=runif (100) <br />
+x2 =0.5* x1+rnorm (100) /10 <br />
+y=2+2* x1 +0.3* x2+rnorm (100) <br />
+
+The last line corresponds to creating a linear model in which y is a function of x1 and x2. Write out the form of the linear model. What are the regression coefficients?
+
+```{r q14a-1}
+
+set.seed (1)
+x1=runif(100) #Generates random compositions with a uniform distribution on the (rcomp) simplex.
+x2 =0.5* x1+rnorm(100) /10
+y=2+2* x1 +0.3* x2+rnorm(100)
+
+```
+
+## (b) What is the correlation between x1 and x2? 
+Create a scatter plot displaying the relationship between the variables.
+
+```{r q14b-1}
+
+plot(x1,x2)
+
+```
+
+**Answer q14b:** There appears to be a positive linear relationship between x1 and x2.
+
+
+## (c) Using this data, fit a least squares regression ...
+to predict y using x1 and x2.
+
+```{r q14c-1}
+lm.x1.x2 = lm(y~x1+x2)
+summary(lm.x1.x2)
+
+```
+
+```{r q14c-2}
+
+confint(lm.x1.x2)
+
+```
+
+
+### Describe the results obtained. What are ˆβ0, ˆβ1, and ˆβ2? How do these relate to the true β0, β1, and β2? 
+
+**Answer q14c part 1**: x1 is significant, but x2 is not. The complete model is significant (F-statistic of 12.8 and significant p-value).
+
+* ˆβ0: 2.13
+* ˆβ1: 1.44
+* ˆβ2: 1.01
+
+The estimated coefficients represent the values that produce the least square residuals fitting y with x1 and x2 in the model $$
+y = \hat{B0} + \hat{B1}x1 + \hat{B2}x2 $$
+
+
+
+### Can you reject the null hypothesis H0 : β1 = 0? 
+
+**Answer q14c part 2*: Yes, we can reject the null hypothesis. The p-value for the predictor is significant, and the 95% CI does not contain 0.
+
+### How about the null hypothesis H0 : β2 = 0?
+
+**Answer q14c part 3**: No, we cannot reject the hull hypothesis for β2. First x2's p-value is insignificant in the model, and the 95% CI for β2 includes 0.
+
+## (d) Now fit a least squares regression to predict y using only x1.
+Comment on your results. Can you reject the null hypothesis H0 : β1 = 0?
+
+```{r q14d-1}
+lm.x1 = lm(y~x1)
+summary(lm.x1)
+```
+
+```{r q14d-2}
+confint(lm.x1)
+```
+
+**Answer q14d**: The SLR model ffor x1 is significant with a p-value of 2.661e-06, and the 95% CI for x1 does not include 0. We can reject the null hypothesis that β1 = 0.
+
+## (e) Now fit a least squares regression to predict y using only x2.
+Comment on your results. Can you reject the null hypothesis H0 : β1 = 0
+
+```{r q14e-1}
+lm.x2 = lm(y~x2)
+summary(lm.x2)
+```
+
+```{r q14e-2}
+confint(lm.x2)
+```
+
+**Answer q14e**: The SLR model for x2 is significant with a p-value of 1.37e-05, and the 95% CI for x2 does not include 0. We can reject the null hypothesis that β1 = 0.
+
+
+## (f) Do the results obtained in (c)–(e) contradict each other? 
+Explain your answer.
+
+**Answer q14f**: No, the results do not contridict each other. The significance results are only for the model including the predictors. x2 is only insignificant in a model that also includes x1.
+
+
+## (g) Now suppose we obtain one additional observation, ...
+which was unfortunately mis-measured:
+
+* x1=c(x1 , 0.1)
+* x2=c(x2 , 0.8)
+* y=c(y,6)
+
+```{r q14g-1}
+x1=c(x1 , 0.1)
+x2=c(x2 , 0.8)
+y=c(y,6)
+```
+
+
+Re-fit the linear models from (c) to (e) using this new data. What effect does this new observation have on the each of the models? In each model, is this observation an outlier? A high-leverage point? Both? Explain your answers.
+
+```{r q14g-1}
+
+lm.x1.x2 = lm(y~x1+x2)
+summary(lm.x1.x2)
+confint(lm.x1.x2)
+```
+
+```{r q14g-2}
+lm.x1 = lm(y~x1)
+summary(lm.x1)
+confint(lm.x1)
+```
+
+```{r q14g-3}
+lm.x2 = lm(y~x2)
+summary(lm.x2)
+confint(lm.x2)
+```
+
+```{r q14g-4}
+print(which.max(hatvalues(lm.x1.x2)))
+print(paste("Min x1: ",min(x1), " Max x1: ", max(x1), " Min x2: ", min(x2), " Max x2: ", max(x2), "Min y: ", min(y), "Max y: ", max(y)))
+resVlev(lm.x1.x2)
+```
+
+
+**Answer q14g**: The additional observation changes the MLR model to be significant for x2 and not for x1, and yes, according to the hat values and the leverage plot the hat values, this new observation is a high leverage point, and the x2 value is an outlier.
+
+# 15 This problem involves the Boston data set, ...
+which we saw in the lab for this chapter. We will now try to predict per capita crime rate using the other variables in this data set. In other words, per capita crime rate is the response, and the other variables are the predictors.
+
+## (a) For each predictor... 
+fit a simple linear regression model to predict the response. Describe your results. In which of the models is there a statistically significant association between the predictor and the response? Create some plots to back up your assertions.
+
+```{r q15a-1}
+library(MASS)
+dfBoston = Boston
+head(dfBoston)
+```
+
+I set the chas predictor to a categorical/factor variable.
+
+```{r q15a-factorcha}
+dfBoston$chas <- factor(dfBoston$chas)
+```
+
+
+To create a DataFrame of all the coefs, standard error, and p-values I worked from an example here: <https://www.r-bloggers.com/2017/02/how-to-create-a-loop-to-run-multiple-regression-models/>
+
+```{r q15a-2}
+
+# create vectors of the of outcomes
+out_star = 2
+out_end = 14
+out_nvar = out_end - out_start+1
+out_variable = rep(NA, out_nvar)
+out_beta = rep(NA, out_nvar)
+out_se = rep(NA, out_nvar)
+out_pvalue = rep(NA, out_nvar)
+
+
+
+for (i in out_start:out_end){
+  predictor = colnames(dfBoston)[i]
+
+  model = lm(crim ~ get(predictor), data=dfBoston)
+  
+  Vcov = vcov(model, useScale = FALSE)
+  beta = coef(model)
+  se = sqrt(diag(Vcov))
+  zval = beta / se
+  pval <- 2 * pnorm(abs(zval), lower.tail = FALSE)
+  
+  
+  #print(pval)
+  
+  #print(paste("Vcov", i, ": ", Vcov))
+  #print(paste("beta: ", beta))
+  #print(paste("se: ", se))
+  #print(paste("zval: ", zval))
+  #print(paste("pval: ", pval))
+  
+  out_beta[i] = as.numeric(beta[2])
+  out_se[i] = as.numeric(se[2])
+  out_pvalue[i] = as.numeric(pval[2])
+  out_variable[i] = predictor
+  #number = number + 1
+  
+}
+
+outcome = data.frame(out_variable, out_beta, out_se, out_pvalue)
+
+outcome
+
+
+
+```
+
+From the SLR models, each variable is significant on its own **except** chas.
+
+The correlation plots will demonstrate these relationships when looking at the crim row (or column)
+
+```{r q15a-3, fig.width=10, fig.height=10}
+ggpairs(dfBoston, lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
+```
+
+## (b) Fit a multiple regression model to predict the response using all of the predictors. 
+Describe your results. For which predictors can we reject the null hypothesis H0 : βj = 0?
+
+```{r q15b-1}
+lm.model.all = lm(crim~.,data=dfBoston)
+summary(lm.model.all)
+
+```
+**Answer q15b:** When all the predictors available in the Boston data set are used only zn, dis, rad, black, and medv are significant in an additive model. Thus, we can reject the null hypothesis H0 : βj = 0 for:
+* zn
+* dis
+* rad
+* black
+* medv
+
+when we use an alpha of 0.05.
+
+
+## (c) How do your results from (a) compare to your results from (b)?
+Create a plot displaying the univariate regression coefficients from (a) on the x-axis, and the multiple regression coefficients
+from (b) on the y-axis. That is, each predictor is displayed as a single point in the plot. Its coefficient in a simple linear regression model is shown on the x-axis, and its coefficient estimate in the multiple linear regression model is shown on the y-axis.
+
+```{r q15c-1}
+# create the vectors with the coefficients
+slr_betas = out_beta[2:14]
+print(slr_betas)
+
+mlr_betas = as.numeric(coef(lm.model.all)[c(2,3,4,5,6,7,8,9,10,11,12,13,14)])
+print(mlr_betas)
+```
+```{r q15c-2}
+
+plot(mlr_betas~slr_betas)
+
+```
+
+
+## (d) Is there evidence of non-linear association...
+between any of the predictors and the response? To answer this question, for each predictor X, fit a model of the form
+$$Y = β0 + β1X + β2X2 + β3X3 + ..$$
+
+```{r q15d-1}
+# create vectors of the of outcomes
+out_star = 2
+out_end = 14
+out_nvar = out_end - out_start+1
+out_variable = rep(NA, out_nvar)
+out_beta = rep(NA, out_nvar)
+out_se = rep(NA, out_nvar)
+out_pvalue = rep(NA, out_nvar)
+
+
+
+for (i in out_start:out_end){
+  
+  if (i != 4){
+    predictor = colnames(dfBoston)[i]
+  
+    model = lm(crim ~ get(predictor) + I(get(predictor)^2) + I(get(predictor)^3) , data=dfBoston)
+    
+    df <- fortify(model)
+    print(ggplot(df, aes(x = .fitted, y = .resid)) + geom_point() + ggtitle(paste(predictor, "Residual vs Leverage Plot")))
+    
+    Vcov = vcov(model, useScale = FALSE)
+    beta = coef(model)
+    se = sqrt(diag(Vcov))
+    zval = beta / se
+    pval <- 2 * pnorm(abs(zval), lower.tail = FALSE)
+    
+    
+    #print(pval)
+    
+    #print(paste("Vcov", i, ": ", Vcov))
+    #print(paste("beta: ", beta))
+    #print(paste("se: ", se))
+    #print(paste("zval: ", zval))
+    #print(paste("pval: ", pval))
+    
+    out_beta[i] = as.numeric(beta[2])
+    out_se[i] = as.numeric(se[2])
+    out_pvalue[i] = as.numeric(pval[2])
+    out_variable[i] = predictor
+    #number = number + 1
+  }
+  
+}
+
+outcome = data.frame(out_variable, out_beta, out_se, out_pvalue)
+
+outcome
+```
+
+**Answer q15d**: From the scatterplots I do not see evidence of any cubic models for the individual predictors. **medv** is a possibility, but the variance increases dramatically as the fitted value increases. However, the p-values are significant for:
+* zn
+* indus
+* nox
+* dis
+* ptratio
+* and medv
