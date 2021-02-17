@@ -61,29 +61,27 @@ lm.model.all  = lm(mpg~.-name, data=Auto)
 summary(lm.model.all)
 ```
 
+### Comments
+
 **Is there a relationship between the predictors and the response?**
 
-Yes, there does appear to be a relationship between the predictors and response. The model is significant with an F-statistic of 252.4, and significant p-value. The model's R2 is 0.8215 indicating that ~82% of the variability in mpg can be explained by the model.
+Yes, there is a relationship between the predictors and response. The model is significant with an F-statistic of 252.4, and significant p-value. The model's R2 is 0.8215 indicating that ~82% of the variability in mpg can be explained by the model.
 
 
 **Which predictors appear to have a statistically significant relationship to the response?**
 
-In an additive model of mpg vs cylinders, displacement, horsepower, weight, acceleration, year, and origin I notice the following from the model summary:
+In an additive model of mpg vs cylinders+displacement+horsepower+weight+acceleration+year+origin I notice the following from the model summary:
 1. cylinders, horsepower, and acceleration are not statistically significant
 2. displacement, weight, year, and origin are statistically significant.
 
 
 **What does the coefficient for the year variable suggest?**
 
-The coefficient for year suggests that when the other predictors are held constant, for cars represented in the sample (years 1970 - 1982), a car that is one year newer than another car produces an increase of .75 in the miles per gallon efficiency of a car.
+The coefficient for year suggests that when the other predictors are held constant, for cars represented in the sample, a car that is one year newer than another car produces an increase of .75 in the miles per gallon fuel use of a car.
 
 
 ## (d) Use the plot() function to produce diagnostic plots ... 
-of the linear regression fit. Comment on any problems you see with the fit. 
-
-Do the residual plots suggest any unusually large outliers? 
-
-Does the leverage plot identify any observations with unusually high leverage?
+of the linear regression fit. 
 
 **Useful Plotting Functions**
 Here are useful plotting functions referenced from Module 2 lab.
@@ -154,31 +152,37 @@ grid.arrange(scatterall(lm.model.all), q_q(lm.model.all), cookVals(lm.model.all)
                                    c(5,5)))
 
 ```
+
 ```{r q9d-3}
-print(paste("High Cooks Value:", 4/nrow(Auto)))
+print(paste("High Leverage Value:", 2/sqrt(nrow(Auto))))
 ```
+
 ```{r q9d-4}
 
 which.max(hatvalues(lm.model.all))
 ```
+### Comments
 
+**Do the residual plots suggest any unusually large outliers?**
 
-**Comments**
+One observation show high Cook's value that approaches 1.
 
-From the Residual vs. Leverage plot there is clearly one value that is **high leverage**, i.e. past the 0.01 value (4/n). That is observation #14.
+**Does the leverage plot identify any observations with unusually high leverage?**
+
+From the Residual vs. Leverage plot there is clearly one value that is **high leverage**, i.e. past the 0.1 value (2/sqrt(n)). (Reference: 'Introduction to Linear Regression Analysis'). The observation of note is #14.
 
 
 ## (e) Use the * and : symbols ...
 to fit linear regression models with interaction effects. Do any interactions appear to be statistically significant?
 
-**Comments**
-Weight and cylinders make the most sense to me as possibly have an interaction effect. As cyclinders are added to the engine, I would imagine that additional weight would have an even great impact on mpg. I will try a model with an interaction effect between cylinders and weight.
+### Comments
+Weight and cylinders make the most sense to me as possibly have an interaction effect. As cylinders are added to the engine, I would imagine that additional weight would have an greater impact on mpg. I tried a model with an interaction effect between cylinders and weight.
 
-I ran this model a few times, trying to tweak it for better results. The first time I ran with all predictors + an interaction between weight and cyclinders. The interaction was statistically significant (p-value < 2e-16); however, the acceleration predictor was insignificant. The Adjusted R2 value was .85 (an increase from the full model without interaction with an Adjusted R2 of .82).
+I ran this model a few times, trying to tweak it for better results. The first time I ran with all predictors + an interaction between weight and cylinders. The interaction was statistically significant (p-value < 2e-16); however, the acceleration predictor was insignificant. The Adjusted R2 value was .85 (an increase from the full model without interaction with an Adjusted R2 of .82).
 
-I then removed acceleration from the model; however, the R2 did not improve.
+I then removed acceleration from the model; as expected, the R2 did not improve.
 
-I then added another interaction of year * cylinders, due to thinking that new technology the number of cylinders may have had a different effect on mpg. This increased the Adjusted R2 to .86. Displacement was no longer significant in this model.
+I then added another interaction of year * cylinders, due to thinking that with newer technology the number of cylinders may have a different effect on mpg. This increased the Adjusted R2 to .86. Displacement was no longer significant in this model.
 ```{r q9e-1}
 #lm.model.int.w.c = lm(mpg~.-name+(weight*cylinders), data=Auto)
 
@@ -199,14 +203,16 @@ From the correlation scatter plots it appears there is a non-linear relationship
 * mpg and displacement
 * and mpg and horsepower.
 
-I removed displacement and accelerations from the full model because they were no longer significant after the additive terms were included. 
+I removed displacement and acceleration from the full model because they were no longer significant after the additive terms were included. 
 
 To correct for the non-linear residuals, I will attempt some transformations on the predictor variables. From the residual plot it appears a quadratic relationship exists. Individually, I added square terms for both weight and horsepower. 
 
-This results in a R Adjusted of .87 and even more importantly, the non-linear residual plot issue has been corrected. However, with the quadratic terms for weight and horsepower, we now have 3 high leverage points.
+This results in a R Adjusted of .87 and even more importantly, the non-linear residual plot issue has been corrected. However, with the quadratic terms for weight and horsepower, I now have **3 high leverage points**.
 
 ```{r q9f-1, fig.width=8, fig.height=8}
 #lm.model.int.trans = lm(mpg~.-name-acceleration+(weight*cylinders)+(year*cylinders), data=Auto)
+
+#lm.model.int.trans = lm(mpg~.-name-acceleration-displacement+(year*cylinders)+I(weight^2), data=Auto)
 
 lm.model.int.trans = lm(mpg~.-name-acceleration-displacement+(year*cylinders)+I(weight^2)+I(horsepower^2), data=Auto)
 
@@ -342,33 +348,54 @@ y=c(y,6)
 
 Re-fit the linear models from (c) to (e) using this new data. What effect does this new observation have on the each of the models? In each model, is this observation an outlier? A high-leverage point? Both? Explain your answers.
 
-```{r q14g-1}
+```{r q14g-2}
 
 lm.x1.x2 = lm(y~x1+x2)
 summary(lm.x1.x2)
 confint(lm.x1.x2)
 ```
 
-```{r q14g-2}
+```{r q14g-3}
 lm.x1 = lm(y~x1)
 summary(lm.x1)
 confint(lm.x1)
 ```
 
-```{r q14g-3}
+```{r q14g-4}
 lm.x2 = lm(y~x2)
 summary(lm.x2)
 confint(lm.x2)
 ```
 
-```{r q14g-4}
+Box plots For x1, x2, and y.
+<br/>
+The new data point is:
+* x1: 0.1
+* x2: 0.8
+* y: 6
+
+
+```{r q14g-5}
+#view(x2)
+par(mfrow=c(2,2))
+
+boxplot(x1, main='x1', ylim = c(0, 1))
+
+boxplot(x2, main='x2', ylim = c(-0.2, 1))
+
+boxplot(y, main='y', ylim = c(-0.2, 7))
+```
+
+
+
+```{r q14g-6}
 print(which.max(hatvalues(lm.x1.x2)))
 print(paste("Min x1: ",min(x1), " Max x1: ", max(x1), " Min x2: ", min(x2), " Max x2: ", max(x2), "Min y: ", min(y), "Max y: ", max(y)))
 resVlev(lm.x1.x2)
 ```
 
 
-**Answer q14g**: The additional observation changes the MLR model to be significant for x2 and not for x1, and yes, according to the hat values and the leverage plot the hat values, this new observation is a high leverage point, and the x2 value is an outlier.
+**Answer q14g**: The additional observation changes the MLR model to be significant for x2 and not for x1, and yes, according to the hat values and the leverage plot the hat values, this new observation is an extremely high leverage point (leverage and Cook's Distance are significant), and the x2 and y values are outliers as identifed by viewing the boxplots of x2 and y.
 
 # 15 This problem involves the Boston data set, ...
 which we saw in the lab for this chapter. We will now try to predict per capita crime rate using the other variables in this data set. In other words, per capita crime rate is the response, and the other variables are the predictors.
@@ -394,7 +421,7 @@ To create a DataFrame of all the coefs, standard error, and p-values I worked fr
 ```{r q15a-2}
 
 # create vectors of the of outcomes
-out_star = 2
+out_start = 2
 out_end = 14
 out_nvar = out_end - out_start+1
 out_variable = rep(NA, out_nvar)
@@ -440,7 +467,7 @@ outcome
 
 ```
 
-From the SLR models, each variable is significant on its own **except** chas.
+From the SLR models, each variable is significant on its own **except** chas; which makes sense as chas is a binary categorical variable.
 
 The correlation plots will demonstrate these relationships when looking at the crim row (or column)
 
@@ -478,6 +505,7 @@ print(slr_betas)
 mlr_betas = as.numeric(coef(lm.model.all)[c(2,3,4,5,6,7,8,9,10,11,12,13,14)])
 print(mlr_betas)
 ```
+
 ```{r q15c-2}
 
 plot(mlr_betas~slr_betas)
@@ -491,7 +519,7 @@ $$Y = β0 + β1X + β2X2 + β3X3 + ..$$
 
 ```{r q15d-1}
 # create vectors of the of outcomes
-out_star = 2
+out_start = 2
 out_end = 14
 out_nvar = out_end - out_start+1
 out_variable = rep(NA, out_nvar)
@@ -540,10 +568,14 @@ outcome = data.frame(out_variable, out_beta, out_se, out_pvalue)
 outcome
 ```
 
-**Answer q15d**: From the scatterplots I do not see evidence of any cubic models for the individual predictors. **medv** is a possibility, but the variance increases dramatically as the fitted value increases. However, the p-values are significant for:
+**Answer q15d**: 
+<br /><br />
+I did not include the factor chas in my investigation of single predictor cubic models because a cubic model on a single binary factor will not be significant.
+<br /><br />
+From the scatterplots I did not see evidence of any cubic models for the individual predictors. **medv** is a possibility, but the variance increases dramatically as the fitted value increases. However, the p-values are significant for:
 * zn
 * indus
 * nox
 * dis
 * ptratio
-* and medv
+* and medvD

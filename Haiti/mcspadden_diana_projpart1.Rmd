@@ -237,6 +237,15 @@ The DataFrame must be divided into training and test data sets; however, the dat
 
 ??? Use ROSE library: https://journal.r-project.org/archive/2014-1/menardi-lunardon-torelli.pdf ???
 
+If using ROSE library, the steps are:
+1. Split data set into Q = n/k data sets (where k refers to k-fold cross validation).
+2. for i: 1 to Q
+* get a ROSE sample T*im from Tn \ TiK
+* estimate the classifier on Tim
+* make a prediction on PiK on TiK
+
+3. compute the accuracy of the P1...PQ
+
 ## Logistic Regression
 
 ## LDA
