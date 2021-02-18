@@ -63,6 +63,7 @@ Load data, explore data, etc.
 #install.packages("pROC")
 #install.packages("randomForest")
 #install.packages("reticulate")
+#install("regclass")
 ```
 
 
@@ -71,10 +72,12 @@ Load data, explore data, etc.
 library(tidyverse)
 library(pROC)
 library(randomForest)
-library(GGally)
+library("GGally")
 library(gridExtra)
 library(plotly)
 library(reticulate)
+library(regclass)
+
 ```
 
 
@@ -100,6 +103,7 @@ To prepare the data for exploratory data analysis I must make Class a factor.
 haiti %>% 
   mutate(Class = factor(Class)) 
 ```
+
 ```{r summarizeByCategory}
 haiti %>%
   group_by(Class) %>%
@@ -235,7 +239,17 @@ Normalization does not need to be considered because the ranges of Red, Green an
 
 The DataFrame must be divided into training and test data sets; however, the data set is unbalanced with few "positive" results, i.e. "Blue Tarp", compared with negative results.
 
-??? Use ROSE library: https://journal.r-project.org/archive/2014-1/menardi-lunardon-torelli.pdf ???
+??? Use ROSE library:
+References:
+
+**caret**
+https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/trainControl
+http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf
+https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/train
+
+**ROSE**
+https://www.r-bloggers.com/2017/04/dealing-with-unbalanced-data-in-machine-learning/
+https://journal.r-project.org/archive/2014-1/menardi-lunardon-torelli.pdf
 
 If using ROSE library, the steps are:
 1. Split data set into Q = n/k data sets (where k refers to k-fold cross validation).
@@ -247,6 +261,171 @@ If using ROSE library, the steps are:
 3. compute the accuracy of the P1...PQ
 
 ## Logistic Regression
+
+Per our course's Module 3 instruction, logistic regression is typically used when there are 2 classes. I will be using the **haitiBinary** dataframe with two classes:
+<br />
+* **0**: Not a Blue Tarp, i.e. negative
+* **1**: Is a Blue Tarp, i.e. positive
+
+Logistic Regression with ROSE library
+
+And the cv.glm() function from the boot library can carry out cross-validation. 
+
+Dr. Woo's code for cv.glm comparison:
+```{r}
+glm.fit<-glm(y~x2+x7+x8, data=data)
+
+cv.err<-cv.glm(data, glm.fit)
+
+cv.err$delta[1] ##the output for the LOOCV should match your own
+
+cv.glm(data, glm.fit, K=10)$delta[1] ##k fold CV with k=28
+cv.glm(data, glm.fit, K=28)$delta[1] ##k fold CV with k=28
+```
+
+
+```{r}
+library("ROSE")
+library(caret)
+library(boot)
+```
+
+## 80/20 Train/Test Split
+```{r haitiBinaryTrainTestSplit}
+set.seed(1976)
+sample_size = floor(0.8*nrow(haitiBinary))
+# randomly split data in r
+picked = sample(seq_len(nrow(haitiBinary)),size = sample_size)
+train = haitiBinary[picked,]
+test = haitiBinary[-picked,]
+```
+
+
+```{r}
+# check imbalance
+table(train$ClassBinary)
+```
+
+
+``` {r}
+# train logistic regression on imbalanced data
+log.reg.imb <- glm(ClassBinary ~ Blue+Green+Red, data=train, family=binomial)
+```
+
+``` {r}
+# use the trained model to predict test data
+pred.log.reg.imb <- predict(log.reg.imb, newdata=test,type="response")
+
+confusion_matrix(log.reg.imb)
+```
+
+``` {r}
+# generate new balanced data by ROSE
+haitiBinary.rose <- ROSE(ClassBinary ~ Blue+Green+Red, data=train, seed=123)$data
+```
+
+``` {r}
+# check (im)balance of new data
+table(haitiBinary.rose$ClassBinary)
+```
+
+``` {r}
+# train logistic regression on balanced data
+log.reg.bal <- glm(ClassBinary ~ Blue+Green+Red, data=haitiBinary.rose, family=binomial)
+```
+
+
+``` {r}
+# use the trained model to predict test data
+pred.log.reg.bal <- predict(log.reg.bal, newdata=test, type="response")
+```
+
+
+
+
+``` {r}
+# check accuracy of the two learners by measuring auc
+roc.curve(test$ClassBinary, pred.log.reg.imb)
+roc.curve(test$ClassBinary, pred.log.reg.bal, add.roc=TRUE, col=2)
+```
+### ROC Curve:
+y axis ==  sensitivity
+x-axis== false positive
+
+
+``` {r}
+# determine bootstrap distribution of the AUC of logit models
+# trained on ROSE balanced samples
+# B has been reduced from 100 to 10 for time saving solely
+#boot.auc.bal <- ROSE.eval(ClassBinary~Blue+Green+Red, data=train, learner= glm, method.assess = "BOOT",control.learner=list(family=binomial),trace=TRUE, B=100)
+#summary(boot.auc.bal)
+```
+
+## TEST THE ACCURACY, Works best with a threshold of 0.8 
+**Need to** show some information on why 0.8 threshold seems the best
+
+```{r}
+# compute accuracy measures (test set)
+accuracy.meas(test$ClassBinary, pred.log.reg.bal, threshold = 0.8)
+```
+Precision == positive predictive value (True Positive Predictions / All Predicted Positives)
+
+Recall == Sensitivity describes the proportion of Non-Blue Tarp that have been predicted correctly
+
+```{r}
+summary(log.reg.bal)
+```
+
+
+
+```{r}
+exp(0.09865)
+```
+
+```{r}
+confusion_matrix(log.reg.bal)
+```
+
+A one unit increase in Blue unit value, when Red and Green are held constant, is associated with a log odds Blue Tarp identification of 0.099 units, or an increase in odds of Blue Tarp of 10%.
+
+We still have 2771 Blue Tarps that we not identified with this model.
+
+
+```{r include=FALSE, echo=FALSE, render=FALSE}
+# method: The resampling method
+# number: number of folds for cross validation
+ctrl <- trainControl(method = "repeatedcv", 
+                     number = 10, 
+                     repeats = 10, 
+                     verboseIter = FALSE,
+                     sampling = "rose")
+
+set.seed(42)
+
+# method: regression model to use
+# for logistic I selected glmnet
+# no pre-processing is needed
+model_log_rose <- caret::train(ClassBinary ~ Blue+Red+Green,
+                              data = haitiBinary,
+                              method = "glmnet",
+                              #preProcess = c("scale", "center"),
+                              trControl = ctrl)
+
+final_log_rose <- data.frame(actual = test_data$ClassBinary,
+                         predict(model_log_rose, newdata = test_data, type = "prob"))
+final_rose$predict <- ifelse(final_log_rose$1 > 0.5, "Blue Tarp", "Other")
+
+'''
+model_rf_rose <- caret::train(ClassBinary ~ Blue+Red+Green,
+                              data = haitiBinary,
+                              method = "rf",
+                              #preProcess = c("scale", "center"),
+                              trControl = ctrl)
+'''
+
+```
+
+
 
 ## LDA
 

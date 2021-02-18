@@ -1,0 +1,176 @@
+---
+title: "CrimeLinkage"
+author: "Diana McSpadden"
+date: "2/17/2021"
+output: html_document
+---
+# 1 Crime Linkage
+Crime linkage attempts to determine if two or more unsolved crimes share a common offender. Pairwise crime linkage is the more simple task of deciding if two crimes were committed by a common offender; it can be considered a binary classification problem. The linkage data has 8 evidence variables that measure the similarity between a pair of crimes:
+
+* spatial is the spatial distance between the crimes
+* temporal is the fractional time (in days) between the crimes
+* tod and dow are the differences in time of day and day of week between the crimes
+* LOC, POA, and MOA are binary with a 1 corresponding to a match (type of property, point of entry, method of entry)
+* TIMERANGE is the time between the earliest and latest possible times the crime could have occurred (because the victim was away from the house during the crime).
+* The response variable indicates if the crimes are linked (y=1) or unlinked (y=0). The testing data does not include the response variable y.
+
+
+```{r setup}
+library(ggplot2)
+library(tidyverse)
+library(plotly)
+library(dplyr)
+library("GGally")
+
+library(gridExtra)
+library(broom)
+library(caret)
+library(kernlab)
+```
+
+
+#### Load the Data
+```{r loaddata, echo=FALSE}
+train = read_csv("linkage_train.csv")
+
+test = read_csv("linkage_test.csv")
+```
+
+#### Set the Factors
+```{r setFators}
+train = train %>% 
+  mutate(LOC = factor(LOC), POA = factor(POA), MOA = factor(MOA), y = factor(y)) 
+
+test = test %>% 
+  mutate(LOC = factor(LOC), POA = factor(POA), MOA = factor(MOA)) 
+
+```
+
+I want a subset of train to train with and a subset of train to test with.
+
+```{r}
+intrain <- createDataPartition(y = train$y, p= 0.7, list = FALSE)
+trainTrain <- train[intrain,]
+trainTest <- train[-intrain,]
+```
+
+
+```{r summarizeByCategory}
+trainTrain %>%
+  group_by(y) %>%
+  summarize(N = n()) %>%
+  mutate(Perc = round(N / sum(N), 2) * 100)
+```
+
+This is **very** unbalanced data.
+
+#### View Pairwise
+On the train, view pairwise correlations
+
+```{r pairwise, fig.width=10, fig.height=10}
+ggpairs(train, lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
+
+```
+
+
+```{r}
+summary(train)
+```
+
+This is a very unbalanced data set. There are ways to create synthetic results, but I won't be using those here.
+
+
+```{r setupTraining}
+#using cross validation
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+```
+
+Center and scale because I don't know if temporal, tod, and dow are using the same scale for time differences.
+
+```{r}
+#crimeModel <- train(y~spatial+temporal+spatial:temporal+dow+tod+LOC+POA+MOA+I(dow^2)+I(tod^2)+I((temporal+spatial)^2, data = trainTrain, method = "glmnet", trControl=trctrl, tuneLength = 10)
+
+crimeModel <- train(y~spatial+temporal+spatial:temporal+dow+tod+LOC+POA+MOA+I(dow^2)+I(tod^2)+I((temporal+spatial)^2), data = train, method = "glmnet", trControl=trctrl, tuneLength = 10)
+```
+
+
+```{r}
+crimeModel
+```
+
+```{r}
+#test_pred = predict(crimeModel, newdata = trainTest)
+
+test_pred = predict(crimeModel, newdata = test, type="prob") %>% 
+  mutate('y'=names(.)[apply(., 1, which.max)])
+```
+
+```{r}
+# write to csv
+```
+
+
+
+```{r}
+head(test_pred)
+```
+
+```{r}
+#confusion matrices I used to evaluate the models I tried
+confusionMatrix(table(test_pred, trainTest$y))
+```
+
+#### Results: THings I Tried and Didn't Use:
+
+**all additive**
+test_pred    0    1<br />
+        0 8844   95<br />
+        1    5   55<br />
+        
+
+
+**spatial+temporal+spatial:temporal+dow+tod+LOC+POA+MOA+I(temporal^2)+I(dow^2)+I(tod^2)+I((temporal+spatial)^2)+I((spatial+tod)^2)**
+test_pred    0    1
+        0 8844   87
+        1    5   63
+        
+**spatial+temporal+spatial:temporal++dow+tod+LOC+POA+MOA+I(dow^2)++I(tod^2)**       
+test_pred    0    1<br />
+        0 8843   93<br />
+        1    6   57<br />
+
+
+**spatial+temporal+spatial:temporal+tod+POA+I(dow^2)**
+test_pred    0    1<br />
+        0 8848  110<br />
+        1    1   40<br />
+
+**spatial+temporal+spatial:temporal++dow+tod+LOC+POA+MOA+I(dow^2)++I(tod^2)**
+test_pred    0    1<br />
+        0 8848  110<br />
+        1    1   40<br />
+
+
+
+**spatial+temporal+spatial:temporal+tod+dow+LOC+POA+MOA+LOC:POA+LOC:MOA**
+test_pred    0    1 <br />
+        0 8843   94<br />
+        1    6   56<br />
+        
+        
+**spatial+temporal+spatial:temporal+spatial:tod+spatial:dow+tod+dow+LOC+POA+MOA+LOC:POA+LOC:MOA**
+test_pred    0    1<br />
+        0 8844   94<br />
+        1    5   56<br />
+        
+        
+#### Best Confusion Matrix I Produced:
+
+**spatial+temporal+spatial:temporal+dow+tod+LOC+POA+MOA+I(dow^2)+I(tod^2)+I((temporal+spatial)^2**  
+test_pred    0    1
+        0 8845   87
+        1    4   63
+
+
+
+

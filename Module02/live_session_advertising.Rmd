@@ -1,0 +1,89 @@
+---
+title: "Untitled"
+author: "Diana McSpadden"
+date: "2/17/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(readr)
+library(tidyverse)
+
+
+library("GGally")
+library(gridExtra)
+library(plotly)
+
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r }
+url = 'https://www.statlearning.com/s/Advertising.csv' #this url is beng 
+df <- read_csv(url)
+print(dim(df))
+```
+
+```{r}
+head(df)
+```
+
+```{r}
+lm.TVRadio = lm(sales ~TV + radio, data=df)
+summary(lm.TVRadio)
+```
+
+lm.synergy = lm(sales ~ TV + radio + TV:radio)
+```{r}
+lm.synergy = lm(sales ~ TV + radio + newspaper + TV:radio, data=df)
+summary(lm.synergy)
+```
+
+```{r}
+#- convert to "long" format
+```
+
+
+```{r}
+advert_long = df %>% 
+  pivot_longer(cols = -sales,           # keep the sales column/pivot the others
+               names_to = "predictor",  
+               values_to = "budget")    
+
+df %>% 
+  ggplot(aes(x=budget, y=sales)) + 
+  geom_smooth() + 
+  geom_point() + 
+  facet_wrap(~predictor, scales="free_x")
+```
+
+
+```{r}
+#--setup the dataframe with new data
+#pred_data = tibble(TV=150, radio=20, newspaper=30)
+
+pred_data = tibble(TV=0, radio=100, newspaper=0)
+predict(lm.synergy,
+        newdata=pred_data, 
+        interval="prediction") # or "confidence"
+#>     fit   lwr  upr
+#> 1 8.969 5.634 12.3
+```
+
+## This Code is not working...
+```{r}
+
+eval_data = tibble(TV = seq(1,100, by=5), radio=100-TV)
+
+eval_data %>%
+  mutate(m1 = predict(me, eval_data), m2=predict(m2, eval_data), m3=predict(m3, eval_data)) %>%
+  pivot_longer(m1:m3, names_to="model", values_to="prediction") %>%
+  group_by(lm.synergy) %>% slice_max(prediction) %>%
+  select(lm.synergy, everything())
+
+```
+
