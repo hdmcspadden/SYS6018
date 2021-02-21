@@ -46,7 +46,7 @@ head(Auto)
 ## (a) Produce a scatterplot matrix which includes all of the variables in the data set.
 
 ```{r q9a-1, fig.width=10}
-ggpairs(Auto[-9], lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
+ ggpairs(Auto[-9], lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
 ```
 
 ## (b) Compute the matrix of correlations between the variables ...

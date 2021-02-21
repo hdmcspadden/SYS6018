@@ -1,0 +1,17 @@
+---
+title: "Module03HW"
+author: "Diana McSpadden"
+date: "2/20/2021"
+output: html_document
+---
+
+# Module 3 Homework
+## H. Diana McSpadden (hdm5s)
+## 2021-02-22
+
+Complete exercises 5, 10, and 11 at the end of Chapter 4 (pp. 168–173) of your textbook.
+
+```{r setup}
+
+```
+

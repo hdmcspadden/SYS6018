@@ -1,0 +1,354 @@
+---
+title: "Module03HW"
+author: "Diana McSpadden"
+date: "2/20/2021"
+output: html_document
+---
+
+# Module 3 Homework
+## H. Diana McSpadden (hdm5s)
+## 2021-02-22
+
+Complete exercises 5, 10, and 11 at the end of Chapter 4 (pp. 168–173) of your textbook.
+
+Start on page 168
+
+## 5. Differences between LDA and QDA.
+### (a) If the Bayes decision boundary is linear, ...
+do we expect LDA or QDA to perform better on the training set? On the test set?
+
+**Answer Q5a**: We would expect linear discriminant analysis to operate with more accuracy if the actual relationship can be separated by a linear boundary, because models will behave best when their assumptions most closely match the reality of the data set. I would expect LDA to perform much better on the ***test*** data set. On the training data set LDA and QDA may perform similarly.
+
+### (b) If the Bayes decision boundary is non-linear, ...
+do we expect LDA or QDA to perform better on the training set? On the test set?
+
+**Answer Q5b**: I would expect QDA to perform better both with the training and the test data sets.
+
+### (c) In general, as the sample size n increases, do we expect ...
+the test prediction accuracy of QDA relative to LDA to improve, decline,or be unchanged? Why?
+
+Our textbook confirms that QDA should perform better than LDA as n increases, and that QDA is recommended when the training set is "very large." A very large training will reduce the variance problem (over-fitting) that will affect a more flexible model, i.e. the QDA model.
+
+**Answer Q5c**: 
+
+### (d) True or False: Even if the Bayes decision boundary for a given problem is linear,...
+we will probably achieve a superior test error rate using QDA rather than LDA because QDA is flexible enough to model a linear decision boundary. Justify your answer.
+
+**Answer Q5d**: False, QDA has a quadratic element built-in to its structure and the flexibility will lend itself to high variance issues. With enough training data it may be possible to get similar results with a QDA even with a linear decision boundary, but the LDA model is preferred.
+
+## 10. This question should be answered using the Weekly data set, ...
+which is part of the ISLR package. This data is similar in nature to the Smarket data from this chapter’s lab, except that it contains 1,089 weekly returns for 21 years, from the beginning of 1990 to the end of 2010.
+
+### (a) Produce some numerical and graphical summaries of the Weekly data. Do there appear to be any patterns?
+
+```{r q10a-1}
+library(ISLR)
+library(tidyverse)
+library(GGally)
+library(dplyr)
+library(broom)
+library(yardstick)
+library(MASS)
+library(caret)
+library(class)
+```
+
+```{r q10a-2}
+names(Weekly)
+```
+```{r q10a-3, fig.width=10, fig.height=8}
+Weekly %>% ggpairs(upper=list(continuous=wrap("cor", size=3)), progress = F)
+```
+
+
+```{r q10a-4, fig.wid=4, fig.height=4}
+Weekly %>% dplyr::select(Volume) %>% 
+  ggplot(aes(x=seq_along(Volume), y=Volume)) + geom_point()
+```
+
+```{r}
+Weekly %>% dplyr::select(Volume, Year) %>% 
+  ggplot(aes(x=Year, y=Volume)) + geom_point()
+```
+
+
+```{r q10a-5}
+Weekly %>% dplyr::group_by(Direction) %>% 
+  summarize(n())
+
+605 / (484+605)
+```
+
+
+**Answer Q10a**: As with the Smarket data set, there are no correlations, other than Volume to year. From the sequential scatterplot of Volume it is clear that Volume increased and had greater variance in the more recent data.
+<br />
+<br />
+It also appears that Lag1, Lag2, Lag3, Lag4, Lag5, and Today are all normally distributed.
+<br />
+<br />
+There are 484 'Down' days in the data and 605 'Up' days (~56%). If we guessed 'Up' for each day we would have greater accuracy than flipping a coin.
+
+
+### (b) Use the full data set to perform a logistic regression ...
+with Direction as the response and the five lag variables plus Volume as predictors. Use the summary function to print the results. Do any of the predictors appear to be statistically significant? If so, which ones?
+
+```{r q10b-1}
+
+weekly.mod.log = glm(Direction~Lag1+Lag2+Lag3+Lag4+Lag5+Volume, data=Weekly,family=binomial)
+#weekly.mod.log %>% glance()
+weekly.mod.log %>% tidy()
+#summary(weekly.mod.log)$coef[,4]
+#weekly.mod.log %>% tidy() %>% dplyr::select(estimate) 
+```
+
+**Answer Q10b**: Only ***Lag2*** is significant in this model. Unlike the Smarket data set, Lad 2 is positively correlated with the "1" class.
+
+
+### (c) Compute the confusion matrix and overall fraction of correct predictions. 
+Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+
+```{r  q10c-1}
+weekly.mod.log.logOdds_predictions <- weekly.mod.log %>% augment() %>% 
+  dplyr::select(Direction, .fitted)  %>% 
+  mutate(.prediction=ifelse(.fitted<0, "Down", "Up")) %>%
+  mutate(.prediction=fct_relevel(as_factor(.prediction), c("Down", "Up"))) 
+
+#weekly.mod.log.logOdds_predictions %>% conf_mat(Direction, .prediction)
+#(507+145)/1250 
+library(caret)
+caret::confusionMatrix(weekly.mod.log.logOdds_predictions$.prediction, 
+                       weekly.mod.log.logOdds_predictions$Direction)
+```
+**Answer Q10b**:<br /><br />
+
+**Sensitivity**, or the "True Positive Rate" is 11%<br />
+**Specificity**, or "True Negative Rate" is 92%<br />
+
+<br /><br />
+Down is the "positive" class in this case, and I would **not** recommend this model because "down" days would be high risk, and our model does not perform well predicting "down" days. This model did predict 92% of the true "Up" days.
+
+### (d) Now fit the logistic regression model using a training data period from 1990 to 2008, ...
+with Lag2 as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).
+
+```{r q10d-1}
+summary(Weekly)
+```
+
+Setup the training and test data sets, and confirm dimensions.
+```{r q10d-2}
+Weekly %>% dim()
+Weekly = Weekly %>% mutate(train = case_when(Year < 2009 ~ 1, TRUE~0))
+```
+
+```{r q10d-3}
+Weekly.train = Weekly %>% filter(train == 1)
+Weekly.test = Weekly %>% filter(train == 0)
+
+Weekly.train %>% dim()
+Weekly.test %>% dim()
+
+```
+```{r q10d-4}
+weekly.mod.log.train = glm(Direction~Lag2, data=Weekly.train,family=binomial)
+#weekly.mod.log.train %>% tidy()
+weekly.mod.log.train.logOdds_predictions = weekly.mod.log.train %>% augment() %>% 
+  dplyr::select(Direction, .fitted)  %>% 
+  mutate(.prediction=ifelse(.fitted<0, "Down", "Up")) %>%
+  mutate(.prediction=fct_relevel(as_factor(.prediction), c("Down", "Up"))) 
+
+
+caret::confusionMatrix(weekly.mod.log.train.logOdds_predictions$.prediction, 
+                       weekly.mod.log.train.logOdds_predictions$Direction)
+```
+**'Positive' Class : Down ** <br/><br />
+
+**Log Sensitivity: 0.052**
+<br /><br />
+**Log Specificity: 0.963**
+<br /><br />
+**Total Accuracy:** (9+56) / 104 = 0.555
+
+
+### (e) Repeat (d) using LDA.
+
+```{r q10e-1}
+weekly.train.lda.fit = lda(Direction~Lag2, data=Weekly.train)
+#weekly.train.lda.fit
+
+weekly.lda.pred = predict(weekly.train.lda.fit, Weekly.test) %>% purrr::map(as_tibble) %>% 
+  purrr::map(add_rownames) %>% purrr::reduce(left_join, by='rowname') %>%
+  rename(prediction=value, posterior_Down=Down, posterior_Up=Up)
+#weekly.lda.pred
+
+Y = Weekly.test %>% dplyr::select(Direction)
+
+weekly.lda.pred.augmented = weekly.lda.pred %>% add_column(Y) 
+weekly.lda.pred.augmented %>% conf_mat(Direction, prediction)
+
+
+```
+**'Positive' Class : Down ** <br/><br />
+
+**LDA Sensitivity:** 9 / 43 = **0.20**
+<br /><br />
+**LDA Specificity:** 56 / 61 = **0.92**
+<br /><br />
+**Total Accuracy:** (9+56) / 104 = 0.62
+
+### (f) Repeat (d) using QDA.
+
+```{r q10f-1}
+weekly.train.qda.fit = qda(Direction~Lag2, data=Weekly.train)
+#weekly.train.lda.fit
+
+weekly.qda.pred = predict(weekly.train.qda.fit, Weekly.test) %>% purrr::map(as_tibble) %>% 
+  purrr::map(add_rownames) %>% purrr::reduce(left_join, by='rowname') %>%
+  rename(prediction=value, posterior_Down=Down, posterior_Up=Up)
+#weekly.lda.pred
+
+weekly.qda.pred.augmented = weekly.qda.pred %>% add_column(Y) 
+weekly.qda.pred.augmented %>% conf_mat(Direction, prediction)
+```
+
+**'Positive' Class : Down ** <br/><br />
+
+**QDA Sensitivity:** 0 / 43 = **0.00**
+<br /><br />
+**QDA Specificity:** 61 / 61 = **1.0**
+<br /><br />
+**Total Accuracy:** (0+61) / 104 = 0.587
+
+### (g) Repeat (d) using KNN with K = 1.
+
+Create my matrices:
+```{r q10g-1}
+Weekly.X.train = Weekly.train %>% dplyr::select(Lag2) %>% as.matrix()
+Weekly.X.train %>% dim()
+
+Weekly.X.test = Weekly.test %>% dplyr::select(Lag2) %>% as.matrix()
+Weekly.X.test %>% dim()
+
+Weekly.Y.train = Weekly.train %>% dplyr::select(Direction) %>% as.matrix()
+Weekly.Y.train %>% dim()
+
+Weekly.Y.test = Weekly.test %>% dplyr::select(Direction)
+Weekly.Y.test %>% dim()
+
+
+```
+```{r q10g-2}
+tibble(yhat = knn(Weekly.X.train, Weekly.X.test, Weekly.Y.train, k=1), y = Weekly.Y.test[['Direction']]) %>%
+  conf_mat(y, yhat)
+```
+**'Positive' Class : Down ** <br/><br />
+
+**QDA Sensitivity:** 21 / 43 = **0.488**
+<br /><br />
+**QDA Specificity:** 31 / 61 = **0.508**
+<br /><br />
+**Total Accuracy:** (22+31) / 104 = 0.5
+
+### (h) Which of these methods appears to provide the best results on this data?
+
+**Answer Q10h**: The LDA model gives the best performance of the models  parameters explored in parts d - g. It performed with the most total accuracy (0.62) compared to the educated guess accuracy (0.55).
+
+### (i) Experiment with different combinations of predictors, ...
+including possible transformations and interactions, for each of methods. Report the variables, method, and associated confusion matrix that appears to provide the best results on the held out data. Note that you should also experiment with values for K in the KNN classifier.
+
+**Trying a square operator on Volume with our best performing model: the LDA model. Experimenting with this because of the scatter plot of Volume to year.**
+
+```{r q10i-1}
+lda.trysq.1 = lda(Direction~Lag2+I(Volume^2), data=Weekly.train)
+#weekly.train.lda.fit
+
+lda.trysq.1.pred = predict(lda.trysq.1, Weekly.test) %>% purrr::map(as_tibble) %>% 
+  purrr::map(add_rownames) %>% purrr::reduce(left_join, by='rowname') %>%
+  rename(prediction=value, posterior_Down=Down, posterior_Up=Up)
+#lda.trysq.1.pred
+
+
+lda.trysq.1.pred.augmented = lda.trysq.1.pred %>% add_column(Y) 
+lda.trysq.1.pred.augmented %>% conf_mat(Direction, prediction)
+
+```
+**'Positive' Class : Down ** <br/><br />
+
+**LDA Sensitivity:** 18 / 43 = **0.41**
+<br /><br />
+**LDA Specificity:** 41 / 61 = **0.67**
+<br /><br />
+**Total Accuracy:** (18+41) / 104 = 0.567
+
+<br /><br />
+
+While this improves the sensitivity of the model (true positive rate), it caused a decrease in the specificity rate (true negative rate). The overall accuracy also decreased when comparied to our simple logistic regression with Lag2.
+
+
+**Trying a square operator on Volume on the QDA model. Experimenting with this because of the scatter plot of Volume to year.**
+
+```{r}
+qda.trysq.1 = qda(Direction~Lag2+I(Volume^2), data=Weekly.train)
+#weekly.train.lda.fit
+
+qda.trysq.1.pred = predict(qda.trysq.1, Weekly.test) %>% purrr::map(as_tibble) %>% 
+  purrr::map(add_rownames) %>% purrr::reduce(left_join, by='rowname') %>%
+  rename(prediction=value, posterior_Down=Down, posterior_Up=Up)
+#weekly.lda.pred
+
+qda.trysq.1.pred.augmented = qda.trysq.1.pred %>% add_column(Y) 
+qda.trysq.1.pred.augmented %>% conf_mat(Direction, prediction)
+```
+**'Positive' Class : Down ** <br/><br />
+
+**QDA Sensitivity:** 38 / 43 = **0.927**
+<br /><br />
+**QDA Specificity:** 12 / 61 = **0.20**
+<br /><br />
+**Total Accuracy:** (38+12) / 104 = 0.48
+<br /><br />
+
+This acutally further decreased the QDA total accuracy, but the model is more sensitive to true values than the QDA model without the Volume^2 predictor.
+
+## 11. In this problem, you will develop a model to predict...
+whether a given car gets high or low gas mileage based on the Auto data set.
+
+
+### (a) Create a binary variable, mpg01, that contains a 1 if mpg contains
+a value above its median, and a 0 if mpg contains a value below
+its median. You can compute the median using the median()
+function. Note you may find it helpful to use the data.frame()
+function to create a single data set containing both mpg01 and
+the other Auto variables.
+
+### (b) Explore the data graphically in order to investigate the association
+between mpg01 and the other features. Which of the other
+features seem most likely to be useful in predicting mpg01? Scatterplots
+and boxplots may be useful tools to answer this question.
+Describe your findings.
+
+### (c) Split the data into a training set and a test set.
+
+
+### (d) Perform LDA on the training data in order to predict mpg01
+using the variables that seemed most associated with mpg01 in
+
+
+### (b). What is the test error of the model obtained?
+
+
+### (e) Perform QDA on the training data in order to predict mpg01
+using the variables that seemed most associated with mpg01 in
+(b). What is the test error of the model obtained?
+
+
+### (f) Perform logistic regression on the training data in order to predict
+mpg01 using the variables that seemed most associated with
+mpg01 in (b). What is the test error of the model obtained?
+
+
+### (g) Perform KNN on the training data, with several values of K, in
+order to predict mpg01. Use only the variables that seemed most
+associated with mpg01 in (b). What test errors do you obtain?
+Which value of K seems to perform the best on this data set?
+
+

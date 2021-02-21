@@ -262,6 +262,9 @@ If using ROSE library, the steps are:
 
 ## Logistic Regression
 
+
+#### FROM OFFICE HOURS: If we see a distribution in the test data set of % positive. See whether tuning to get the same % positive on testing data.
+
 Per our course's Module 3 instruction, logistic regression is typically used when there are 2 classes. I will be using the **haitiBinary** dataframe with two classes:
 <br />
 * **0**: Not a Blue Tarp, i.e. negative
@@ -273,14 +276,14 @@ And the cv.glm() function from the boot library can carry out cross-validation.
 
 Dr. Woo's code for cv.glm comparison:
 ```{r}
-glm.fit<-glm(y~x2+x7+x8, data=data)
+#glm.fit<-glm(y~x2+x7+x8, data=data)
 
-cv.err<-cv.glm(data, glm.fit)
+#cv.err<-cv.glm(data, glm.fit)
 
-cv.err$delta[1] ##the output for the LOOCV should match your own
+#cv.err$delta[1] ##the output for the LOOCV should match your own
 
-cv.glm(data, glm.fit, K=10)$delta[1] ##k fold CV with k=28
-cv.glm(data, glm.fit, K=28)$delta[1] ##k fold CV with k=28
+#cv.glm(data, glm.fit, K=10)$delta[1] ##k fold CV with k=28
+#cv.glm(data, glm.fit, K=28)$delta[1] ##k fold CV with k=28
 ```
 
 
@@ -309,7 +312,7 @@ table(train$ClassBinary)
 
 ``` {r}
 # train logistic regression on imbalanced data
-log.reg.imb <- glm(ClassBinary ~ Blue+Green+Red, data=train, family=binomial)
+log.reg.imb <- glm(ClassBinary ~ Blue+Green+Red, data=train, family=binomial())
 ```
 
 ``` {r}
@@ -363,6 +366,12 @@ x-axis== false positive
 
 ## TEST THE ACCURACY, Works best with a threshold of 0.8 
 **Need to** show some information on why 0.8 threshold seems the best
+
+```{r}
+accuracy.meas(test$ClassBinary, pred.log.reg.imb, threshold = 0.8)
+
+```
+
 
 ```{r}
 # compute accuracy measures (test set)
