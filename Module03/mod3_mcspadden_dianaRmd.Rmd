@@ -51,6 +51,8 @@ library(yardstick)
 library(MASS)
 library(caret)
 library(class)
+library(purrr)
+
 ```
 
 ```{r q10a-2}
@@ -107,7 +109,7 @@ weekly.mod.log %>% tidy()
 ### (c) Compute the confusion matrix and overall fraction of correct predictions. 
 Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
 
-```{r  q10c-1}
+```{r  q10c-1, warning=FALSE}
 weekly.mod.log.logOdds_predictions <- weekly.mod.log %>% augment() %>% 
   dplyr::select(Direction, .fitted)  %>% 
   mutate(.prediction=ifelse(.fitted<0, "Down", "Up")) %>%
@@ -123,6 +125,7 @@ caret::confusionMatrix(weekly.mod.log.logOdds_predictions$.prediction,
 
 **Sensitivity**, or the "True Positive Rate" is 11%<br />
 **Specificity**, or "True Negative Rate" is 92%<br />
+**Total Accuracy** is 0.56
 
 <br /><br />
 Down is the "positive" class in this case, and I would **not** recommend this model because "down" days would be high risk, and our model does not perform well predicting "down" days. This model did predict 92% of the true "Up" days.
@@ -151,7 +154,7 @@ Weekly.test %>% dim()
 ```{r q10d-4}
 weekly.mod.log.train = glm(Direction~Lag2, data=Weekly.train,family=binomial)
 #weekly.mod.log.train %>% tidy()
-weekly.mod.log.train.logOdds_predictions = weekly.mod.log.train %>% augment() %>% 
+weekly.mod.log.train.logOdds_predictions = weekly.mod.log.train %>% augment(newdata=Weekly.test) %>% 
   dplyr::select(Direction, .fitted)  %>% 
   mutate(.prediction=ifelse(.fitted<0, "Down", "Up")) %>%
   mutate(.prediction=fct_relevel(as_factor(.prediction), c("Down", "Up"))) 
@@ -162,11 +165,11 @@ caret::confusionMatrix(weekly.mod.log.train.logOdds_predictions$.prediction,
 ```
 **'Positive' Class : Down ** <br/><br />
 
-**Log Sensitivity: 0.052**
+**Log Sensitivity: 0.21**
 <br /><br />
-**Log Specificity: 0.963**
+**Log Specificity: 0.918**
 <br /><br />
-**Total Accuracy:** (9+56) / 104 = 0.555
+**Total Accuracy:** (9+56) / 104 = 0.625
 
 
 ### (e) Repeat (d) using LDA.
@@ -250,32 +253,31 @@ tibble(yhat = knn(Weekly.X.train, Weekly.X.test, Weekly.Y.train, k=1), y = Weekl
 
 ### (h) Which of these methods appears to provide the best results on this data?
 
-**Answer Q10h**: The LDA model gives the best performance of the models  parameters explored in parts d - g. It performed with the most total accuracy (0.62) compared to the educated guess accuracy (0.55).
+**Answer Q10h**: The logistic regression model gives the best performance of the models  parameters explored in parts d - g. It performed with the most total accuracy (0.625) compared to the educated guess accuracy (0.55). Which makes sense, because we have two classes which is where logistic regression works well if there is a linear separation in the data set.
 
 ### (i) Experiment with different combinations of predictors, ...
 including possible transformations and interactions, for each of methods. Report the variables, method, and associated confusion matrix that appears to provide the best results on the held out data. Note that you should also experiment with values for K in the KNN classifier.
 
-**Trying a square operator on Volume with our best performing model: the LDA model. Experimenting with this because of the scatter plot of Volume to year.**
+**Trying a square operator on Volume with our best performing model: the Log model. Experimenting with this because of the scatter plot of Volume to year.**
 
 ```{r q10i-1}
-lda.trysq.1 = lda(Direction~Lag2+I(Volume^2), data=Weekly.train)
-#weekly.train.lda.fit
+weekly.mod.log.train = glm(Direction~Lag2+I(Volu), data=Weekly.train,family=binomial)
+#weekly.mod.log.train %>% tidy()
+weekly.mod.log.train.logOdds_predictions = weekly.mod.log.train %>% augment(newdata=Weekly.test) %>% 
+  dplyr::select(Direction, .fitted)  %>% 
+  mutate(.prediction=ifelse(.fitted<0, "Down", "Up")) %>%
+  mutate(.prediction=fct_relevel(as_factor(.prediction), c("Down", "Up"))) 
 
-lda.trysq.1.pred = predict(lda.trysq.1, Weekly.test) %>% purrr::map(as_tibble) %>% 
-  purrr::map(add_rownames) %>% purrr::reduce(left_join, by='rowname') %>%
-  rename(prediction=value, posterior_Down=Down, posterior_Up=Up)
-#lda.trysq.1.pred
 
-
-lda.trysq.1.pred.augmented = lda.trysq.1.pred %>% add_column(Y) 
-lda.trysq.1.pred.augmented %>% conf_mat(Direction, prediction)
+caret::confusionMatrix(weekly.mod.log.train.logOdds_predictions$.prediction, 
+                       weekly.mod.log.train.logOdds_predictions$Direction)
 
 ```
 **'Positive' Class : Down ** <br/><br />
 
-**LDA Sensitivity:** 18 / 43 = **0.41**
+**Log Sensitivity:** 18 / 43 = **0.41**
 <br /><br />
-**LDA Specificity:** 41 / 61 = **0.67**
+**Log Specificity:** 41 / 61 = **0.67**
 <br /><br />
 **Total Accuracy:** (18+41) / 104 = 0.567
 
@@ -287,68 +289,219 @@ While this improves the sensitivity of the model (true positive rate), it caused
 **Trying a square operator on Volume on the QDA model. Experimenting with this because of the scatter plot of Volume to year.**
 
 ```{r}
-qda.trysq.1 = qda(Direction~Lag2+I(Volume^2), data=Weekly.train)
+lda.trysq.1 = lda(Direction~Lag2+I(Volume^2), data=Weekly.train)
 #weekly.train.lda.fit
 
-qda.trysq.1.pred = predict(qda.trysq.1, Weekly.test) %>% purrr::map(as_tibble) %>% 
+lda.trysq.1.pred = predict(lda.trysq.1, Weekly.test) %>% purrr::map(as_tibble) %>% 
   purrr::map(add_rownames) %>% purrr::reduce(left_join, by='rowname') %>%
   rename(prediction=value, posterior_Down=Down, posterior_Up=Up)
-#weekly.lda.pred
 
-qda.trysq.1.pred.augmented = qda.trysq.1.pred %>% add_column(Y) 
-qda.trysq.1.pred.augmented %>% conf_mat(Direction, prediction)
+Y = Weekly.test %>% dplyr::select(Direction)
+
+lda.trysq.1.pred.augmented = lda.trysq.1.pred %>% add_column(Y) 
+lda.trysq.1.pred.augmented %>% conf_mat(Direction, prediction)
 ```
 **'Positive' Class : Down ** <br/><br />
 
-**QDA Sensitivity:** 38 / 43 = **0.927**
+**LDA Sensitivity:** 18 / 43 = **0.41**
 <br /><br />
-**QDA Specificity:** 12 / 61 = **0.20**
+**LDA Specificity:** 41 / 61 = **0.67**
 <br /><br />
-**Total Accuracy:** (38+12) / 104 = 0.48
+**Total Accuracy:** (18+41) / 104 = 0.567
 <br /><br />
 
-This acutally further decreased the QDA total accuracy, but the model is more sensitive to true values than the QDA model without the Volume^2 predictor.
+This is ***interesting*** because a LDA analysis model with a square of Volume performs the same as the logistic model with VOlume squared.
 
 ## 11. In this problem, you will develop a model to predict...
 whether a given car gets high or low gas mileage based on the Auto data set.
 
 
 ### (a) Create a binary variable, mpg01, that contains a 1 if mpg contains
-a value above its median, and a 0 if mpg contains a value below
-its median. You can compute the median using the median()
-function. Note you may find it helpful to use the data.frame()
-function to create a single data set containing both mpg01 and
-the other Auto variables.
+a value above its median, and a 0 if mpg contains a value below its median. You can compute the median using the median() function. 
+
+```{r q11a-1}
+head(Auto, 3)
+
+Auto %>% dim()
+```
+Make sure origin and mpg01 are factors.
+
+```{r q11a-2}
+
+Auto %>% summarize(median(mpg))
+
+Auto.working = Auto %>%
+  mutate(mpg01 = case_when(mpg >= median(mpg) ~ 1, TRUE~0))
+
+Auto.working$mpg01 = factor(Auto.working$mpg01)
+Auto.working$origin = factor(Auto.working$origin)
+
+head(Auto.working, 3)
+
+```
 
 ### (b) Explore the data graphically in order to investigate the association
-between mpg01 and the other features. Which of the other
-features seem most likely to be useful in predicting mpg01? Scatterplots
-and boxplots may be useful tools to answer this question.
-Describe your findings.
+between mpg01 and the other features. Which of the other features seem most likely to be useful in predicting mpg01? Scatter plots and box plots may be useful tools to answer this question. Describe your findings.
+
+```{r q11b-1, fig.width=10, fig.height=8}
+ ggpairs(Auto.working[-9], progress = F)
+```
+
+**Answer q11b**: Variables that appear strongly correlated with mpg01 are: 
+* mpg (but not interesting in our scenario)<br />
+* cylinders
+* displacement (hihgly correlated to cylinders)
+* horsepower (correlated to both cylinders and displacement)
+* weight (correlated to cylinders, displacement and horsepower)
+* year (above median mpg is associated with newer cars)
+* origin (almost no European or Japanese cars have above median mpg)
+
 
 ### (c) Split the data into a training set and a test set.
 
+Create a random group of 100 observations to set aside. Remove the column name from both the training and test sets.
+
+```{r q11c-1}
+set.seed(1976)
+train_indices <- sample(392, 292, replace=FALSE)
+
+Auto.train <- Auto.working %>% slice(train_indices) %>% dplyr::select(-name)
+Auto.test <- Auto.working %>% slice(-train_indices) %>% dplyr::select(-name)
+
+print("Training Dims:")
+Auto.train %>% dim()
+
+print("Testing Dims:")
+Auto.test %>% dim()
+```
+
 
 ### (d) Perform LDA on the training data in order to predict mpg01
-using the variables that seemed most associated with mpg01 in
+using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
 
+```{r q11d-1}
+Auto.lda.fit = lda(mpg01~cylinders+displacement+horsepower+weight+year+origin, data=Auto.train)
+#weekly.train.lda.fit
 
-### (b). What is the test error of the model obtained?
+#predict(Auto.lda.fit, Auto.test) %>% map(as_tibble) %>% 
+#  map(add_rownames) %>% reduce(left_join, by='rowname')
+
+Auto.lda.pred = predict(Auto.lda.fit, Auto.test) %>% map(as_tibble) %>% 
+  map(add_rownames) %>% reduce(left_join, by='rowname') %>%
+  rename(prediction=value, posterior_0='0', posterior_1='1')
+
+Y = Auto.test %>% dplyr::select(mpg01)
+
+Auto.lda.pred.augmented = Auto.lda.pred %>% add_column(Y) 
+Auto.lda.pred.augmented %>% conf_mat(mpg01, prediction)
+```
+**LDA Sensitivity:** 51 / 51 = **1.0**
+<br /><br />
+**LDA Specificity:** 41 / 49 = **0.84**
+<br /><br />
+**Total Accuracy:** 92 / 100 = 0.92
+<br /><br />
 
 
 ### (e) Perform QDA on the training data in order to predict mpg01
-using the variables that seemed most associated with mpg01 in
-(b). What is the test error of the model obtained?
+using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
+
+```{r q11d-1}
+Auto.qda.fit = qda(mpg01~cylinders+displacement+horsepower+weight+year+origin, data=Auto.train)
+#weekly.train.lda.fit
+
+#predict(Auto.lda.fit, Auto.test) %>% map(as_tibble) %>% 
+#  map(add_rownames) %>% reduce(left_join, by='rowname')
+
+Auto.qda.pred = predict(Auto.qda.fit, Auto.test) %>% map(as_tibble) %>% 
+  map(add_rownames) %>% reduce(left_join, by='rowname') %>%
+  rename(prediction=value, posterior_0='0', posterior_1='1')
+
+Auto.qda.pred.augmented = Auto.qda.pred %>% add_column(Y) 
+Auto.qda.pred.augmented %>% conf_mat(mpg01, prediction)
+```
+**QDA Sensitivity:** 50 / 51 = **0.98**
+<br /><br />
+**QDA Specificity:** 41 / 49 = **0.84**
+<br /><br />
+**Total Accuracy:** 91 / 100 = 0.91
+<br /><br />
 
 
 ### (f) Perform logistic regression on the training data in order to predict
-mpg01 using the variables that seemed most associated with
-mpg01 in (b). What is the test error of the model obtained?
+mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
 
+```{r q11f-1}
+Auto.log.train = glm(mpg01~cylinders+displacement+horsepower+weight+year+origin, data=Auto.train, family=binomial)
+
+Auto.log.predictions <- Auto.log.train %>% augment(newdata=Auto.test) %>% 
+  dplyr::select(mpg01, .fitted)  %>% 
+  mutate(.prediction=ifelse(.fitted<0, '0', '1')) %>%
+  mutate(.prediction=fct_relevel(as_factor(.prediction), c("0", "1"))) 
+Auto.log.predictions %>% conf_mat(mpg01, .prediction)
+```
+
+**Log Sensitivity:** 48 / 51 = **0.94**
+<br /><br />
+**Log Specificity:** 44 / 49 = **0.90**
+<br /><br />
+**Total Accuracy:** 92 / 292 = 0.92
+<br /><br />
 
 ### (g) Perform KNN on the training data, with several values of K, in
-order to predict mpg01. Use only the variables that seemed most
-associated with mpg01 in (b). What test errors do you obtain?
-Which value of K seems to perform the best on this data set?
+order to predict mpg01. Use only the variables that seemed most associated with mpg01 in (b). What test errors do you obtain? Which value of K seems to perform the best on this data set?
 
+**Create my matrices:**
+```{r q11g-1}
+Auto.X.train = Auto.train %>% dplyr::select(cylinders,displacement,horsepower,weight,year,origin) %>% as.matrix()
+Auto.X.train %>% dim()
+
+Auto.X.test = Auto.test %>% dplyr::select(cylinders,displacement,horsepower,weight,year,origin) %>% as.matrix()
+Auto.X.test %>% dim()
+
+Auto.Y.train = Auto.train %>% dplyr::select(mpg01) %>% as.matrix()
+Auto.Y.train %>% dim()
+
+Auto.Y.test = Auto.test %>% dplyr::select(mpg01)
+Auto.Y.test %>% dim()
+
+
+```
+
+```{r q11g-2}
+k_start = 1
+k_end = 35
+out_nvar = k_end - k_start + 1
+
+output_i = rep(NA, out_nvar)
+sensitivity_k = rep(NA, out_nvar)
+specificity_k = rep(NA, out_nvar)
+balanced.accuracy_k = rep(NA, out_nvar)
+
+
+for (i in seq(1,35)){
+  
+  #confmatrix = tibble(yhat = knn(Auto.X.train, Auto.X.test, Auto.Y.train, k=i), y = Auto.Y.test[['mpg01']]) %>%
+  #  conf_mat(y, yhat)
+ 
+  yhat = knn(Auto.X.train, Auto.X.test, Auto.Y.train, k=i)
+ 
+  output_i[i] = i
+  sensitivity_k[i] = confusionMatrix(data=yhat, reference=Auto.Y.test[['mpg01']], positive = "1")$byClass["Sensitivity"]
+  specificity_k[i] = confusionMatrix(data=yhat, reference=Auto.Y.test[['mpg01']], positive = "1")$byClass["Specificity"]
+  balanced.accuracy_k[i] = confusionMatrix(data=yhat, reference=Auto.Y.test[['mpg01']], positive = "1")$byClass["Balanced Accuracy"]
+}
+
+outcome = data.frame(output_i,sensitivity_k, specificity_k, balanced.accuracy_k)
+
+outcome
+```
+**Answer q11g**: My ***best** value of k was 24 when I compare sensitivity, specificity, and balanced accuracy. With a k of 24:
+<br />
+**KNN | k=24 Sensitivity 0.96**
+<br /><br />
+**KNN | k=24 Specificity: 0.837**
+<br /><br />
+
+The QDA and Logistic Regression models both out performed the KNN, even with the best-tested k value.
 
