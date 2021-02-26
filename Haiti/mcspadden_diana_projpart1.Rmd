@@ -77,7 +77,11 @@ library(gridExtra)
 library(plotly)
 library(reticulate)
 library(regclass)
-
+library(ROSE)
+library(MLeval)
+library(ggplot2)
+library(purrr)
+library(broom)
 ```
 
 
@@ -98,12 +102,14 @@ head(haiti)
 The dataframe contains 4 columns, and 63,241 rows. The Class column contains the correct label for the observation. Red, Green and Blue parameters are **NEED TO INCLUDE CORRECT DEFINITION**
 
 ## Class Factor
-To prepare the data for exploratory data analysis I must make Class a factor.
+To prepare the data for exploratory data analysis I make Class a factor.
+
 ```{r factorClass}
 haiti %>% 
   mutate(Class = factor(Class)) 
 ```
 
+Examine the numbers and percentages in each of the **5** classes:
 ```{r summarizeByCategory}
 haiti %>%
   group_by(Class) %>%
@@ -111,6 +117,7 @@ haiti %>%
   mutate(Perc = round(N / sum(N), 2) * 100)
 ```
 
+#### Observations:
 The records are not evenly distributed between the categories. Of the Classes Blue Tarp, our "positive" category if we are thinking a binary positive/negative identification, is only 3% of our sample. Soil and Vegetation make up the majority of our sample at 74%.
 
 ## Binary Class Factor vs. 5 Class Factor
@@ -119,15 +126,29 @@ It will be interesting to see performance predicting each of these categories, o
 ### Create Binary DataFrame
 
 Create a DataFrame that is only Blue Tarp, or not Blue Tarp:
-* 0 == Not a Blue Tarp
-* 1 == Is a Blue Tarp
+<ul>
+<li> 0 == Not a Blue Tarp</li>
+<li> 1 == Is a Blue Tarp</li>
+</ul>
 
+After reviewing box plots for the 2-class data set, I also created two new calculated variables:
+<br />
+1. GBSqr = (Green + Blue)^2 * .001
+<br />
+2. RBSqr = (Red + Blue)^2 * .001
+
+I created these to continue using the Red and Green values, but I wanted to increase the difference in median value difference between the positive and negative classes. There is significant interplay in color values between Red, Green, and Blue in identifying the correct shade or blue, and I wanted to continue using Red and Green values but increase the linear separability between the classes. The 0.01 multiplier is to return the number scale to a range similar to standard RGB values.
 ```{r createBinaryDataFrame}
-haitiBinary <- haiti %>%
+haitiBinary =  haiti %>%
   mutate(ClassBinary = if_else(Class == 'Blue Tarp', '1', '0'), ClassBinary = factor(ClassBinary))
+
+haitiBinarySqrs = haiti %>%
+  mutate(GBSqr = I(((Green + Blue)^2) * .001), RBSqr = I(((Red + Blue)^2) * .001), ClassBinary = if_else(Class == 'Blue Tarp', '1', '0'), ClassBinary = factor(ClassBinary))
 
 ```
 
+
+Examine the numbers and percentages in each of the **2** classes:
 ```{r summarizeBinaryByCategory}
 
 haitiBinary %>%
@@ -137,9 +158,9 @@ haitiBinary %>%
 
 ```
 
-### How are red, blue and green values distributed between the 5 categories?
+### How are red, blue and green values distributed between the **5** classes?
 
-```{r colorValuesFiveCats}
+```{r colorValuesFiveCats, fig.height=5, fig.width=8}
 
 redplot <- ggplot(haiti, aes(x=Class, y=Red)) + 
   geom_boxplot(col='red')
@@ -154,9 +175,9 @@ grid.arrange(redplot, greenplot, blueplot)
 ```
 
 
-### How are red, blue and green values distributed between the binary categories?
+### How are red, blue and green values distributed between the **2** classes?
 
-```{r colorValuesBinaryCats}
+```{r colorValuesBinaryCats, fig.height=5, fig.width=5}
 
 redplotB <- ggplot(haitiBinary, aes(x=ClassBinary, y=Red)) + 
   geom_boxplot(col='red')
@@ -169,36 +190,78 @@ blueplotB <- ggplot(haitiBinary, aes(x=ClassBinary, y=Blue)) +
 
 grid.arrange(redplotB, greenplotB, blueplotB)
 ```
-**Box Plot Comments**
+### How are red, blue and green values distributed between the **2** classes with the square values for Red + Blue and Green Blue?
+
+```{r colorValuesBinaryCats, fig.height=5, fig.width=5}
+
+redplotB <- ggplot(haitiBinarySqrs, aes(x=ClassBinary, y=RBSqr)) + 
+  geom_boxplot(col='red')
+
+greenplotB <- ggplot(haitiBinarySqrs, aes(x=ClassBinary, y=GBSqr)) + 
+  geom_boxplot(col='darkgreen')
+
+blueplotB <- ggplot(haitiBinarySqrs, aes(x=ClassBinary, y=Blue)) + 
+  geom_boxplot(col='darkblue')
+
+grid.arrange(redplotB, greenplotB, blueplotB)
+```
+
+
+
+#### Box Plot Observations
+
+**For the 5-class box plots:**
 
 "Blue Tarp" as the "positive" result, and other results as the "negative" result.
 
-Regarding the box plot of the five categories, of interest is that "Soil" and "Vegetation" are relatively unique in their non-outlier RGB values. "Rooftop" and "Various Non-Tarp" are more similar in their RBG values.
+Regarding the box plot of the five categories, of interest is that "Soil" and "Vegetation" are relatively unique in their RGB distributions. "Rooftop" and "Various Non-Tarp" are more similar in their RBG distributions
+
+**For the 2-class box plots:**
 
 If the classes are collapsed to binary values of "Blue Tarp (1)" and "Not Blue Tarp (0)" there is little overlap in the blue values for the two classes, and the ranges of red and green are much smaller for blue tarp than non-blue-tarp.
-
+<br /><br />
 Generally, the values of red have a larger range for negative results than for positive results, and the positive results have a similar median to the negative results.
-Green values have a larger range for negative results than for positive results, and the positive results have a higher median than the negative results, and there is ***almost*** **no overlap in the blue data** with non-blue tarps, and blue tarps.
+<br /></br>
+Green values have a larger range for negative results than for positive results, and the positive results have a higher median than the negative results. 
+<br /><br />
+There is ***almost*** **no overlap in the blue data** with non-blue tarps, and blue tarps.
+
+**For the 2-class box plots with the additive square values:**
+
+If the classes are collapsed to binary values of "Blue Tarp (1)" and "Not Blue Tarp (0)" there is little overlap in the blue values for the two classes, and the RBSqr and GBSqr values have much less overlap than without the additive square variables.
+<br /><br />
+The values of RBSqr have a larger range for negative results than for negative results, and median is significantly greater in the positive results.
+<br /></br>
+GBSqr values have a larger range for negative results than for positive results. The positive results have a significantly higher median than the negative results. 
+<br /><br />
+There is ***almost*** **no overlap in the blue data** with non-blue tarps, and blue tarps.
 
 ### View the correlation between Red, Green and Blue
 
 These correlations make sense as the pixels were of highly saturated colors, that are not pure Blue, Red or Green. There are few pixels in the data set with low values for R,G,B.
 
 ```{r }
-ggpairs(haiti[-1], lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
+#ggpairs(haiti, lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
+ggpairs(haiti, progress = F)
 ```
+
+```{r }
+#ggpairs(haiti, lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
+ggpairs(haitiBinary[-1], progress = F)
+```
+
+
+```{r}
+ggpairs(haitiBinarySqrs[-1], progress = F)
+```
+The RBSqr and GBSqr have significantly less variance in their values, and better differentiation between the 2 classes than the Red and Green variables. I will be using these transformed variables in my models.
+
 ### 3-D Scatterplot
 
-To view the relationship between the Red, Green, and Blue values between the five classes, and the binary classes, an interactive 3-D scatter plot is extremely useful.
+To view the relationship between the Red, Green, and Blue values between the five classes, and the binary classes, an interactive 3-D scatter plot is illustrative.
 
-**References**
-https://plotly.com/python/3d-scatter-plots/
 
-https://plotly.com/r/figure-labels/
-
-#### Five Categories 3-D Scatterplot
-The scatter plot displays 
-
+#### Five-Class 3-D Scatterplot
 ```{r 3D5Class}
 
 fiveCat3D = plot_ly(x=haiti$Red, y=haiti$Blue, z=haiti$Green, type="scatter3d", mode="markers", color=haiti$Class, colors = c('blue2','azure4','chocolate4','coral2','chartreuse4'),
@@ -210,23 +273,38 @@ fiveCat3D = fiveCat3D %>%
 fiveCat3D
 
 ```
+**5-Class 3-D Scatter Plot Observations**
+<br />
 One can see that there are discernible groupings of pixel categories by RGB values. Unsurprisingly, the blue tarps are higher blue values, but they do have a range of red and green values.
+<br /><br />
 
+The 3D scatter plot is particularly useful because, by zooming in, one can see that while the 'Blue Tarp' values are generally distinct, there is a space in the 3D plot with mingling of "blue tarp" pixels and other pixel categories. That area of the data will provide a challenge for our model.
 
-The 3D scatter plot is particularly useful because, by zooming in, one can see that there is a space in the 3D plot with significant mingling of "blue tarp" pixels and other pixel categories. That area of the data will provide a challenge for our model.
+##### Two-Class 3-D Scatterplot
 
 ```{r 3DBinary}
-binary3D = plot_ly(x=haitiBinary$Red, y=haitiBinary$Blue, z=haitiBinary$Green, type="scatter3d", mode="markers", color=haitiBinary$ClassBinary, colors = c('red','blue2'),
+binary3D = plot_ly(x=haitiBinarySqrs$RBSqr, y=haitiBinarySqrs$Blue, z=haitiBinarySqrs$GBSqr, type="scatter3d", mode="markers", color=haitiBinary$ClassBinary, colors = c('red','blue2'),
 marker = list(symbol = 'circle', sizemode = 'diameter', opacity =0.35))
 
 binary3D = binary3D %>%
-  layout(title="Binary RBG Plot", scene = list(xaxis = list(title = "Red", color="red"), yaxis = list(title = "Blue", color="blue"), zaxis = list(title = "Green", color="green")))
+  layout(title="Binary RBG Plot", scene = list(xaxis = list(title = "RBSqr", color="red"), yaxis = list(title = "Blue", color="blue"), zaxis = list(title = "GBSqr", color="green")))
 
 binary3D
 ```
-**Comments**
+**2-Class 3-D Scatter Plot Observations With Blue, GBSqr, and RBSqr**
+<br />
+Similar to the five category 3D scatter plot, the binary scatter plot shows distinct groupings for blue tarp and non-blue-tarp. There is a clear linear boundary between the blue tarp and non-blue tarp observations. 
 
-Similar to the five category 3D scatter plot, the binary scatter plot shows distinct groupings for blue tarp and non-blue-tarp. As expected, there is mingling of blue tarp and non-blue-tarp pixels that will provide a challenge for a model.
+
+### Parameter Selection:
+Based on EDA, I am hopeful that my models will perform well using the following predictors:
+<ol>
+<li>Red</li>
+<li>Green</li>
+<li>Blue</li>
+<li>GBSqr: ((Green + Blue)^2) * .001</li>
+<li>RBSqr: ((Red + Blue)^2) * .001</li>
+</ol>
 
 
 # Model Training
@@ -234,61 +312,22 @@ Similar to the five category 3D scatter plot, the binary scatter plot shows dist
 ## Set-up 
 
 Normalization does not need to be considered because the ranges of Red, Green and Blue are the same.
+<br /><br/>
+I am using the 2-Class data set for the following reasons:
+<ol>
+<li>The distinctions in the 2-Class data set, as seen in the 3-D scatterplot, are clear.</li>
+<li>The stated problem is to classify 'Blue Tarp' from the other classes. Classifying the other classes is not of interest.</li>
+<li>I am using 10-fold cross-validation to evaluate the models.</li>
+</ol>
 
-### Training and Test Data
-
-The DataFrame must be divided into training and test data sets; however, the data set is unbalanced with few "positive" results, i.e. "Blue Tarp", compared with negative results.
-
-??? Use ROSE library:
-References:
-
-**caret**
-https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/trainControl
-http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf
-https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/train
-
-**ROSE**
-https://www.r-bloggers.com/2017/04/dealing-with-unbalanced-data-in-machine-learning/
-https://journal.r-project.org/archive/2014-1/menardi-lunardon-torelli.pdf
-
-If using ROSE library, the steps are:
-1. Split data set into Q = n/k data sets (where k refers to k-fold cross validation).
-2. for i: 1 to Q
-* get a ROSE sample T*im from Tn \ TiK
-* estimate the classifier on Tim
-* make a prediction on PiK on TiK
-
-3. compute the accuracy of the P1...PQ
-
-## Logistic Regression
+<br /><br />
 
 
-#### FROM OFFICE HOURS: If we see a distribution in the test data set of % positive. See whether tuning to get the same % positive on testing data.
+### Training and Test Data: 
 
-Per our course's Module 3 instruction, logistic regression is typically used when there are 2 classes. I will be using the **haitiBinary** dataframe with two classes:
-<br />
-* **0**: Not a Blue Tarp, i.e. negative
-* **1**: Is a Blue Tarp, i.e. positive
+I will hold out 20% of the data set for testing/validation.
 
-Logistic Regression with ROSE library
-
-And the cv.glm() function from the boot library can carry out cross-validation. 
-
-Dr. Woo's code for cv.glm comparison:
-```{r}
-#glm.fit<-glm(y~x2+x7+x8, data=data)
-
-#cv.err<-cv.glm(data, glm.fit)
-
-#cv.err$delta[1] ##the output for the LOOCV should match your own
-
-#cv.glm(data, glm.fit, K=10)$delta[1] ##k fold CV with k=28
-#cv.glm(data, glm.fit, K=28)$delta[1] ##k fold CV with k=28
-```
-
-
-```{r}
-library("ROSE")
+```{r warning=FALSE, message=FALSE}
 library(caret)
 library(boot)
 ```
@@ -296,147 +335,164 @@ library(boot)
 ## 80/20 Train/Test Split
 ```{r haitiBinaryTrainTestSplit}
 set.seed(1976)
-sample_size = floor(0.8*nrow(haitiBinary))
+sample_size = floor(0.8*nrow(haitiBinarySqrs))
 # randomly split data in r
-picked = sample(seq_len(nrow(haitiBinary)),size = sample_size)
-train = haitiBinary[picked,]
-test = haitiBinary[-picked,]
+picked = sample(seq_len(nrow(haitiBinarySqrs)),size = sample_size)
+train = haitiBinarySqrs[picked,]
+test = haitiBinarySqrs[-picked,]
 ```
 
-
+Class counts in the training data set:
 ```{r}
 # check imbalance
 table(train$ClassBinary)
 ```
 
+## Cross-Validation Performance 
 
-``` {r}
+The following performance measures are collected for both the 10-fold cross-validation and the hold-out/testing/validation data:
+<ul>
+<li>AUROC</li>
+<li>True Positive Rate</li>
+<li>False Positive Rate</li>
+<li>Precision</li>
+</ul>
+
+## Logistic Regression
+
+
+Per our course's Module 3 instruction, logistic regression is typically used when there are 2 classes. I will be using the **haitiBinary** dataframe with two classes:
+<br />
+* **0**: Not a Blue Tarp, i.e. negative
+* **1**: Is a Blue Tarp, i.e. positive
+
+<br /><br />
+Here I run without any cross-validation on the entire train dataset just to take a look at performance
+
+``` {r warning=FALSE}
 # train logistic regression on imbalanced data
-log.reg.imb <- glm(ClassBinary ~ Blue+Green+Red, data=train, family=binomial())
+log.model<- glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data=train, family=binomial())
+
+confusion_matrix(log.model)
 ```
-
-``` {r}
-# use the trained model to predict test data
-pred.log.reg.imb <- predict(log.reg.imb, newdata=test,type="response")
-
-confusion_matrix(log.reg.imb)
-```
-
-``` {r}
-# generate new balanced data by ROSE
-haitiBinary.rose <- ROSE(ClassBinary ~ Blue+Green+Red, data=train, seed=123)$data
-```
-
-``` {r}
-# check (im)balance of new data
-table(haitiBinary.rose$ClassBinary)
-```
-
-``` {r}
-# train logistic regression on balanced data
-log.reg.bal <- glm(ClassBinary ~ Blue+Green+Red, data=haitiBinary.rose, family=binomial)
-```
-
-
-``` {r}
-# use the trained model to predict test data
-pred.log.reg.bal <- predict(log.reg.bal, newdata=test, type="response")
-```
-
-
-
-
-``` {r}
-# check accuracy of the two learners by measuring auc
-roc.curve(test$ClassBinary, pred.log.reg.imb)
-roc.curve(test$ClassBinary, pred.log.reg.bal, add.roc=TRUE, col=2)
-```
-### ROC Curve:
-y axis ==  sensitivity
-x-axis== false positive
-
-
-``` {r}
-# determine bootstrap distribution of the AUC of logit models
-# trained on ROSE balanced samples
-# B has been reduced from 100 to 10 for time saving solely
-#boot.auc.bal <- ROSE.eval(ClassBinary~Blue+Green+Red, data=train, learner= glm, method.assess = "BOOT",control.learner=list(family=binomial),trace=TRUE, B=100)
-#summary(boot.auc.bal)
-```
-
-## TEST THE ACCURACY, Works best with a threshold of 0.8 
-**Need to** show some information on why 0.8 threshold seems the best
+Reset the level names to enable the caret functions for the ROC curve.
 
 ```{r}
-accuracy.meas(test$ClassBinary, pred.log.reg.imb, threshold = 0.8)
+levels(train$ClassBinary)
 
-```
+levels(train$ClassBinary)=c("No","Yes")
 
+levels(train$ClassBinary)
 
-```{r}
-# compute accuracy measures (test set)
-accuracy.meas(test$ClassBinary, pred.log.reg.bal, threshold = 0.8)
-```
-Precision == positive predictive value (True Positive Predictions / All Predicted Positives)
-
-Recall == Sensitivity describes the proportion of Non-Blue Tarp that have been predicted correctly
-
-```{r}
-summary(log.reg.bal)
-```
-
-
-
-```{r}
-exp(0.09865)
+fct_count(train$ClassBinary)
 ```
 
 ```{r}
-confusion_matrix(log.reg.bal)
-```
-
-A one unit increase in Blue unit value, when Red and Green are held constant, is associated with a log odds Blue Tarp identification of 0.099 units, or an increase in odds of Blue Tarp of 10%.
-
-We still have 2771 Blue Tarps that we not identified with this model.
-
-
-```{r include=FALSE, echo=FALSE, render=FALSE}
-# method: The resampling method
+set.seed(1976)
 # number: number of folds for cross validation
-ctrl <- trainControl(method = "repeatedcv", 
-                     number = 10, 
-                     repeats = 10, 
-                     verboseIter = FALSE,
-                     sampling = "rose")
+trctrl <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, number = 10, repeats = 2)
 
-set.seed(42)
-
-# method: regression model to use
-# for logistic I selected glmnet
-# no pre-processing is needed
-model_log_rose <- caret::train(ClassBinary ~ Blue+Red+Green,
-                              data = haitiBinary,
-                              method = "glmnet",
-                              #preProcess = c("scale", "center"),
-                              trControl = ctrl)
-
-final_log_rose <- data.frame(actual = test_data$ClassBinary,
-                         predict(model_log_rose, newdata = test_data, type = "prob"))
-final_rose$predict <- ifelse(final_log_rose$1 > 0.5, "Blue Tarp", "Other")
-
-'''
-model_rf_rose <- caret::train(ClassBinary ~ Blue+Red+Green,
-                              data = haitiBinary,
-                              method = "rf",
-                              #preProcess = c("scale", "center"),
-                              trControl = ctrl)
-'''
+log.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "glmnet", trControl=trctrl, tuneLength = 10)
+log.cv.model
 
 ```
 
+### Logistic Regression Performance
+10-fold cross-validation training resulted in a **best-threshold of 1.0** for the model when ROC was used as the performance metric.
 
+```{r logisticTrainingPerf}
+caret::confusionMatrix(log.cv.model)
+```
+
+<ul>
+<li>TPR: 96.7 / 96.8 = 0.999</li>
+<li>FPR: 0.3 / 3.1 = 0.097</li>
+<li>Precision: 96.7 / 97 = 0.997</li>
+</ul>
+
+
+### Logistic Regression Training ROC Curve:
+
+```{r LogROCCurve}
+result = evalm(log.cv.model)
+result$roc
+```
+
+**The ROC-AUC for the 10-fold cross-validated training data is: 1.0.**
+
+## Logistic Regression: Testing
+
+```{r}
+
+test.YesNo = test
+
+#levels(test.YesNo$ClassBinary)
+
+levels(test.YesNo$ClassBinary)=c("No","Yes")
+
+#levels(test.YesNo$ClassBinary)
+
+fct_count(test.YesNo$ClassBinary)
+```
+
+
+```{r logisticTestResults}
+log.test = predict(log.cv.model, newdata = test.YesNo, type="prob") %>% 
+  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
+```  
+  
+```{r}
+log.test = log.test %>% 
+  mutate(ClassBinary = factor(ClassBinary)) 
+```
+
+```{r}  
+caret::confusionMatrix(log.test$ClassBinary, test.YesNo$ClassBinary)
+```
+
+### Logistic Regression Testing ROC
+```{r logROCTest}
+#plot(roc.curve(test.YesNo$ClassBinary, log.test$ClassBinary))
+test.result = evalm(log.test)
+```
 
 ## LDA
+```{r ldaCrossValidation}
+set.seed(1976)
+
+lda.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "lda", trControl=trctrl, tuneLength = 10)
+lda.cv.model
+```
+
+**ROC** was used as the threshold-determining measure.
+
+```{r ldaPredict}
+caret::confusionMatrix(lda.cv.model)
+```
+### LDA Training ROC Curve:
+```{r ldaTrainingROC}
+result.lda = evalm(lda.cv.model)
+result.lda$roc
+```
+
+```{r ldaTestResults}
+lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>% 
+  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
+```  
+  
+```{r}
+lda.test = lda.test %>% 
+  mutate(ClassBinary = factor(ClassBinary)) 
+```
+
+```{r}  
+caret::confusionMatrix(lda.test$ClassBinary, test.YesNo$ClassBinary)
+```
+
+### LDA Testing ROC
+```{r logROCTest}
+test.lda.result = evalm(lda.test)
+```
 
 ## QDA
 
@@ -454,10 +510,97 @@ How were tuning parameter(s) selected? What value is used? Plots/Tables/etc.
 
 ## Threshold Selection
 
-
 # Results (Cross-Validation)
 
-** CV Performance Table Here**
+<table>
+<th>
+  <td>Model</td>
+  <td>Tuning</td>
+  <td>AUROC</td>
+  <td>Threshold</td>
+  <td>Accuracy</td>
+  <td>TPR</td>
+  <td>FPR</td>
+  <td>Precision</td>
+</th>
+
+<tr>
+  <td>Log Reg</td>
+  <td><!-- Log Reg Tuning --> N/A</td>
+  <td><!-- Log Reg AUROC -->1.0</td>
+  <td><!-- Log Reg Threshold -->1.0</td>
+  <td><!-- Log Reg Accuracy -->0.9953</td>
+  <td><!-- Log Reg TPR -->0.999</td>
+  <td><!-- Log Reg FPR -->0.097</td>
+  <td><!-- Log Reg Precision -->0.997</td>
+</tr>
+
+<tr>
+  <td>LDA</td>
+  <td><!-- LDA Tuning --> N/A</td>
+  <td><!-- LDA AUROC -->0.994</td>
+  <td><!-- LDA Threshold --></td>
+  <td><!-- LDA Accuracy -->0.9945</td>
+  <td><!-- LDA TPR -->0.999</td>
+  <td><!-- LDA FPR -->0.156</td>
+  <td><!-- LDA Precision -->0.995</td>
+</tr>
+
+<tr>
+  <td>QDA</td>
+  <td><!-- QDA Tuning --> N/A</td>
+  <td><!-- QDA AUROC --></td>
+  <td><!-- QDA Threshold --></td>
+  <td><!-- QDA Accuracy --></td>
+  <td><!-- QDA TPR --></td>
+  <td><!-- QDA FPR --></td>
+  <td><!-- QDA Precision --></td>
+</tr>
+
+<tr>
+  <td>KNN</td>
+  <td><!-- KNN Tuning --> k = </td>
+  <td><!-- KNN AUROC --></td>
+  <td><!-- KNN Threshold --></td>
+  <td><!-- KNN Accuracy --></td>
+  <td><!-- KNN TPR --></td>
+  <td><!-- KNN FPR --></td>
+  <td><!-- KNN Precision --></td>
+</tr>
+
+<tr>
+  <td>Penalized Log Reg</td>
+  <td><!-- Penalized Log Reg Tuning --> k = </td>
+  <td><!-- Penalized Log Reg AUROC --></td>
+  <td><!-- Penalized Log Reg Threshold --></td>
+  <td><!-- Penalized Log Reg Accuracy --></td>
+  <td><!-- Penalized Log Reg TPR --></td>
+  <td><!-- Penalized Log Reg FPR --></td>
+  <td><!-- Penalized Log Reg Precision --></td>
+</tr>
+
+<tr>
+  <td>Random Forest</td>
+  <td><!-- Random Forest Tuning --> </td>
+  <td><!-- Random Forest AUROC --></td>
+  <td><!-- Random Forest Threshold --></td>
+  <td><!-- Random Forest Accuracy --></td>
+  <td><!-- Random Forest TPR --></td>
+  <td><!-- Random Forest FPR --></td>
+  <td><!-- Random Forest Precision --></td>
+</tr>
+
+<tr>
+  <td>SVM</td>
+  <td><!-- SVM Tuning -->  </td>
+  <td><!-- SVM AUROC --></td>
+  <td><!-- SVM Threshold --></td>
+  <td><!-- SVM Accuracy --></td>
+  <td><!-- SVM TPR --></td>
+  <td><!-- SVM FPR --></td>
+  <td><!-- SVM Precision --></td>
+</tr>
+</table>
 
 
 # Conclusions
@@ -483,7 +626,97 @@ Load data, explore data, etc.
 
 # Results (Hold-Out)
 
-**Hold-Out Performance Table Here**
+# Results (Test/Validate Data)
+
+<table>
+<th>
+  <td>Model</td>
+  <td>Tuning</td>
+  <td>AUROC</td>
+  <td>Threshold</td>
+  <td>Accuracy</td>
+  <td>TPR</td>
+  <td>FPR</td>
+  <td>Precision</td>
+</th>
+
+<tr>
+  <td>Log Reg</td>
+  <td><!-- Log Reg Tuning --> N/A</td>
+  <td><!-- Log Reg AUROC -->1.0</td>
+  <td><!-- Log Reg Threshold -->1.0</td>
+  <td><!-- Log Reg Accuracy -->0.9955</td>
+  <td><!-- Log Reg TPR -->0.998</td>
+  <td><!-- Log Reg FPR -->0.088</td>
+  <td><!-- Log Reg Precision -->0.997</td>
+</tr>
+
+<tr>
+  <td>LDA</td>
+  <td><!-- LDA Tuning --> N/A</td>
+  <td><!-- LDA AUROC -->1.0</td>
+  <td><!-- LDA Threshold --></td>
+  <td><!-- LDA Accuracy -->0.9938</td>
+  <td><!-- LDA TPR -->0.999</td>
+  <td><!-- LDA FPR -->0.148</td>
+  <td><!-- LDA Precision -->0.995</td>
+</tr>
+
+<tr>
+  <td>QDA</td>
+  <td><!-- QDA Tuning --> N/A</td>
+  <td><!-- QDA AUROC --></td>
+  <td><!-- QDA Threshold --></td>
+  <td><!-- QDA Accuracy --></td>
+  <td><!-- QDA TPR --></td>
+  <td><!-- QDA FPR --></td>
+  <td><!-- QDA Precision --></td>
+</tr>
+
+<tr>
+  <td>KNN</td>
+  <td><!-- KNN Tuning --> k = </td>
+  <td><!-- KNN AUROC --></td>
+  <td><!-- KNN Threshold --></td>
+  <td><!-- KNN Accuracy --></td>
+  <td><!-- KNN TPR --></td>
+  <td><!-- KNN FPR --></td>
+  <td><!-- KNN Precision --></td>
+</tr>
+
+<tr>
+  <td>Penalized Log Reg</td>
+  <td><!-- Penalized Log Reg Tuning --> k = </td>
+  <td><!-- Penalized Log Reg AUROC --></td>
+  <td><!-- Penalized Log Reg Threshold --></td>
+  <td><!-- Penalized Log Reg Accuracy --></td>
+  <td><!-- Penalized Log Reg TPR --></td>
+  <td><!-- Penalized Log Reg FPR --></td>
+  <td><!-- Penalized Log Reg Precision --></td>
+</tr>
+
+<tr>
+  <td>Random Forest</td>
+  <td><!-- Random Forest Tuning --> </td>
+  <td><!-- Random Forest AUROC --></td>
+  <td><!-- Random Forest Threshold --></td>
+  <td><!-- Random Forest Accuracy --></td>
+  <td><!-- Random Forest TPR --></td>
+  <td><!-- Random Forest FPR --></td>
+  <td><!-- Random Forest Precision --></td>
+</tr>
+
+<tr>
+  <td>SVM</td>
+  <td><!-- SVM Tuning -->  </td>
+  <td><!-- SVM AUROC --></td>
+  <td><!-- SVM Threshold --></td>
+  <td><!-- SVM Accuracy --></td>
+  <td><!-- SVM TPR --></td>
+  <td><!-- SVM FPR --></td>
+  <td><!-- SVM Precision --></td>
+</tr>
+</table>
 
 
 # Final Conclusions
@@ -500,3 +733,13 @@ Load data, explore data, etc.
 
 ### Conclusion \#6
 
+## References
+<ul>
+<li>3D Scatter Plots in Python: <https://plotly.com/python/3d-scatter-plots/></li>
+<li>Axes Labels in R: <https://plotly.com/r/figure-labels/></li>
+
+<li>caret::trainControl: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/trainControl></li>
+<li>Predictive Modeling with R and the caret Package: <http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf></li>
+<li>caret::train: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/train></li>
+<li>MLeval::evalm: <https://www.rdocumentation.org/packages/MLeval/versions/0.3/topics/evalm></li>
+</ul>

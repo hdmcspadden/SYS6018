@@ -16,32 +16,32 @@ Start on page 168
 ## 5. Differences between LDA and QDA.
 ### (a) If the Bayes decision boundary is linear, ...
 do we expect LDA or QDA to perform better on the training set? On the test set?
-
+<br /><br />
 **Answer Q5a**: We would expect linear discriminant analysis to operate with more accuracy if the actual relationship can be separated by a linear boundary, because models will behave best when their assumptions most closely match the reality of the data set. I would expect LDA to perform much better on the ***test*** data set. On the training data set LDA and QDA may perform similarly.
 
 ### (b) If the Bayes decision boundary is non-linear, ...
 do we expect LDA or QDA to perform better on the training set? On the test set?
-
+<br /><br />
 **Answer Q5b**: I would expect QDA to perform better both with the training and the test data sets.
 
 ### (c) In general, as the sample size n increases, do we expect ...
 the test prediction accuracy of QDA relative to LDA to improve, decline,or be unchanged? Why?
-
+<br /><br />
 Our textbook confirms that QDA should perform better than LDA as n increases, and that QDA is recommended when the training set is "very large." A very large training will reduce the variance problem (over-fitting) that will affect a more flexible model, i.e. the QDA model.
 
 **Answer Q5c**: 
 
 ### (d) True or False: Even if the Bayes decision boundary for a given problem is linear,...
 we will probably achieve a superior test error rate using QDA rather than LDA because QDA is flexible enough to model a linear decision boundary. Justify your answer.
-
-**Answer Q5d**: False, QDA has a quadratic element built-in to its structure and the flexibility will lend itself to high variance issues. With enough training data it may be possible to get similar results with a QDA even with a linear decision boundary, but the LDA model is preferred.
+<br />< br />
+**Answer Q5d**: True, QDA has a quadratic element built-in to its structure and the flexibility will lend itself to high variance issues. With enough training data it may be possible to get similar results with a QDA even with a linear decision boundary. Again, adequate training is allowed in order for a QDA model to be able to lessen the variance seen in a more flexible model.
 
 ## 10. This question should be answered using the Weekly data set, ...
 which is part of the ISLR package. This data is similar in nature to the Smarket data from this chapter’s lab, except that it contains 1,089 weekly returns for 21 years, from the beginning of 1990 to the end of 2010.
 
 ### (a) Produce some numerical and graphical summaries of the Weekly data. Do there appear to be any patterns?
 
-```{r q10a-1}
+```{r q10a-1, warning=FALSE, echo=FALSE, message=FALSE}
 library(ISLR)
 library(tidyverse)
 library(GGally)
@@ -74,21 +74,20 @@ Weekly %>% dplyr::select(Volume, Year) %>%
 ```
 
 
-```{r q10a-5}
+```{r q10a-5, fig.height=3}
 Weekly %>% dplyr::group_by(Direction) %>% 
-  summarize(n())
-
-605 / (484+605)
+  summarize(N = n()) %>%
+  mutate(Perc = round(N/ sum(N), 2) * 100)
 ```
 
 
-**Answer Q10a**: As with the Smarket data set, there are no correlations, other than Volume to year. From the sequential scatterplot of Volume it is clear that Volume increased and had greater variance in the more recent data.
+**Answer Q10a**: As with the Smarket data set, there are no correlations, other than Volume to year. From the sequential scatter plot of Volume, and Volumne by year scatter plot it is clear that Volume increased and had greater variance in the more recent data.
 <br />
 <br />
-It also appears that Lag1, Lag2, Lag3, Lag4, Lag5, and Today are all normally distributed.
+It also appears that Lag1, Lag2, Lag3, Lag4, Lag5, and Today are all near-normally distributed.
 <br />
 <br />
-There are 484 'Down' days in the data and 605 'Up' days (~56%). If we guessed 'Up' for each day we would have greater accuracy than flipping a coin.
+There are 484 'Down' days in the data and 605 'Up' days (56%). If we guessed 'Up' for each day we would have greater accuracy than flipping a coin.
 
 
 ### (b) Use the full data set to perform a logistic regression ...
@@ -99,11 +98,11 @@ with Direction as the response and the five lag variables plus Volume as predict
 weekly.mod.log = glm(Direction~Lag1+Lag2+Lag3+Lag4+Lag5+Volume, data=Weekly,family=binomial)
 #weekly.mod.log %>% glance()
 weekly.mod.log %>% tidy()
-#summary(weekly.mod.log)$coef[,4]
+summary(weekly.mod.log)
 #weekly.mod.log %>% tidy() %>% dplyr::select(estimate) 
 ```
 
-**Answer Q10b**: Only ***Lag2*** is significant in this model. Unlike the Smarket data set, Lad 2 is positively correlated with the "1" class.
+**Answer Q10b**: Only ***Lag2*** is significant in this model. Unlike the Smarket data set, Lag 2 is positively correlated with the "1"/positive class.
 
 
 ### (c) Compute the confusion matrix and overall fraction of correct predictions. 
@@ -125,16 +124,16 @@ caret::confusionMatrix(weekly.mod.log.logOdds_predictions$.prediction,
 
 **Sensitivity**, or the "True Positive Rate" is 11%<br />
 **Specificity**, or "True Negative Rate" is 92%<br />
-**Total Accuracy** is 0.56
+**Total Accuracy** is **0.56**
 
 <br /><br />
-Down is the "positive" class in this case, and I would **not** recommend this model because "down" days would be high risk, and our model does not perform well predicting "down" days. This model did predict 92% of the true "Up" days.
+Down is the "positive" class in this case; this model may be useful in identifying up days. Our model does not perform well predicting "down" days. This model did predict 92% of the true "Up" days.
 
 ### (d) Now fit the logistic regression model using a training data period from 1990 to 2008, ...
 with Lag2 as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).
 
 ```{r q10d-1}
-summary(Weekly)
+summary(Weekly$Year)
 ```
 
 Setup the training and test data sets, and confirm dimensions.
@@ -165,11 +164,11 @@ caret::confusionMatrix(weekly.mod.log.train.logOdds_predictions$.prediction,
 ```
 **'Positive' Class : Down ** <br/><br />
 
-**Log Sensitivity: 0.21**
+**Log Sensitivity:** 0.21
 <br /><br />
-**Log Specificity: 0.918**
+**Log Specificity:** 0.918
 <br /><br />
-**Total Accuracy:** (9+56) / 104 = 0.625
+**Total Accuracy or "fraction of correct predictions":** (9+56) / 104 = **0.625**
 
 
 ### (e) Repeat (d) using LDA.
@@ -192,11 +191,11 @@ weekly.lda.pred.augmented %>% conf_mat(Direction, prediction)
 ```
 **'Positive' Class : Down ** <br/><br />
 
-**LDA Sensitivity:** 9 / 43 = **0.20**
+**LDA Sensitivity:** 9 / 43 = 0.20
 <br /><br />
-**LDA Specificity:** 56 / 61 = **0.92**
+**LDA Specificity:** 56 / 61 = 0.92
 <br /><br />
-**Total Accuracy:** (9+56) / 104 = 0.62
+**Total Accuracy:** (9+56) / 104 = **0.62**
 
 ### (f) Repeat (d) using QDA.
 
@@ -215,11 +214,11 @@ weekly.qda.pred.augmented %>% conf_mat(Direction, prediction)
 
 **'Positive' Class : Down ** <br/><br />
 
-**QDA Sensitivity:** 0 / 43 = **0.00**
+**QDA Sensitivity:** 0 / 43 = 0.00
 <br /><br />
-**QDA Specificity:** 61 / 61 = **1.0**
+**QDA Specificity:** 61 / 61 = 1.0
 <br /><br />
-**Total Accuracy:** (0+61) / 104 = 0.587
+**Total Accuracy:** (0+61) / 104 = **0.587**
 
 ### (g) Repeat (d) using KNN with K = 1.
 
@@ -245,15 +244,15 @@ tibble(yhat = knn(Weekly.X.train, Weekly.X.test, Weekly.Y.train, k=1), y = Weekl
 ```
 **'Positive' Class : Down ** <br/><br />
 
-**QDA Sensitivity:** 21 / 43 = **0.488**
+**QDA Sensitivity:** 21 / 43 = 0.488
 <br /><br />
-**QDA Specificity:** 31 / 61 = **0.508**
+**QDA Specificity:** 31 / 61 = 0.508
 <br /><br />
-**Total Accuracy:** (22+31) / 104 = 0.5
+**Total Accuracy:** (22+31) / 104 = **0.5**
 
 ### (h) Which of these methods appears to provide the best results on this data?
 
-**Answer Q10h**: The logistic regression model gives the best performance of the models  parameters explored in parts d - g. It performed with the most total accuracy (0.625) compared to the educated guess accuracy (0.55). Which makes sense, because we have two classes which is where logistic regression works well if there is a linear separation in the data set.
+**Answer Q10h**: The logistic regression model gives the best performance of the models  parameters explored in parts d - g. It performed with the most total accuracy (0.625) compared to the educated guess accuracy (0.55). A logistic model makes sense, because we have two classes which is where logistic regression works well if there is a ***linear separation*** in the data set.
 
 ### (i) Experiment with different combinations of predictors, ...
 including possible transformations and interactions, for each of methods. Report the variables, method, and associated confusion matrix that appears to provide the best results on the held out data. Note that you should also experiment with values for K in the KNN classifier.
@@ -261,7 +260,7 @@ including possible transformations and interactions, for each of methods. Report
 **Trying a square operator on Volume with our best performing model: the Log model. Experimenting with this because of the scatter plot of Volume to year.**
 
 ```{r q10i-1}
-weekly.mod.log.train = glm(Direction~Lag2+I(Volu), data=Weekly.train,family=binomial)
+weekly.mod.log.train = glm(Direction~Lag2+I(Volume^2), data=Weekly.train,family=binomial)
 #weekly.mod.log.train %>% tidy()
 weekly.mod.log.train.logOdds_predictions = weekly.mod.log.train %>% augment(newdata=Weekly.test) %>% 
   dplyr::select(Direction, .fitted)  %>% 
@@ -275,20 +274,20 @@ caret::confusionMatrix(weekly.mod.log.train.logOdds_predictions$.prediction,
 ```
 **'Positive' Class : Down ** <br/><br />
 
-**Log Sensitivity:** 18 / 43 = **0.41**
+**Log Sensitivity:** 18 / 43 = 0.41
 <br /><br />
-**Log Specificity:** 41 / 61 = **0.67**
+**Log Specificity:** 41 / 61 = 0.67
 <br /><br />
-**Total Accuracy:** (18+41) / 104 = 0.567
+**Total Accuracy:** (18+41) / 104 = **0.567**
 
 <br /><br />
 
-While this improves the sensitivity of the model (true positive rate), it caused a decrease in the specificity rate (true negative rate). The overall accuracy also decreased when comparied to our simple logistic regression with Lag2.
+While this improves the sensitivity of the model (true positive rate), it caused a decrease in the specificity rate (true negative rate). The overall accuracy also decreased when compared to our simple logistic regression with Lag2.
 
 
 **Trying a square operator on Volume on the QDA model. Experimenting with this because of the scatter plot of Volume to year.**
 
-```{r}
+```{r q10i-2}
 lda.trysq.1 = lda(Direction~Lag2+I(Volume^2), data=Weekly.train)
 #weekly.train.lda.fit
 
@@ -303,14 +302,46 @@ lda.trysq.1.pred.augmented %>% conf_mat(Direction, prediction)
 ```
 **'Positive' Class : Down ** <br/><br />
 
-**LDA Sensitivity:** 18 / 43 = **0.41**
+**LDA Sensitivity:** 18 / 43 = 0.41
 <br /><br />
-**LDA Specificity:** 41 / 61 = **0.67**
+**LDA Specificity:** 41 / 61 = 0.67
 <br /><br />
-**Total Accuracy:** (18+41) / 104 = 0.567
+**Total Accuracy:** (18+41) / 104 = **0.567**
 <br /><br />
 
-This is ***interesting*** because a LDA analysis model with a square of Volume performs the same as the logistic model with VOlume squared.
+This is ***interesting*** because a LDA analysis model with a square of Volume performs the same as the logistic model with Volume squared.
+
+
+```{r q10i-3}
+k_start = 30
+k_end = 60
+out_nvar = k_end - k_start + 1
+
+output10_i = rep(NA, out_nvar)
+sensitivity10_k = rep(NA, out_nvar)
+specificity10_k = rep(NA, out_nvar)
+balanced.accuracy10_k = rep(NA, out_nvar)
+
+
+for (i in seq(1,30)){
+  yhat = knn(Weekly.X.train, Weekly.X.test, Weekly.Y.train, k=i+29)
+  
+  k_confmatrix = caret::confusionMatrix(yhat, Weekly.Y.test$Direction)
+ 
+  output10_i[i] = i+29
+  sensitivity10_k[i] = confusionMatrix(data=yhat, reference=Weekly.Y.test[['Direction']], positive = "Down")$byClass["Sensitivity"]
+  specificity10_k[i] = confusionMatrix(data=yhat, reference=Weekly.Y.test[['Direction']], positive = "Down")$byClass["Specificity"]
+  balanced.accuracy10_k[i] = confusionMatrix(data=yhat, reference=Weekly.Y.test[['Direction']], positive = "Down")$byClass["Balanced Accuracy"]
+  
+  #print(caret::confusionMatrix(yhat, Auto.test$mpg01))
+}
+
+outcome10 = data.frame(output10_i,sensitivity10_k, specificity10_k, balanced.accuracy10_k)
+
+outcome10
+```
+**KNN observations**
+k == 59 provides the best performance of the k's investigated, and outperforms the logistic and LDA models investigated in specificity, sensitivity, and accuracy.
 
 ## 11. In this problem, you will develop a model to predict...
 whether a given car gets high or low gas mileage based on the Auto data set.
@@ -320,7 +351,7 @@ whether a given car gets high or low gas mileage based on the Auto data set.
 a value above its median, and a 0 if mpg contains a value below its median. You can compute the median using the median() function. 
 
 ```{r q11a-1}
-head(Auto, 3)
+#head(Auto, 3)
 
 Auto %>% dim()
 ```
@@ -347,7 +378,7 @@ between mpg01 and the other features. Which of the other features seem most like
  ggpairs(Auto.working[-9], progress = F)
 ```
 
-**Answer q11b**: Variables that appear strongly correlated with mpg01 are: 
+**Answer q11b**: Variables that appear strongly correlated with mpg01 are: <br /><br/>
 * mpg (but not interesting in our scenario)<br />
 * cylinders
 * displacement (hihgly correlated to cylinders)
@@ -379,6 +410,10 @@ Auto.test %>% dim()
 ### (d) Perform LDA on the training data in order to predict mpg01
 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
 
+<br /><br />
+**Work on Q11d:**<br />
+I create the LDA model. It uses 0 (below median) as the "positive class":
+
 ```{r q11d-1}
 Auto.lda.fit = lda(mpg01~cylinders+displacement+horsepower+weight+year+origin, data=Auto.train)
 #weekly.train.lda.fit
@@ -390,23 +425,30 @@ Auto.lda.pred = predict(Auto.lda.fit, Auto.test) %>% map(as_tibble) %>%
   map(add_rownames) %>% reduce(left_join, by='rowname') %>%
   rename(prediction=value, posterior_0='0', posterior_1='1')
 
-Y = Auto.test %>% dplyr::select(mpg01)
+#Y = Auto.test %>% dplyr::select(mpg01)
 
-Auto.lda.pred.augmented = Auto.lda.pred %>% add_column(Y) 
-Auto.lda.pred.augmented %>% conf_mat(mpg01, prediction)
+#Auto.lda.pred = Auto.lda.pred %>% add_column(Y) 
+#Auto.lda.pred %>% conf_mat(mpg01, prediction)
+
+caret::confusionMatrix(Auto.lda.pred$prediction, Auto.test$mpg01)
 ```
+**LDA False Positive Rate:** 0 / 51 = **0**
+<br /><br />
+**LDA False Negative Rate:** 8 / 49 = **0.16**
+<br /><br />
 **LDA Sensitivity:** 51 / 51 = **1.0**
 <br /><br />
 **LDA Specificity:** 41 / 49 = **0.84**
 <br /><br />
-**Total Accuracy:** 92 / 100 = 0.92
+**LDA Total Accuracy:** 92 / 100 = 0.92
 <br /><br />
+**LDA Test Error Rate:** FP + FN = **0.16**
 
 
 ### (e) Perform QDA on the training data in order to predict mpg01
 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
 
-```{r q11d-1}
+```{r q11e-1}
 Auto.qda.fit = qda(mpg01~cylinders+displacement+horsepower+weight+year+origin, data=Auto.train)
 #weekly.train.lda.fit
 
@@ -417,16 +459,26 @@ Auto.qda.pred = predict(Auto.qda.fit, Auto.test) %>% map(as_tibble) %>%
   map(add_rownames) %>% reduce(left_join, by='rowname') %>%
   rename(prediction=value, posterior_0='0', posterior_1='1')
 
-Auto.qda.pred.augmented = Auto.qda.pred %>% add_column(Y) 
-Auto.qda.pred.augmented %>% conf_mat(mpg01, prediction)
+#Auto.qda.pred
+
+#Auto.qda.pred = Auto.qda.pred %>% add_column(Y) 
+
+
+#Auto.qda.pred %>% conf_mat(Y, prediction)
+
+caret::confusionMatrix(Auto.qda.pred$prediction, Auto.test$mpg01)
 ```
+**QDA False Positive Rate:** 1 / 51 = **0.02**
+<br /><br />
+**QDA False Negative Rate:** 8 / 49 = **0.16**
+<br /><br />
 **QDA Sensitivity:** 50 / 51 = **0.98**
 <br /><br />
 **QDA Specificity:** 41 / 49 = **0.84**
 <br /><br />
 **Total Accuracy:** 91 / 100 = 0.91
 <br /><br />
-
+**QDA Test Error Rate:** FP + FN = **0.18**
 
 ### (f) Perform logistic regression on the training data in order to predict
 mpg01 using the variables that seemed most associated with mpg01 in (b). What is the test error of the model obtained?
@@ -438,15 +490,22 @@ Auto.log.predictions <- Auto.log.train %>% augment(newdata=Auto.test) %>%
   dplyr::select(mpg01, .fitted)  %>% 
   mutate(.prediction=ifelse(.fitted<0, '0', '1')) %>%
   mutate(.prediction=fct_relevel(as_factor(.prediction), c("0", "1"))) 
-Auto.log.predictions %>% conf_mat(mpg01, .prediction)
-```
 
+#Auto.log.predictions %>% conf_mat(mpg01, .prediction)
+
+caret::confusionMatrix(Auto.log.predictions$.prediction, Auto.test$mpg01)
+```
+**Log False Positive Rate:** 3 / 51 = **0.059**
+<br /><br />
+**Log False Negative Rate:** 5 / 49 = **0.10**
+<br /><br />
 **Log Sensitivity:** 48 / 51 = **0.94**
 <br /><br />
 **Log Specificity:** 44 / 49 = **0.90**
 <br /><br />
 **Total Accuracy:** 92 / 292 = 0.92
 <br /><br />
+**Log Test Error Rate:** FP + FN = **0.159**
 
 ### (g) Perform KNN on the training data, with several values of K, in
 order to predict mpg01. Use only the variables that seemed most associated with mpg01 in (b). What test errors do you obtain? Which value of K seems to perform the best on this data set?
@@ -485,23 +544,45 @@ for (i in seq(1,35)){
   #  conf_mat(y, yhat)
  
   yhat = knn(Auto.X.train, Auto.X.test, Auto.Y.train, k=i)
+  
+  k_confmatrix = caret::confusionMatrix(yhat, Auto.test$mpg01)
  
   output_i[i] = i
   sensitivity_k[i] = confusionMatrix(data=yhat, reference=Auto.Y.test[['mpg01']], positive = "1")$byClass["Sensitivity"]
   specificity_k[i] = confusionMatrix(data=yhat, reference=Auto.Y.test[['mpg01']], positive = "1")$byClass["Specificity"]
   balanced.accuracy_k[i] = confusionMatrix(data=yhat, reference=Auto.Y.test[['mpg01']], positive = "1")$byClass["Balanced Accuracy"]
+  
+  #print(caret::confusionMatrix(yhat, Auto.test$mpg01))
 }
 
 outcome = data.frame(output_i,sensitivity_k, specificity_k, balanced.accuracy_k)
 
 outcome
 ```
-**Answer q11g**: My ***best** value of k was 24 when I compare sensitivity, specificity, and balanced accuracy. With a k of 24:
+
+```{r q11g-3}
+
+yhat = knn(Auto.X.train, Auto.X.test, Auto.Y.train, k=25)
+  
+caret::confusionMatrix(yhat, Auto.test$mpg01)
+
+```
+
+
+**Answer q11g**: My ***best** value of k was 25 when I compare sensitivity, specificity, and balanced accuracy. With a k of 25:
 <br />
-**KNN | k=24 Sensitivity 0.96**
+**KNN | k=25 False Positive Rate:** 2 / 51 = **0.039**
 <br /><br />
-**KNN | k=24 Specificity: 0.837**
+**KNN | k=25 False Negative Rate:** 8 / 49 = **0.163**
 <br /><br />
+
+**KNN | k=25 Sensitivity 0.96**
+<br /><br />
+**KNN | k=25 Specificity: 0.837**
+<br /><br />
+**KNN | k=25 Accuracy: 0.90**
+<br /><br />
+**KNN | k=25 Test Error Rate:** FP + FN = **0.202**
 
 The QDA and Logistic Regression models both out performed the KNN, even with the best-tested k value.
 
