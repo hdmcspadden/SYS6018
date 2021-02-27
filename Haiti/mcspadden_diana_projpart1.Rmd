@@ -350,6 +350,8 @@ table(train$ClassBinary)
 
 ## Cross-Validation Performance 
 
+For logistic regression, LDA, **TO ADD....TO ADD** Cross-Validation threshold performance used ROC for tuning.
+
 The following performance measures are collected for both the 10-fold cross-validation and the hold-out/testing/validation data:
 <ul>
 <li>AUROC</li>
@@ -457,6 +459,8 @@ test.result = evalm(log.test)
 ```
 
 ## LDA
+
+Train the LDA model using 10-fold cross validation. Tuning performed using ROC.
 ```{r ldaCrossValidation}
 set.seed(1976)
 
@@ -464,9 +468,8 @@ lda.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, met
 lda.cv.model
 ```
 
-**ROC** was used as the threshold-determining measure.
 
-```{r ldaPredict}
+```{r qdaTrainConfusionMatrix}
 caret::confusionMatrix(lda.cv.model)
 ```
 ### LDA Training ROC Curve:
@@ -490,11 +493,48 @@ caret::confusionMatrix(lda.test$ClassBinary, test.YesNo$ClassBinary)
 ```
 
 ### LDA Testing ROC
-```{r logROCTest}
+```{r ldaROCTest}
 test.lda.result = evalm(lda.test)
 ```
 
 ## QDA
+
+Train the QDA model using 10-fold cross validation. Tuning performed using ROC.
+```{r qdaCrossValidation}
+set.seed(1976)
+
+qda.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "qda", trControl=trctrl, tuneLength = 10)
+qda.cv.model
+```
+
+```{r qdaTrainConfusionMatrix}
+caret::confusionMatrix(qda.cv.model)
+```
+### QDA Training ROC Curve:
+```{r qdaTrainingROC}
+result.qda = evalm(qda.cv.model)
+result.qda$roc
+```
+
+```{r qdaTestResults}
+qda.test = predict(qda.cv.model, newdata = test.YesNo, type="prob") %>% 
+  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
+```  
+  
+```{r qdaFactor}
+qda.test = qda.test %>% 
+  mutate(ClassBinary = factor(ClassBinary)) 
+```
+
+```{r qdaTestCM}  
+caret::confusionMatrix(qda.test$ClassBinary, test.YesNo$ClassBinary)
+```
+
+### LDA Testing ROC
+```{r qdaROCTest}
+test.qda.result = evalm(qda.test)
+```
+
 
 ## KNN
 
@@ -549,12 +589,12 @@ How were tuning parameter(s) selected? What value is used? Plots/Tables/etc.
 <tr>
   <td>QDA</td>
   <td><!-- QDA Tuning --> N/A</td>
-  <td><!-- QDA AUROC --></td>
+  <td><!-- QDA AUROC -->1.0</td>
   <td><!-- QDA Threshold --></td>
-  <td><!-- QDA Accuracy --></td>
-  <td><!-- QDA TPR --></td>
-  <td><!-- QDA FPR --></td>
-  <td><!-- QDA Precision --></td>
+  <td><!-- QDA Accuracy -->0.9946</td>
+  <td><!-- QDA TPR -->0.998</td>
+  <td><!-- QDA FPR -->0.097</td>
+  <td><!-- QDA Precision -->0.997</td>
 </tr>
 
 <tr>
@@ -665,12 +705,12 @@ Load data, explore data, etc.
 <tr>
   <td>QDA</td>
   <td><!-- QDA Tuning --> N/A</td>
-  <td><!-- QDA AUROC --></td>
+  <td><!-- QDA AUROC -->1.0</td>
   <td><!-- QDA Threshold --></td>
-  <td><!-- QDA Accuracy --></td>
-  <td><!-- QDA TPR --></td>
-  <td><!-- QDA FPR --></td>
-  <td><!-- QDA Precision --></td>
+  <td><!-- QDA Accuracy -->0.9938</td>
+  <td><!-- QDA TPR -->0.997</td>
+  <td><!-- QDA FPR -->0.097</td>
+  <td><!-- QDA Precision -->0.997</td>
 </tr>
 
 <tr>
