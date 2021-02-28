@@ -188,7 +188,7 @@ grid.arrange(redplotB, greenplotB, blueplotB)
 ```
 ### How are red, blue and green values distributed between the **2** classes with the square values for Red + Blue and Green Blue?
 
-```{r colorValuesBinaryCats, fig.height=5, fig.width=5}
+```{r colorValuesBinarySqrsCats, fig.height=5, fig.width=5}
 
 redplotB <- ggplot(haitiBinarySqrs, aes(x=ClassBinary, y=RBSqr)) + 
   geom_boxplot(col='red')
@@ -423,21 +423,21 @@ fct_count(test.YesNo$ClassBinary)
 ```
 
 
-```{r logisticTestResults, include=FALSE, echo=FALSE, eval=FALS}
+```{r logisticTestResults, include=FALSE, echo=FALSE, eval=FALSE}
 #log.test = predict(log.cv.model, newdata = test.YesNo, type="prob") %>% 
 #  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
 ```  
   
-```{r include=FALSE, echo=FALSE, eval=FALS}
+```{r include=FALSE, echo=FALSE, eval=FALSE}
 #log.test = log.test %>% 
 #  mutate(ClassBinary = factor(ClassBinary)) 
 ```
 
-```{r include=FALSE, echo=FALSE, eval=FALS}  
+```{r include=FALSE, echo=FALSE, eval=FALSE}  
 #caret::confusionMatrix(log.test$ClassBinary, test.YesNo$ClassBinary)
 ```
 
-```{r logROCTest, include=FALSE, echo=FALSE, eval=FALS}
+```{r logROCTest, include=FALSE, echo=FALSE, eval=FALSE}
 #plot(roc.curve(test.YesNo$ClassBinary, log.test$ClassBinary)) # Base R version
 
 #test.result = evalm(log.test)
@@ -525,14 +525,30 @@ result.qda$roc
 
 ### Tuning Parameter $k$
 
-```{r}
+```{r knnTry1-21}
 set.seed(1976)
 
-knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid   = expand.grid(k = 11:21))
+knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid   = expand.grid(k = 1:21))
 knn.cv.model
 ```
 
-```{r qdaTrainConfusionMatrix}
+```{r knnTry17-35}
+set.seed(1976)
+
+knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid   = expand.grid(k = 17:35))
+knn.cv.model
+```
+
+```{r knnTry27-51}
+set.seed(1976)
+
+knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid   = expand.grid(k = 27:51))
+knn.cv.model
+
+```
+
+
+```{r knnTrainConfusionMatrix}
 caret::confusionMatrix(knn.cv.model)
 ```
 ### KNN k=17 Training ROC Curve:
@@ -544,7 +560,15 @@ result.knn$roc
 
 ### How were tuning parameter(s) selected? What value is used? Plots/Tables/etc.
 
-Tuning parameters for KNN, i.e. the value of k, was selected by using the caret libraries cross validation that also included evaluating the ROC for each cross-validation fold, for a configured range of k. k values were evaluated for 11:21. I selected this range and decided it was valid after reviewing the results. The k value determined to provide the best ROC value was k == 17. Since 17 is is an arbitrary "middle" range of 11 - 21, and because this value produced training AUC-ROC of 1.0, I believe k=17 is an appropriate choice. 
+I ran 10-fold cross-validation for several ranges of k:
+<ul>
+<li>1 - 21: Returned best k == ***17***</li>
+<li>17 - 35: Returned best k == ***27***</li>
+<li>27 - 51: Returned best k == ***27***</li>
+</ul>
+
+<br /><br />
+From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificity were reviewed for each cross-validation training. From these tables one can see that the improvements within the range are in the hundredths of a percentage point of ROC, so k's in the range of 10 - 51, are all reasonable selections for the cross-validated training data.
 
 
 ## Penalized Logistic Regression (ElasticNet)
@@ -656,13 +680,25 @@ Tuning parameters for KNN, i.e. the value of k, was selected by using the caret 
 
 ### Conclusion \#1 
 
+The data linearly separates very well. Even the 5-class, un-transformed data set was visually separable in the 3-D R-G-B visualization of "Blue Tarps" vs. the other four classes. Collapsing the classes and transforming the variables to decrease variability of Red and Green further improved the linear separability. All the models used performed with 99% precision with ***training*** data and using the following function:
+<br />
+$$ ClassBinary = Blue+Green+Red+GBSqr+RBSqr $$
+
 ### Conclusion \#2
+
+I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to visualize and calculate locations where the most blue tarps will be found to able to help the most people. This assumes an identity relationship between number of tarps and number of people. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. Additionally, GIS information for pre-earthquake roads, and another model that could be used to whether corresponding pixels for pre-earthquake roads remain passable (could we use RBG values for intact paved roads, unpaved roads, and bridges) would be useful.
 
 ### Conclusion \#3
 
+The models need to be validated using the hold-out test data; however, I do not have information regarding the size of the training data vs. the size of real-life data, or the computing power of computers that would be running these models in a real-life scenario. Based on my computer's performance while running cross-validation with the various models, if performance time is a concern, the LDA and QDA models ran significantly faster than the other models. The QDA model performed better than the LDA model, which is surprising for two reasons:
+<br />
+1. the data visually appears linearly separable<br />
+2. the high performance of the logistic regression model<br />
+<br /><br/>
+The QDA model performed with identical TPR (0.998), FPR (0.094), and Precision (0.997) to the logistic regression model, and ran faster. Thus, I recommend the QDA model, but this may change after model testing with the hold-out data.
 
 ```{r, echo=FALSE}
-# knitr::knit_exit()    # ignore everything after this
+knitr::knit_exit()    # ignore everything after this
 ## Uncomment this line for Part I
 ## You can remove the entire code chunk for Part II
 ```
