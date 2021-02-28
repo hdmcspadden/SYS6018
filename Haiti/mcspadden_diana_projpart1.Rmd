@@ -619,7 +619,7 @@ Tuning parameters for KNN, i.e. the value of k, was selected by using the caret 
 
 <tr>
   <td>Penalized Log Reg</td>
-  <td><!-- Penalized Log Reg Tuning --> k = </td>
+  <td><!-- Penalized Log Reg Tuning --></td>
   <td><!-- Penalized Log Reg AUROC --></td>
   <td><!-- Penalized Log Reg Threshold --></td>
   <td><!-- Penalized Log Reg Accuracy --></td>
