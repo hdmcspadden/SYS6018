@@ -75,18 +75,14 @@ library(randomForest)
 library("GGally")
 library(gridExtra)
 library(plotly)
-library(reticulate)
+#library(reticulate)
 library(regclass)
-library(ROSE)
+#library(ROSE)
 library(MLeval)
 library(ggplot2)
 library(purrr)
 library(broom)
 ```
-
-
-
-
 
 ```{r load-data, message=FALSE, warning=FALSE}
 url = 'HaitiPixels.csv'
@@ -333,24 +329,21 @@ library(boot)
 ```
 
 ## 80/20 Train/Test Split
-```{r haitiBinaryTrainTestSplit}
-set.seed(1976)
-sample_size = floor(0.8*nrow(haitiBinarySqrs))
-# randomly split data in r
-picked = sample(seq_len(nrow(haitiBinarySqrs)),size = sample_size)
-train = haitiBinarySqrs[picked,]
-test = haitiBinarySqrs[-picked,]
-```
+```{r haitiTrainingData}
 
-Class counts in the training data set:
-```{r}
-# check imbalance
-table(train$ClassBinary)
+train = haitiBinarySqrs
+
+#set.seed(1976)
+#sample_size = floor(0.8*nrow(haitiBinarySqrs))
+# randomly split data in r
+#picked = sample(seq_len(nrow(haitiBinarySqrs)),size = sample_size)
+#train = haitiBinarySqrs[picked,]
+#test = haitiBinarySqrs[-picked,]
 ```
 
 ## Cross-Validation Performance 
 
-For logistic regression, LDA, **TO ADD....TO ADD** Cross-Validation threshold performance used ROC for tuning.
+For logistic regression, LDA, QDA, and **???KNN** Cross-Validation threshold performance used ROC for tuning.
 
 The following performance measures are collected for both the 10-fold cross-validation and the hold-out/testing/validation data:
 <ul>
@@ -360,23 +353,16 @@ The following performance measures are collected for both the 10-fold cross-vali
 <li>Precision</li>
 </ul>
 
+<br /><br />
+For the Models:
+* **No**: Not a Blue Tarp is **Negative**
+* **Yes**: Is a Blue Tarp is **Positive**
+
 ## Logistic Regression
 
-
 Per our course's Module 3 instruction, logistic regression is typically used when there are 2 classes. I will be using the **haitiBinary** dataframe with two classes:
-<br />
-* **0**: Not a Blue Tarp, i.e. negative
-* **1**: Is a Blue Tarp, i.e. positive
-
 <br /><br />
-Here I run without any cross-validation on the entire train dataset just to take a look at performance
 
-``` {r warning=FALSE}
-# train logistic regression on imbalanced data
-log.model<- glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data=train, family=binomial())
-
-confusion_matrix(log.model)
-```
 Reset the level names to enable the caret functions for the ROC curve.
 
 ```{r}
@@ -405,26 +391,25 @@ log.cv.model
 ```{r logisticTrainingPerf}
 caret::confusionMatrix(log.cv.model)
 ```
-
 <ul>
-<li>TPR: 96.7 / 96.8 = 0.999</li>
-<li>FPR: 0.3 / 3.1 = 0.097</li>
-<li>Precision: 96.7 / 97 = 0.997</li>
+<li>TPR: 96.6 / 96.8 = 0.998</li>
+<li>FPR: 0.3 / 3.2 = 0.094</li>
+<li>Precision: 96.6 / 96.9 = 0.997</li>
 </ul>
 
 
-### Logistic Regression Training ROC Curve:
+### Logistic Regression Cross-Validation ROC Curve:
 
 ```{r LogROCCurve}
 result = evalm(log.cv.model)
 result$roc
 ```
 
-**The ROC-AUC for the 10-fold cross-validated training data is: 1.0.**
+**The Logistic Regression ROC-AUC for the 10-fold cross-validated training data is: 1.0.**
 
-## Logistic Regression: Testing
+<!--## Logistic Regression: Testing -->
 
-```{r}
+```{r include=FALSE, echo=FALSE, eval=FALSE}
 
 test.YesNo = test
 
@@ -438,24 +423,24 @@ fct_count(test.YesNo$ClassBinary)
 ```
 
 
-```{r logisticTestResults}
-log.test = predict(log.cv.model, newdata = test.YesNo, type="prob") %>% 
-  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
+```{r logisticTestResults, include=FALSE, echo=FALSE, eval=FALS}
+#log.test = predict(log.cv.model, newdata = test.YesNo, type="prob") %>% 
+#  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
 ```  
   
-```{r}
-log.test = log.test %>% 
-  mutate(ClassBinary = factor(ClassBinary)) 
+```{r include=FALSE, echo=FALSE, eval=FALS}
+#log.test = log.test %>% 
+#  mutate(ClassBinary = factor(ClassBinary)) 
 ```
 
-```{r}  
-caret::confusionMatrix(log.test$ClassBinary, test.YesNo$ClassBinary)
+```{r include=FALSE, echo=FALSE, eval=FALS}  
+#caret::confusionMatrix(log.test$ClassBinary, test.YesNo$ClassBinary)
 ```
 
-### Logistic Regression Testing ROC
-```{r logROCTest}
-#plot(roc.curve(test.YesNo$ClassBinary, log.test$ClassBinary))
-test.result = evalm(log.test)
+```{r logROCTest, include=FALSE, echo=FALSE, eval=FALS}
+#plot(roc.curve(test.YesNo$ClassBinary, log.test$ClassBinary)) # Base R version
+
+#test.result = evalm(log.test)
 ```
 
 ## LDA
@@ -469,7 +454,7 @@ lda.cv.model
 ```
 
 
-```{r qdaTrainConfusionMatrix}
+```{r ldaTrainConfusionMatrix}
 caret::confusionMatrix(lda.cv.model)
 ```
 ### LDA Training ROC Curve:
@@ -477,24 +462,25 @@ caret::confusionMatrix(lda.cv.model)
 result.lda = evalm(lda.cv.model)
 result.lda$roc
 ```
+**The LDA ROC-AUC for the 10-fold cross-validated training data is: 0.99.**
 
-```{r ldaTestResults}
-lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>% 
-  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
+
+```{r ldaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
+#lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>% 
+#  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
 ```  
   
-```{r}
-lda.test = lda.test %>% 
-  mutate(ClassBinary = factor(ClassBinary)) 
+```{r include=FALSE, echo=FALSE, eval=FALSE}
+#lda.test = lda.test %>% 
+#  mutate(ClassBinary = factor(ClassBinary)) 
 ```
 
-```{r}  
-caret::confusionMatrix(lda.test$ClassBinary, test.YesNo$ClassBinary)
+```{r include=FALSE, echo=FALSE, eval=FALSE}  
+#caret::confusionMatrix(lda.test$ClassBinary, test.YesNo$ClassBinary)
 ```
 
-### LDA Testing ROC
-```{r ldaROCTest}
-test.lda.result = evalm(lda.test)
+```{r ldaROCTest, include=FALSE, echo=FALSE, eval=FALSE}
+#test.lda.result = evalm(lda.test)
 ```
 
 ## QDA
@@ -516,35 +502,58 @@ result.qda = evalm(qda.cv.model)
 result.qda$roc
 ```
 
-```{r qdaTestResults}
-qda.test = predict(qda.cv.model, newdata = test.YesNo, type="prob") %>% 
-  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
+```{r qdaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
+#qda.test = predict(qda.cv.model, newdata = test.YesNo, type="prob") %>% 
+#  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
 ```  
   
-```{r qdaFactor}
-qda.test = qda.test %>% 
-  mutate(ClassBinary = factor(ClassBinary)) 
+```{r qdaFactor, include=FALSE, echo=FALSE, eval=FALSE}
+#qda.test = qda.test %>% 
+#  mutate(ClassBinary = factor(ClassBinary)) 
 ```
 
-```{r qdaTestCM}  
-caret::confusionMatrix(qda.test$ClassBinary, test.YesNo$ClassBinary)
+```{r qdaTestCM, include=FALSE, echo=FALSE, eval=FALSE}  
+#caret::confusionMatrix(qda.test$ClassBinary, test.YesNo$ClassBinary)
 ```
 
-### LDA Testing ROC
-```{r qdaROCTest}
-test.qda.result = evalm(qda.test)
-```
 
+```{r qdaROCTest, include=FALSE, echo=FALSE, eval=FALSE}
+#test.qda.result = evalm(qda.test)
+```
 
 ## KNN
 
 ### Tuning Parameter $k$
 
-How were tuning parameter(s) selected? What value is used? Plots/Tables/etc.
+```{r}
+set.seed(1976)
+
+knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid   = expand.grid(k = 11:21))
+knn.cv.model
+```
+
+```{r qdaTrainConfusionMatrix}
+caret::confusionMatrix(knn.cv.model)
+```
+### KNN k=17 Training ROC Curve:
+```{r knnTrainingROC}
+result.knn = evalm(knn.cv.model)
+result.knn$roc
+```
+
+
+### How were tuning parameter(s) selected? What value is used? Plots/Tables/etc.
+
+Tuning parameters for KNN, i.e. the value of k, was selected by using the caret libraries cross validation that also included evaluating the ROC for each cross-validation fold, for a configured range of k. k values were evaluated for 11:21. I selected this range and decided it was valid after reviewing the results. The k value determined to provide the best ROC value was k == 17. Since 17 is is an arbitrary "middle" range of 11 - 21, and because this value produced training AUC-ROC of 1.0, I believe k=17 is an appropriate choice. 
+
 
 ## Penalized Logistic Regression (ElasticNet)
 
+
+
 ### Tuning Parameters
+
+
 
 **NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**
 
@@ -570,17 +579,17 @@ How were tuning parameter(s) selected? What value is used? Plots/Tables/etc.
   <td><!-- Log Reg AUROC -->1.0</td>
   <td><!-- Log Reg Threshold -->1.0</td>
   <td><!-- Log Reg Accuracy -->0.9953</td>
-  <td><!-- Log Reg TPR -->0.999</td>
-  <td><!-- Log Reg FPR -->0.097</td>
+  <td><!-- Log Reg TPR -->0.998</td>
+  <td><!-- Log Reg FPR -->0.094</td>
   <td><!-- Log Reg Precision -->0.997</td>
 </tr>
 
 <tr>
   <td>LDA</td>
   <td><!-- LDA Tuning --> N/A</td>
-  <td><!-- LDA AUROC -->0.994</td>
+  <td><!-- LDA AUROC -->0.99</td>
   <td><!-- LDA Threshold --></td>
-  <td><!-- LDA Accuracy -->0.9945</td>
+  <td><!-- LDA Accuracy -->0.9943</td>
   <td><!-- LDA TPR -->0.999</td>
   <td><!-- LDA FPR -->0.156</td>
   <td><!-- LDA Precision -->0.995</td>
@@ -591,21 +600,21 @@ How were tuning parameter(s) selected? What value is used? Plots/Tables/etc.
   <td><!-- QDA Tuning --> N/A</td>
   <td><!-- QDA AUROC -->1.0</td>
   <td><!-- QDA Threshold --></td>
-  <td><!-- QDA Accuracy -->0.9946</td>
+  <td><!-- QDA Accuracy -->0.9945</td>
   <td><!-- QDA TPR -->0.998</td>
-  <td><!-- QDA FPR -->0.097</td>
+  <td><!-- QDA FPR -->0.094</td>
   <td><!-- QDA Precision -->0.997</td>
 </tr>
 
 <tr>
   <td>KNN</td>
-  <td><!-- KNN Tuning --> k = </td>
-  <td><!-- KNN AUROC --></td>
+  <td><!-- KNN Tuning --> k = 17</td>
+  <td><!-- KNN AUROC -->1.0</td>
   <td><!-- KNN Threshold --></td>
-  <td><!-- KNN Accuracy --></td>
-  <td><!-- KNN TPR --></td>
-  <td><!-- KNN FPR --></td>
-  <td><!-- KNN Precision --></td>
+  <td><!-- KNN Accuracy -->0.997</td>
+  <td><!-- KNN TPR -->0.998</td>
+  <td><!-- KNN FPR -->0.0313</td>
+  <td><!-- KNN Precision -->0.999</td>
 </tr>
 
 <tr>
@@ -683,78 +692,78 @@ Load data, explore data, etc.
 <tr>
   <td>Log Reg</td>
   <td><!-- Log Reg Tuning --> N/A</td>
-  <td><!-- Log Reg AUROC -->1.0</td>
-  <td><!-- Log Reg Threshold -->1.0</td>
-  <td><!-- Log Reg Accuracy -->0.9955</td>
-  <td><!-- Log Reg TPR -->0.998</td>
-  <td><!-- Log Reg FPR -->0.088</td>
-  <td><!-- Log Reg Precision -->0.997</td>
+  <td><!-- Log Reg AUROC -->TBD</td>
+  <td><!-- Log Reg Threshold -->TBD</td>
+  <td><!-- Log Reg Accuracy -->TBD</td>
+  <td><!-- Log Reg TPR -->TBD</td>
+  <td><!-- Log Reg FPR -->TBD</td>
+  <td><!-- Log Reg Precision -->TBD</td>
 </tr>
 
 <tr>
   <td>LDA</td>
   <td><!-- LDA Tuning --> N/A</td>
-  <td><!-- LDA AUROC -->1.0</td>
-  <td><!-- LDA Threshold --></td>
-  <td><!-- LDA Accuracy -->0.9938</td>
-  <td><!-- LDA TPR -->0.999</td>
-  <td><!-- LDA FPR -->0.148</td>
-  <td><!-- LDA Precision -->0.995</td>
+  <td><!-- LDA AUROC -->TBD</td>
+  <td><!-- LDA Threshold -->TBD</td>
+  <td><!-- LDA Accuracy -->TBD</td>
+  <td><!-- LDA TPR -->TBD</td>
+  <td><!-- LDA FPR -->TBD</td>
+  <td><!-- LDA Precision -->TBD</td>
 </tr>
 
 <tr>
   <td>QDA</td>
   <td><!-- QDA Tuning --> N/A</td>
-  <td><!-- QDA AUROC -->1.0</td>
-  <td><!-- QDA Threshold --></td>
-  <td><!-- QDA Accuracy -->0.9938</td>
-  <td><!-- QDA TPR -->0.997</td>
-  <td><!-- QDA FPR -->0.097</td>
-  <td><!-- QDA Precision -->0.997</td>
+  <td><!-- QDA AUROC -->TBD</td>
+  <td><!-- QDA Threshold -->TBD</td>
+  <td><!-- QDA Accuracy -->TBD</td>
+  <td><!-- QDA TPR -->TBD</td>
+  <td><!-- QDA FPR -->TBD</td>
+  <td><!-- QDA Precision -->TBD</td>
 </tr>
 
 <tr>
   <td>KNN</td>
-  <td><!-- KNN Tuning --> k = </td>
-  <td><!-- KNN AUROC --></td>
-  <td><!-- KNN Threshold --></td>
-  <td><!-- KNN Accuracy --></td>
-  <td><!-- KNN TPR --></td>
-  <td><!-- KNN FPR --></td>
-  <td><!-- KNN Precision --></td>
+  <td><!-- KNN Tuning --> k = TBD</td>
+  <td><!-- KNN AUROC -->TBD</td>
+  <td><!-- KNN Threshold -->TBD</td>
+  <td><!-- KNN Accuracy -->TBD</td>
+  <td><!-- KNN TPR -->TBD</td>
+  <td><!-- KNN FPR -->TBD</td>
+  <td><!-- KNN Precision -->TBD</td>
 </tr>
 
 <tr>
   <td>Penalized Log Reg</td>
-  <td><!-- Penalized Log Reg Tuning --> k = </td>
-  <td><!-- Penalized Log Reg AUROC --></td>
-  <td><!-- Penalized Log Reg Threshold --></td>
-  <td><!-- Penalized Log Reg Accuracy --></td>
-  <td><!-- Penalized Log Reg TPR --></td>
-  <td><!-- Penalized Log Reg FPR --></td>
-  <td><!-- Penalized Log Reg Precision --></td>
+  <td><!-- Penalized Log Reg Tuning -->TBD</td>
+  <td><!-- Penalized Log Reg AUROC -->TBD</td>
+  <td><!-- Penalized Log Reg Threshold -->TBD</td>
+  <td><!-- Penalized Log Reg Accuracy -->TBD</td>
+  <td><!-- Penalized Log Reg TPR -->TBD</td>
+  <td><!-- Penalized Log Reg FPR -->TBD</td>
+  <td><!-- Penalized Log Reg Precision -->TBD</td>
 </tr>
 
 <tr>
   <td>Random Forest</td>
-  <td><!-- Random Forest Tuning --> </td>
-  <td><!-- Random Forest AUROC --></td>
-  <td><!-- Random Forest Threshold --></td>
-  <td><!-- Random Forest Accuracy --></td>
-  <td><!-- Random Forest TPR --></td>
-  <td><!-- Random Forest FPR --></td>
-  <td><!-- Random Forest Precision --></td>
+  <td><!-- Random Forest Tuning -->TBD</td>
+  <td><!-- Random Forest AUROC -->TBD</td>
+  <td><!-- Random Forest Threshold -->TBD</td>
+  <td><!-- Random Forest Accuracy -->TBD</td>
+  <td><!-- Random Forest TPR -->TBD</td>
+  <td><!-- Random Forest FPR -->TBD</td>
+  <td><!-- Random Forest Precision -->TBD</td>
 </tr>
 
 <tr>
   <td>SVM</td>
-  <td><!-- SVM Tuning -->  </td>
-  <td><!-- SVM AUROC --></td>
-  <td><!-- SVM Threshold --></td>
-  <td><!-- SVM Accuracy --></td>
-  <td><!-- SVM TPR --></td>
-  <td><!-- SVM FPR --></td>
-  <td><!-- SVM Precision --></td>
+  <td><!-- SVM Tuning --> TBD</td>
+  <td><!-- SVM AUROC -->TBD</td>
+  <td><!-- SVM Threshold -->TBD</td>
+  <td><!-- SVM Accuracy -->TBD</td>
+  <td><!-- SVM TPR -->TBD</td>
+  <td><!-- SVM FPR -->TBD</td>
+  <td><!-- SVM Precision -->TBD</td>
 </tr>
 </table>
 
