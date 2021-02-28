@@ -690,7 +690,7 @@ I am interested in how to use limited resources to reach the greatest number of 
 
 ### Conclusion \#3
 
-The models need to be validated using the hold-out test data; however, I do not have information regarding the size of the training data vs. the size of real-life data, or the computing power of computers that would be running these models in a real-life scenario. Based on my computer's performance while running cross-validation with the various models, if performance time is a concern, the LDA and QDA models ran significantly faster than the other models. The QDA model performed better than the LDA model, which is surprising for two reasons:
+The models need to be validated using the hold-out test data, and I do not have information regarding the size of the training data vs. the size of real-life data, or the computing power of computers that would be running these models in a real-life scenario. Based on my computer's performance while running cross-validation with the various models, if performance time is a concern, the LDA and QDA models ran significantly faster than the other models. The QDA model performed better than the LDA model, which is surprising for two reasons:
 <br />
 1. the data visually appears linearly separable<br />
 2. the high performance of the logistic regression model<br />
