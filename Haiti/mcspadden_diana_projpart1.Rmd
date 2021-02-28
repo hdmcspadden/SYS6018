@@ -585,16 +585,16 @@ From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificit
 
 # Results (Cross-Validation)
 
-<table>
+<table width="800">
 <th>
-  <td>Model</td>
-  <td>Tuning</td>
-  <td>AUROC</td>
-  <td>Threshold</td>
-  <td>Accuracy</td>
-  <td>TPR</td>
-  <td>FPR</td>
-  <td>Precision</td>
+  <td width="100">Model</td>
+  <td width="100">Tuning</td>
+  <td width="100">AUROC</td>
+  <td width="100">Threshold</td>
+  <td width="100">Accuracy</td>
+  <td width="100">TPR</td>
+  <td width="100">FPR</td>
+  <td width="100">Precision</td>
 </th>
 
 <tr>
@@ -697,6 +697,16 @@ The models need to be validated using the hold-out test data, and I do not have 
 <br /><br/>
 The QDA model performed with identical TPR (0.998), FPR (0.094), and Precision (0.997) to the logistic regression model, and ran faster. Thus, I recommend the QDA model, but this may change after model testing with the hold-out data.
 
+## References
+<ul>
+<li>3D Scatter Plots in Python: <https://plotly.com/python/3d-scatter-plots/></li>
+<li>Axes Labels in R: <https://plotly.com/r/figure-labels/></li>
+
+<li>caret::trainControl: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/trainControl></li>
+<li>Predictive Modeling with R and the caret Package: <http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf></li>
+<li>caret::train: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/train></li>
+<li>MLeval::evalm: <https://www.rdocumentation.org/packages/MLeval/versions/0.3/topics/evalm></li>
+</ul>
 ```{r, echo=FALSE}
 knitr::knit_exit()    # ignore everything after this
 ## Uncomment this line for Part I
@@ -713,16 +723,16 @@ Load data, explore data, etc.
 
 # Results (Test/Validate Data)
 
-<table>
+<table width="800">
 <th>
-  <td>Model</td>
-  <td>Tuning</td>
-  <td>AUROC</td>
-  <td>Threshold</td>
-  <td>Accuracy</td>
-  <td>TPR</td>
-  <td>FPR</td>
-  <td>Precision</td>
+  <td width="100">Model</td>
+  <td width="100">Tuning</td>
+  <td width="100">AUROC</td>
+  <td width="100">Threshold</td>
+  <td width="100">Accuracy</td>
+  <td width="100">TPR</td>
+  <td width="100">FPR</td>
+  <td width="100">Precision</td>
 </th>
 
 <tr>
@@ -818,13 +828,3 @@ Load data, explore data, etc.
 
 ### Conclusion \#6
 
-## References
-<ul>
-<li>3D Scatter Plots in Python: <https://plotly.com/python/3d-scatter-plots/></li>
-<li>Axes Labels in R: <https://plotly.com/r/figure-labels/></li>
-
-<li>caret::trainControl: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/trainControl></li>
-<li>Predictive Modeling with R and the caret Package: <http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf></li>
-<li>caret::train: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/train></li>
-<li>MLeval::evalm: <https://www.rdocumentation.org/packages/MLeval/versions/0.3/topics/evalm></li>
-</ul>
