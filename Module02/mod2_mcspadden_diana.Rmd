@@ -517,7 +517,7 @@ plot(mlr_betas~slr_betas)
 
 ## (d) Is there evidence of non-linear association...
 between any of the predictors and the response? To answer this question, for each predictor X, fit a model of the form
-$$Y = β0 + β1X + β2X2 + β3X3 + ..$$
+$$Y = β0 + β1X + β2X2 + β3X3 + E..$$
 
 ```{r q15d-1}
 # create vectors of the of outcomes

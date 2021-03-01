@@ -65,7 +65,9 @@ glm.fit %>% tidy()
 lm.fit <- lm(mpg~horsepower, data=Auto)
 #coef(lm.fit)
 glm.fit %>% tidy()
+```
 
+``` {r}
 #library(boot)
 library(rsample)
 library(purrr)

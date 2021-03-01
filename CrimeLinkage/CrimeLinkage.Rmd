@@ -21,7 +21,7 @@ library(tidyverse)
 library(plotly)
 library(dplyr)
 library("GGally")
-
+library(randomForest)
 library(gridExtra)
 library(broom)
 library(caret)
@@ -82,7 +82,7 @@ This is a very unbalanced data set. There are ways to create synthetic results, 
 
 ```{r setupTraining}
 #using cross validation
-trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
 ```
 
 Center and scale because I don't know if temporal, tod, and dow are using the same scale for time differences.
@@ -114,6 +114,7 @@ test_pred = predict(crimeModel, newdata = test, type="prob") %>%
 ```{r}
 head(test_pred)
 ```
+
 
 ```{r}
 #confusion matrices I used to evaluate the models I tried
