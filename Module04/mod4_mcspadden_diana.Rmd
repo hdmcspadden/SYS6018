@@ -58,11 +58,11 @@ df.Default = Default %>%
 head(df.Default)
 ```
 
-```{r q5a-4}
+```{r q5a-5}
 log.model = glm(default~income+balance, data=df.Default, family=binomial)
 ```
 
-```{r}
+```{r q5a-6}
 summary(log.model)
 ```
 
@@ -217,29 +217,84 @@ We continue to consider the use of a logistic regression model to predict the pr
 ## (a) Using the summary() and glm() functions, ...
 determine the estimated standard errors for the coefficients associated with income and balance in a multiple logistic regression model that uses both predictors.
 
+```{r q6a-1}
+log.model.q6 = glm(default~income+balance, family = binomial, data = df.Default)
+summary(log.model.q6)
+
+```
 
 ## (b) Write a function, boot.fn(), ...
 that takes as input the Default data set as well as an index of the observations, and that outputs the coefficient estimates for income and balance in the multiple logistic regression model.
 
 
+
+```{r q6b-1}
+library(tidymodels)
+
+boot.fn=function (data ,index)
+  return (coef(glm(default~income+balance ,data=data , family="binomial", subset = index)))
+```
+
+
 ## (c) Use the boot() function together with your boot.fn() function...
 to estimate the standard errors of the logistic regression coefficients for income and balance.
 
+```{r q6c-1}
+library(boot)
+set.seed(1976)
+boot(df.Default, boot.fn, 1000)
+
+#set.seed(1976)
+#boot.coefs.income = bootstraps(df.Default, times=100)$splits %>% purrr::map(boot.fn.coef.income)
+#boot.fn(df.Default,sample(100,100,replace=T))
+```
 
 ## (d) Comment on the estimated standard errors ...
 obtained using the glm() function and using your bootstrap function.
 
+**Answer q6c:** The table above shows that the standard error for income is 0.00000495, and the standard error for balance is 0.000238. These errors should be closer to the actual standard error of true relationship coefficients.
 
 # Q7. 
 In Sections 5.3.2 and 5.3.3, we saw that the cv.glm() function can be used in order to compute the LOOCV test error estimate. Alternatively, one could compute those quantities using just the glm() and predict.glm() functions, and a for loop. You will now take this approach in order to compute the LOOCV error for a simple logistic regression model on the Weekly data set. Recall that in the context of classification problems, the LOOCV error is given in (5.4).
 
 ## (a) Fit a logistic regression model that predicts Direction using Lag1 and Lag2.
 
+```{r q7a-1}
+q7.model = glm(Direction~Lag1+Lag2, data=Weekly, family="binomial")
+```
+
+
 ## (b) Fit a logistic regression model that predicts Direction using Lag1 and Lag2 ...
 using all but the first observation.
 
+```{r q7b-1}
+leaveOutIndex = 1
+
+dim(Weekly)
+dim(Weekly[-leaveOutIndex, ])
+
+q7.model.loo = glm(Direction~Lag1+Lag2, data=Weekly[-leaveOutIndex, ], family="binomial")
+
+```
+
+```{r q7b-2}
+summary(q7.model.loo)
+```
+
+
 ## (c) Use the model from (b) to predict the direction of the first observation.
 You can do this by predicting that the first observation will go up if P(Direction="Up"|Lag1, Lag2) > 0.5. Was this observation correctly classified?
+
+```{r q7c-1}
+
+q7.prediction = q7.model.loo %>% augment(newdata=Weekly[leaveOutIndex, ]) %>% 
+    dplyr::select(Direction, .fitted)  %>% 
+    mutate(.prediction=ifelse(.fitted<0, "Down", "Up"))
+
+q7.prediction
+```
+
+**Answer q7c:** No, the observation was not correctly identified as Down. It was identifed as "Up"
 
 ## (d) Write a for loop...
 from i = 1 to i = n, where n is the number of observations in the data set, that performs each of the following
@@ -247,13 +302,53 @@ steps:
 <ol>
 <li>Fit a logistic regression model using all but the ith observation to predict Direction using Lag1 and Lag2.</li>
 <li>Compute the posterior probability of the market moving up for the ith observation.</li>
-<li> Use the posterior probability for the ith observation in order to predict whether or not the market moves up.</li>
+<li>Use the posterior probability for the ith observation in order to predict whether or not the market moves up.</li>
 <li>Determine whether or not an error was made in predicting the direction for the ith observation. If an error was made, then indicate this as a 1, and otherwise indicate it as a 0.</li>
 </ol>
+
+```{r q7d-1}
+
+
+myLOOCVLoop <- function(theData, leaveOutIndex) {
+
+  # leave out the i-th value for testing
+  test <- theData[leaveOutIndex, ]
+  # keep rest of data for training
+  train <- theData[-leaveOutIndex, ]
+  
+  # fit to training data
+  glm.fit<-glm(Direction~Lag1+Lag2, data=train, family="binomial")
+
+
+  # calculate square of difference between predicted and actual
+  q7.prediction = q7.model.loo %>% augment(newdata=Weekly[leaveOutIndex, ]) %>% 
+    dplyr::select(Direction, .fitted)  %>% 
+    mutate(.prediction=ifelse(.fitted<0, "Down", "Up")) %>%
+    mutate(.errInd=ifelse(Direction != .prediction, 1, 0))
+  
+  # return dif squared
+  return(q7.prediction[1,'.errInd'])
+}
+
+errAccumulator = 0
+
+for (i in 1:nrow(Weekly)) 
+{ 
+  # add to accumulator the dif Squared
+  errAccumulator <- errAccumulator + myLOOCVLoop(Weekly,i)
+}
+
+
+```
+
 
 ## (e) Take the average of the n numbers obtained in (d4) ...
 in order to obtain the LOOCV estimate for the test error. Comment on the results.
 
+```{r q7e-1}
+print(paste("Average LOOCV :", (errAccumulator / nrow(Weekly))))
+```
+**Comments on q7c:** The test error from LOOCV should be closer to the true test error rate than any single split of the data set.
 
 # Q8. 
 We will now perform cross-validation on a simulated data set.
@@ -266,9 +361,29 @@ x=rnorm (100)
 
 y=x-2* x^2+ rnorm (100)
 
+```{r q8a-1}
+set.seed (1)
+
+x=rnorm(100)
+
+y=x-2*x^2+rnorm (100)
+```
+
+
 In this data set, what is n and what is p? Write out the model used to generate the data in equation form.
+<br />
+**Answer q8a:** n is 100, p is 2, intercept + x
+<br />The formula is:
+
+$$y_i = x_i - 2 * x^2 + \epsilon $$
 
 ## (b) Create a scatterplot of X against Y . Comment on what you find.
+
+```{r}
+plot(x,y)
+```
+
+**Answer q8b:** As expected from the formula, the plot appears quadratic, and appears normality distributed.
 
 
 ## (c) Set a random seed, and then compute the LOOCV errors...
@@ -282,12 +397,72 @@ iii. Y = β0 + β1X + β2X2 + β3X3 + E
 
 iv. Y = β0 + β1X + β2X2 + β3X3 + β4X4 + E.
 
-Note you may find it helpful to use the data.frame() function to create a single data set containing both X and Y 
+Note you may find it helpful to use the data.frame() function to create a single data set containing both X and Y.
+
+```{r q8c-1}
+df.q8 = data.frame(x = x, y = y)
+
+head(df.q8)
+```
+
+``` {r q8c-2}
+set.seed(1976)
+
+cv.error=rep (0,4)
+for (i in 1:4){
+  glm.fit=glm(y∼poly(x ,i), data=df.q8)
+  
+  cv.error[i] = cv.glm(df.q8, glm.fit, K=nrow(df.q8))$delta[1]
+}
+
+cv.error
+```
+
 ## (d) Repeat (c) using another random seed, and report your results.
 Are your results the same as what you got in (c)? Why?
+
+``` {r q8d-1}
+set.seed (1978)
+
+x=rnorm(100)
+
+y=x-2*x^2+rnorm (100)
+
+df.q8 = data.frame(x = x, y = y)
+
+cv.error=rep (0,4)
+for (i in 1:4){
+  glm.fit=glm(y∼poly(x ,i), data=df.q8)
+  
+  cv.error[i] = cv.glm(df.q8, glm.fit, K=nrow(df.q8))$delta[1]
+}
+
+cv.error
+```
+
+**Answer q8d:** The test errors are difference because they were added to the model with different random numbers due to the set.seed with two difference values. However, the sorting of error from least to greatest is the same: x^2, X^4, X^3, X^1
 
 ## (e) Which of the models in (c) had the smallest LOOCV error? 
 Is this what you expected? Explain your answer.
 
+**Answer q83:** The X^2 model has the least error with both data sets. This is expected because the true relationship is quadratic.
+
 ## (f) Comment on the statistical significance ...
 of the coefficient estimates that results from fitting each of the models in (c) using least squares. Do these results agree with the conclusions drawn based on the cross-validation results?
+
+```{r q8f-1}
+cv.error=rep (0,4)
+
+for (i in 1:4){
+  glm.fit=glm(y∼poly(x ,i), data=df.q8)
+  
+  print(paste("Summary for Poly ", i))
+  print(summary(glm.fit))
+  
+  #print(paste("ConfInt for Poly ", i))
+  #print(confint(glm.fit))
+  print("---------------------------------")
+}
+```
+
+**Answer q8f:** Yes, they do agree, the X^2 predictor has the most significance, i.e. the largest t-value in all models, and in the y~x model the x predictor is not significant. 

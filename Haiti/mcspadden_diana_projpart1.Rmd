@@ -9,8 +9,7 @@ output:
     toc_float: true
     theme: cosmo
     highlight: espresso    
-# You can make the format personal - this will get you started:  
-# https://bookdown.org/yihui/rmarkdown/html-document.html#appearance_and_style    
+ 
 ---
 
 <!--- Below are global settings for knitr. You can override any of them by adding the changes to individual chunks --->
@@ -51,10 +50,27 @@ pre {
 **SYS 6018 | Spring 2021 | University of Virginia **
 
 *******************************************
+# SYS 6018: Disaster Relief Project
+## R-G-B for Dis-Cov-Er-Y
+
+### H. Diana McSpadden
 
 # Introduction 
 
-Tell the reader what this project is about. Motivation. 
+When natural disasters or other emergencies result in compromised communications and logistical challenges, it can be impossible within a reasonable time to locate survivors using human-only methods. This disaster relief toy problem seeks to discover if an algorithm can effectively identify images corresponding to people who require relief.
+
+To investigate whether this is possible a data set was provided of RGB color values corresponding to pixels. The pixels are from high-resolution images taken by an aircraft above Haiti. Blue tarps had been distributed to survivors, but rescue workers did not have information about where survivors were located after receiving the blue tarps. 
+
+Blue tarps have a distinct color when compared to other identifiable elements in Haiti. The training data set includes 63,241 RGB values for pixels in the toy problem's images. The training data set includes a label for each pixel. The labels include:
+<ul>
+<li>Blue Tarp</li>
+<li>Rooftop</li>
+<li>Soil</li>
+<li>Various Non-Tarp</li>
+<li>Vegetation</li>
+</ul>
+
+Below the training data is explored, and various modeling methods applied to determine if, and which method can be effectively used to identify blue tarps by RGB values.
 
 # Training Data / EDA
 
