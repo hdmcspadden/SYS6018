@@ -226,8 +226,6 @@ summary(log.model.q6)
 ## (b) Write a function, boot.fn(), ...
 that takes as input the Default data set as well as an index of the observations, and that outputs the coefficient estimates for income and balance in the multiple logistic regression model.
 
-
-
 ```{r q6b-1}
 library(tidymodels)
 

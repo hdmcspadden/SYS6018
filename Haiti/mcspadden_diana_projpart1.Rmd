@@ -344,18 +344,6 @@ library(caret)
 library(boot)
 ```
 
-## 80/20 Train/Test Split
-```{r haitiTrainingData}
-
-train = haitiBinarySqrs
-
-#set.seed(1976)
-#sample_size = floor(0.8*nrow(haitiBinarySqrs))
-# randomly split data in r
-#picked = sample(seq_len(nrow(haitiBinarySqrs)),size = sample_size)
-#train = haitiBinarySqrs[picked,]
-#test = haitiBinarySqrs[-picked,]
-```
 
 ## Cross-Validation Performance 
 
@@ -648,7 +636,7 @@ From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificit
 
 <tr>
   <td>KNN</td>
-  <td><!-- KNN Tuning --> k = 17</td>
+  <td><!-- KNN Tuning --> k = 27</td>
   <td><!-- KNN AUROC -->1.0</td>
   <td><!-- KNN Threshold --></td>
   <td><!-- KNN Accuracy -->0.997</td>
@@ -696,28 +684,45 @@ From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificit
 
 ### Conclusion \#1 
 
-The data linearly separates very well. Even the 5-class, un-transformed data set was visually separable in the 3-D R-G-B visualization of "Blue Tarps" vs. the other four classes. Collapsing the classes and transforming the variables to decrease variability of Red and Green further improved the linear separability. All the models used performed with 99% precision with ***training*** data and using the following function:
+**Training Data Linearly Separates**<br />
+
+The training data linearly separates very well. Even the 5-class, un-transformed data set was visually separable in the 3-D R-G-B visualization of "Blue Tarps" vs. the other four classes. Collapsing the classes and transforming the variables to decrease variability of Red and Green further improved the linear separability. All the models used performed with 99% precision with ***training*** data and using the following function:
 <br />
-$$ ClassBinary = Blue+Green+Red+GBSqr+RBSqr $$
+$$ ClassBinary = Blue+Green+Red+GBSqr+RBSqr$$
+where $GBSqr=(Green + Blue)^2$ and $RBSqr=(Red + Blue)^2$
+<br /><br />
+I look forward to discovering if the hold-out/validation data set also separates as well.
+
 
 ### Conclusion \#2
 
-I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to visualize and calculate locations where the most blue tarps will be found to able to help the most people. This assumes an identity relationship between number of tarps and number of people. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. Additionally, GIS information for pre-earthquake roads, and another model that could be used to whether corresponding pixels for pre-earthquake roads remain passable (could we use RBG values for intact paved roads, unpaved roads, and bridges) would be useful.
+**Distribution of Classes**<br/>
+
+Only 3% of the observations in the training data are labeled "Blue Tarp". This is a very unbalanced training set. This is not unexpected because it would be extremely surprising is a high percentage of land area was covered by blue tarps. In fact, if that were the case, then I would expect it would not be challenging for aid workers to find survivors because survivors would be covering a high percentage of haiti. That said, this imbalance of the data can give a false sense of faith in a model. In this haiti toy problem, **a random guess of "not blue tarp" will be correct 97% of the time**, thus our model must perform better than a random guess. Additionally, our problem's aid workers must not have their limited time and resources expended on false blue tarps, so our False Positive Rate (FPR) must be kept low.
+
 
 ### Conclusion \#3
+
+**Request For Additional Information for Real-World Implementation**<br />
+I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to visualize and calculate locations where the most blue tarps will be found to able to help the most people. This assumes an identity relationship between number of tarps and number of people. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. Additionally, GIS information for pre-earthquake roads, and another model that could be used to whether corresponding pixels for pre-earthquake roads remain passable (could we use RBG values for intact paved roads, unpaved roads, and bridges) would be useful.
+
+### Conclusion \#4
+
+**Model Comments and Selection Based on Training Data**<br />
 
 The models need to be validated using the hold-out test data, and I do not have information regarding the size of the training data vs. the size of real-life data, or the computing power of computers that would be running these models in a real-life scenario. Based on my computer's performance while running cross-validation with the various models, if performance time is a concern, the LDA and QDA models ran significantly faster than the other models. The QDA model performed better than the LDA model, which is surprising for two reasons:
 <br />
 1. the data visually appears linearly separable<br />
 2. the high performance of the logistic regression model<br />
 <br /><br/>
-The QDA model performed with identical TPR (0.998), FPR (0.094), and Precision (0.997) to the logistic regression model, and ran faster. Thus, I recommend the QDA model, but this may change after model testing with the hold-out data.
+The QDA model performed with identical TPR (0.998), FPR (0.094), and Precision (0.997) to the logistic regression model, and ran faster. Thus, if computing time is of concern, I recommend the QDA model, but this may change after model testing with the hold-out data.
+
+However, the KNN model with k == 27 produced the lowest FPR (0.03), and greatest Precision (0.999) which is particularly of interest because we do not want to spend precious time and people-power sending aid workers to locations were we mistakenly predict survivors. This KNN model performed very well, and if the size of n, computing power, and validation performance align, then this is my current recommended model.
 
 ## References
 <ul>
 <li>3D Scatter Plots in Python: <https://plotly.com/python/3d-scatter-plots/></li>
 <li>Axes Labels in R: <https://plotly.com/r/figure-labels/></li>
-
 <li>caret::trainControl: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/trainControl></li>
 <li>Predictive Modeling with R and the caret Package: <http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf></li>
 <li>caret::train: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/train></li>
