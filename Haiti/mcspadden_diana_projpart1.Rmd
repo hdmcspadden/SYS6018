@@ -370,42 +370,120 @@ Per our course's Module 3 instruction, logistic regression is typically used whe
 Reset the level names to enable the caret functions for the ROC curve.
 
 ```{r}
-levels(train$ClassBinary)
+levels(haitiBinarySqrs$ClassBinary)
 
-levels(train$ClassBinary)=c("No","Yes")
+levels(haitiBinarySqrs$ClassBinary)=c("No","Yes")
 
-levels(train$ClassBinary)
+levels(haitiBinarySqrs$ClassBinary)
 
-fct_count(train$ClassBinary)
+fct_count(haitiBinarySqrs$ClassBinary)
+
+train = haitiBinarySqrs
 ```
 
-```{r}
+Here I perform my own 10-fold cross validation for several values of p
+
+```{r logRegressionTuning, warning=FALSE}
+library(yardstick)
+
 set.seed(1976)
-# number: number of folds for cross validation
-trctrl <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, number = 10, repeats = 2)
+#Randomly shuffle the data
+haitiBinarySqrsShuffled = haitiBinarySqrs[sample(nrow(haitiBinarySqrs)),]
 
-log.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "glmnet", trControl=trctrl, tuneLength = 10)
-log.cv.model
+#Create 10 equally size folds
+folds <- cut(seq(1,nrow(haitiBinarySqrsShuffled)),breaks=10,labels=FALSE)
+
+
+# create storage variables for the p value, ROC, Specificity, and Sensitivity
+k_start = 1
+k_end = 10
+out_nvar = k_end - k_start + 1
+
+p_i = rep(NA, out_nvar)
+sensitivity_i = rep(NA, out_nvar)
+specificity_i = rep(NA, out_nvar)
+prec_i = rep(NA, out_nvar)
+
+counter = 1
+
+for (j in c(.5,.55,.6,.65,.7,.75,.8,.85,.9,.95))
+{ 
+
+  p_i[counter] = j
+  
+  accumulator_sens = 0
+  accumulator_spec = 0
+  accumulator_prec = 0
+  
+  #Perform 10 fold cross validation
+  for(i in 1:10) {
+    
+      #Segement your data by fold using the which() function 
+      testIndexes <- which(folds==i,arr.ind=TRUE)
+      testData <- haitiBinarySqrsShuffled[testIndexes, ]
+      trainData <- haitiBinarySqrsShuffled[-testIndexes, ]
+      
+      glm.fits <- glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = trainData)
+      
+      glm.logOdds_predictions = glm.fits %>%  augment(newdata=testData) %>% 
+      dplyr::select(ClassBinary, .fitted)  %>% 
+      mutate(ClassBinary=factor(ClassBinary))%>%
+      mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < j, "No", "Yes")) %>%
+      mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+      
+
+      accumulator_sens = accumulator_sens + yardstick::sens(glm.logOdds_predictions, ClassBinary, .prediction)[[3]]
+      accumulator_spec = accumulator_spec + yardstick::spec(glm.logOdds_predictions, ClassBinary, .prediction)[[3]]
+      accumulator_prec = accumulator_prec + yardstick::precision(glm.logOdds_predictions, ClassBinary, .prediction)[[3]]
+      
+      #print(glm.logOdds_predictions %>% conf_mat(ClassBinary, .prediction))
+  }
+  
+  sensitivity_i[counter] = accumulator_sens / 10
+  specificity_i[counter] = accumulator_spec / 10
+  prec_i[counter] = accumulator_prec /10
+  
+  counter = counter + 1
+}
+
+outcome = data.frame(p_i,sensitivity_i, specificity_i, prec_i)
+
+outcome
 
 ```
+
+For Logistic Regression, p-values of 0.5, 0.95 are interesting.
+<ul>
+<li>p = 0.5 provides the greatest Specificity and Precision</li>
+<li>p = 0.95 provides the greatest Sensitivity</li>
+</ul>
+
+All the values are similar; however, for Logistic Regression, I am selecting the value with the greatest Precision, **p == 0.5.**
+
+Fortunately, p = 0.5 is the default for Logistic Regression cross-validation.
 
 ### Logistic Regression Performance
-10-fold cross-validation training resulted in a **best-threshold of 1.0** for the model when ROC was used as the performance metric.
+10-fold cross-validation training resulted in a **best-threshold of XX** for the model when ROC was used as the performance metric.
 
-```{r logisticTrainingPerf}
-caret::confusionMatrix(log.cv.model)
+```{r logisticTrainingPerf, warning=FALSE}
+trctrl.log.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T)
+
+log.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiBinarySqrs, method = "glm", trControl=trctrl.log.selected, tuneLength = 10)
+
+caret::confusionMatrix(log.cv.model.selected)
 ```
+For LDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
 <ul>
-<li>TPR: 96.6 / 96.8 = 0.998</li>
-<li>FPR: 0.3 / 3.2 = 0.094</li>
-<li>Precision: 96.6 / 96.9 = 0.997</li>
+<li>TPR: 2.9 / 3.2 = 0.906</li>
+<li>FPR: .2 / 96.8 = 0.002</li>
+<li>Precision: 2.9 / 3.1 = 0.935</li>
 </ul>
 
 
 ### Logistic Regression Cross-Validation ROC Curve:
 
 ```{r LogROCCurve}
-result = evalm(log.cv.model)
+result = evalm(log.cv.model.selected)
 result$roc
 ```
 
@@ -415,15 +493,15 @@ result$roc
 
 ```{r include=FALSE, echo=FALSE, eval=FALSE}
 
-test.YesNo = test
+#test.YesNo = test
 
 #levels(test.YesNo$ClassBinary)
 
-levels(test.YesNo$ClassBinary)=c("No","Yes")
+#levels(test.YesNo$ClassBinary)=c("No","Yes")
 
 #levels(test.YesNo$ClassBinary)
 
-fct_count(test.YesNo$ClassBinary)
+#fct_count(test.YesNo$ClassBinary)
 ```
 
 
@@ -449,24 +527,74 @@ fct_count(test.YesNo$ClassBinary)
 
 ## LDA
 
-Train the LDA model using 10-fold cross validation. Tuning performed using ROC.
+Train the LDA model using 10-fold cross validation. Tuning is performed using ROC.
+
+10-fold cross validation was used for p-values from 0.05 to 1 at 0.05 intervals.
+
 ```{r ldaCrossValidation}
 set.seed(1976)
 
-lda.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "lda", trControl=trctrl, tuneLength = 10)
-lda.cv.model
-```
+# create storage variables for the p value, ROC, Specificity, and Sensitivity
+k_start = 1
+k_end = 20
+out_nvar = k_end - k_start + 1
 
+p_i = rep(NA, out_nvar)
+sensitivity_i = rep(NA, out_nvar)
+specificity_i = rep(NA, out_nvar)
+ROC_i = rep(NA, out_nvar)
+
+for (i in 1:20) 
+{ 
+  p_i[i] = i/20
+  
+  trctrl <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = i/20)
+  
+  lda.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "lda", trControl=trctrl, tuneLength = 10)
+  
+  sensitivity_i[i] = lda.cv.model$results[['Sens']]
+  specificity_i[i] = lda.cv.model$results[['Spec']]
+  ROC_i[i] = lda.cv.model$results[['ROC']]
+}
+
+outcome = data.frame(p_i,sensitivity_i, specificity_i, ROC_i)
+
+outcome
+
+```
+For LDA, p-values of 0.55, 0.8, and 1.0 are interesting.
+<ul>
+<li>p = 0.55 provides the greatest Sensitivity, or True Positive Rate of 0.992813</li>
+<li>p = 0.8 demonstrates the greatest ROC of 0.9945253</li>
+<li>p = 1.0, unsurprisingly, provides the greatest True Negative Rate. Unsurprisingly because it required the highest posterior probability for an observation to be classified as a blue tarp.</li>
+</ul>
+
+All the values are similar, and any of these three could be a valid choice based on considerations of the risk of missing a true blue tarp, which could result in the loss of human life by not identifying the location of survivors, or the risk of wasted time of aid workers by sending them to an incorrectly predicted location of a blue tarp.
+
+I am selecting the value with the greatest ROC, **p == 0.80.**
 
 ```{r ldaTrainConfusionMatrix}
-caret::confusionMatrix(lda.cv.model)
+trctrl.lda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.8)
+  
+#trctrl.lda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 1.0)
+lda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "lda", trControl=trctrl.lda.selected, tuneLength = 10)
+
+caret::confusionMatrix(lda.cv.model.selected)
 ```
+For LDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
+<ul>
+<li>TPR: 2.7 / 3.2 = 0.844</li>
+<li>FPR: .1 / 96.8 = 0.001</li>
+<li>Precision: 2.7 / 2.8 = 0.964</li>
+</ul>
+
+
 ### LDA Training ROC Curve:
 ```{r ldaTrainingROC}
-result.lda = evalm(lda.cv.model)
-result.lda$roc
+result.lda = evalm(lda.cv.model.selected)
+result.lda$roq
 ```
-**The LDA ROC-AUC for the 10-fold cross-validated training data is: 0.99.**
+**The LDA ROC-AUC for the 10-fold cross-validated training data with p=0.8 is: 0.99.**
 
 
 ```{r ldaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
@@ -493,16 +621,60 @@ Train the QDA model using 10-fold cross validation. Tuning performed using ROC.
 ```{r qdaCrossValidation}
 set.seed(1976)
 
-qda.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "qda", trControl=trctrl, tuneLength = 10)
-qda.cv.model
+# create storage variables for the p value, ROC, Specificity, and Sensitivity
+k_start = 1
+k_end = 20
+out_nvar = k_end - k_start + 1
+
+p_i = rep(NA, out_nvar)
+sensitivity_i = rep(NA, out_nvar)
+specificity_i = rep(NA, out_nvar)
+ROC_i = rep(NA, out_nvar)
+
+for (i in 1:20) 
+{ 
+  p_i[i] = i/20
+  
+  trctrl <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = i/20)
+  
+  qda.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "qda", trControl=trctrl, tuneLength = 10)
+  
+  sensitivity_i[i] = qda.cv.model$results[['Sens']]
+  specificity_i[i] = qda.cv.model$results[['Spec']]
+  ROC_i[i] = qda.cv.model$results[['ROC']]
+}
+
+outcome = data.frame(p_i,sensitivity_i, specificity_i, ROC_i)
+
+outcome
 ```
+For QDA, the following p-values are interesting
+<ul>
+<li>p = 0.8, 0.9, and 1.0 all provide the highest sensitivity of 0.9978</li>
+<li>p = 0.65, 0.70, 0.85. and 0.95 all provide similar, high ROCs' ~0.9974</li>
+<li>p = 0.85 provides the greatest specificity.</li>
+</ul>
+
+I will select p = 0.85 for the QDA model as it has near the greatest ROC and has the greatest specificity.
 
 ```{r qdaTrainConfusionMatrix}
-caret::confusionMatrix(qda.cv.model)
+trctrl.qda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.85)
+  
+qda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "qda", trControl=trctrl.lda.selected, tuneLength = 10)
+
+caret::confusionMatrix(qda.cv.model.selected)
 ```
+For QDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
+<ul>
+<li>TPR: 2.9 / 3.2 = 0.906</li>
+<li>FPR: .2 / 96.8 = 0.002</li>
+<li>Precision: 2.9 / 3.0 = 0.97</li>
+</ul>
+
+
 ### QDA Training ROC Curve:
 ```{r qdaTrainingROC}
-result.qda = evalm(qda.cv.model)
+result.qda = evalm(qda.cv.model.selected)
 result.qda$roc
 ```
 
@@ -577,7 +749,15 @@ From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificit
 
 ## Penalized Logistic Regression (ElasticNet)
 
+```{r}
+set.seed(1976)
+# number: number of folds for cross validation
+trctrl <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, number = 10, repeats = 2)
 
+log.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "glmnet", trControl=trctrl, tuneLength = 10)
+log.cv.model
+
+```
 
 ### Tuning Parameters
 
@@ -605,33 +785,33 @@ From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificit
   <td>Log Reg</td>
   <td><!-- Log Reg Tuning --> N/A</td>
   <td><!-- Log Reg AUROC -->1.0</td>
-  <td><!-- Log Reg Threshold -->1.0</td>
+  <td><!-- Log Reg Threshold -->0.5</td>
   <td><!-- Log Reg Accuracy -->0.9953</td>
-  <td><!-- Log Reg TPR -->0.998</td>
-  <td><!-- Log Reg FPR -->0.094</td>
-  <td><!-- Log Reg Precision -->0.997</td>
+  <td><!-- Log Reg TPR -->0.906</td>
+  <td><!-- Log Reg FPR -->0.002</td>
+  <td><!-- Log Reg Precision -->0.935</td>
 </tr>
 
 <tr>
   <td>LDA</td>
   <td><!-- LDA Tuning --> N/A</td>
   <td><!-- LDA AUROC -->0.99</td>
-  <td><!-- LDA Threshold --></td>
-  <td><!-- LDA Accuracy -->0.9943</td>
-  <td><!-- LDA TPR -->0.999</td>
-  <td><!-- LDA FPR -->0.156</td>
-  <td><!-- LDA Precision -->0.995</td>
+  <td><!-- LDA Threshold -->0.8</td>
+  <td><!-- LDA Accuracy -->0.994</td>
+  <td><!-- LDA TPR -->0.844</td>
+  <td><!-- LDA FPR -->0.001</td>
+  <td><!-- LDA Precision -->0.964</td>
 </tr>
 
 <tr>
   <td>QDA</td>
   <td><!-- QDA Tuning --> N/A</td>
   <td><!-- QDA AUROC -->1.0</td>
-  <td><!-- QDA Threshold --></td>
-  <td><!-- QDA Accuracy -->0.9945</td>
-  <td><!-- QDA TPR -->0.998</td>
-  <td><!-- QDA FPR -->0.094</td>
-  <td><!-- QDA Precision -->0.997</td>
+  <td><!-- QDA Threshold -->0.85</td>
+  <td><!-- QDA Accuracy -->0.995</td>
+  <td><!-- QDA TPR -->0.906</td>
+  <td><!-- QDA FPR -->0.002</td>
+  <td><!-- QDA Precision -->0.97</td>
 </tr>
 
 <tr>
