@@ -818,7 +818,7 @@ log.cv.model
   <td>KNN</td>
   <td><!-- KNN Tuning --> k = 27</td>
   <td><!-- KNN AUROC -->1.0</td>
-  <td><!-- KNN Threshold --></td>
+  <td><!-- KNN Threshold -->0.5</td>
   <td><!-- KNN Accuracy -->0.997</td>
   <td><!-- KNN TPR -->0.998</td>
   <td><!-- KNN FPR -->0.0313</td>
