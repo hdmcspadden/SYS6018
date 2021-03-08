@@ -91,9 +91,9 @@ library(randomForest)
 library("GGally")
 library(gridExtra)
 library(plotly)
-#library(reticulate)
+library(caret)
+library(boot)
 library(regclass)
-#library(ROSE)
 library(MLeval)
 library(ggplot2)
 library(purrr)
@@ -332,12 +332,6 @@ I am using the 2-Class data set for the following reasons:
 <li>I am using 10-fold cross-validation to evaluate the models.</li>
 </ol>
 
-<br /><br />
-
-
-### Training and Test Data: 
-
-I will hold out 20% of the data set for testing/validation.
 
 ```{r warning=FALSE, message=FALSE}
 library(caret)
@@ -381,8 +375,17 @@ fct_count(haitiBinarySqrs$ClassBinary)
 train = haitiBinarySqrs
 ```
 
-Here I perform my own 10-fold cross validation for several values of p
+### Comparison of Three Logistic Regression Models
+Using 10-fold cross validation and p values in the collection (.1,.2,.3,.35,.4,.45, .5,.55,.6,.65,.7,.75,.8,.85,.9,.95,1.0) I tested three models:
+<br />
+** Model 1: Greatest Complexity:**
+$$ClassBinary = Blue + GBSqr + RBSqr \hspace{.3cm} | \hspace{.3cm} GBSqr = (Green + Blue)^2 \hspace{.3cm} and \hspace{.3cm} (Red + Blue)^2$$
 
+** Model 2: Standard Additive Model:**
+$$ClassBinary = Blue + Green + Red$$
+
+** Model 3: Simple Logistic Regression Model:**
+$$ClassBinary = Blue$$
 ```{r logRegressionTuning, warning=FALSE}
 library(yardstick)
 
@@ -393,98 +396,203 @@ haitiBinarySqrsShuffled = haitiBinarySqrs[sample(nrow(haitiBinarySqrs)),]
 #Create 10 equally size folds
 folds <- cut(seq(1,nrow(haitiBinarySqrsShuffled)),breaks=10,labels=FALSE)
 
-
 # create storage variables for the p value, ROC, Specificity, and Sensitivity
 k_start = 1
-k_end = 10
+k_end = 17
 out_nvar = k_end - k_start + 1
 
 p_i = rep(NA, out_nvar)
-sensitivity_i = rep(NA, out_nvar)
-specificity_i = rep(NA, out_nvar)
-prec_i = rep(NA, out_nvar)
+# complex model measures
+sensitivity_c_i = rep(NA, out_nvar)
+specificity_c_i = rep(NA, out_nvar)
+prec_c_i = rep(NA, out_nvar)
+
+# additive model measures
+sensitivity_a_i = rep(NA, out_nvar)
+specificity_a_i = rep(NA, out_nvar)
+prec_a_i = rep(NA, out_nvar)
+
+# simple model measures
+sensitivity_s_i = rep(NA, out_nvar)
+specificity_s_i = rep(NA, out_nvar)
+prec_s_i = rep(NA, out_nvar)
 
 counter = 1
 
-for (j in c(.5,.55,.6,.65,.7,.75,.8,.85,.9,.95))
+for (j in c(.1,.2,.3,.35,.4,.45, .5,.55,.6,.65,.7,.75,.8,.85,.9,.95,1.0))
 { 
 
   p_i[counter] = j
   
-  accumulator_sens = 0
-  accumulator_spec = 0
-  accumulator_prec = 0
+  accumulator_c_sens = 0
+  accumulator_c_spec = 0
+  accumulator_c_prec = 0
+  accumulator_a_sens = 0
+  accumulator_a_spec = 0
+  accumulator_a_prec = 0
+  accumulator_s_sens = 0
+  accumulator_s_spec = 0
+  accumulator_s_prec = 0
   
   #Perform 10 fold cross validation
   for(i in 1:10) {
     
       #Segement your data by fold using the which() function 
-      testIndexes <- which(folds==i,arr.ind=TRUE)
-      testData <- haitiBinarySqrsShuffled[testIndexes, ]
-      trainData <- haitiBinarySqrsShuffled[-testIndexes, ]
+      testIndexes = which(folds==i,arr.ind=TRUE)
+      testData = haitiBinarySqrsShuffled[testIndexes, ]
+      trainData = haitiBinarySqrsShuffled[-testIndexes, ]
       
-      glm.fits <- glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = trainData)
+      # define complex model
+      glm.fits.complex = glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = trainData)
+      # define additive model
+      glm.fits.additive = glm(ClassBinary ~ Blue+Green+Red, binomial, data = trainData)
+      # define simple model
+      glm.fits.simple = glm(ClassBinary ~ Blue, binomial, data = trainData)
       
-      glm.logOdds_predictions = glm.fits %>%  augment(newdata=testData) %>% 
-      dplyr::select(ClassBinary, .fitted)  %>% 
-      mutate(ClassBinary=factor(ClassBinary))%>%
-      mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < j, "No", "Yes")) %>%
-      mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+      # fit the complex model
+      glm.pred.complex = glm.fits.complex %>%  augment(newdata=testData) %>% 
+        dplyr::select(ClassBinary, .fitted)  %>% 
+        mutate(ClassBinary=factor(ClassBinary))%>%
+        mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < j, "No", "Yes")) %>%
+        mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
       
-
-      accumulator_sens = accumulator_sens + yardstick::sens(glm.logOdds_predictions, ClassBinary, .prediction)[[3]]
-      accumulator_spec = accumulator_spec + yardstick::spec(glm.logOdds_predictions, ClassBinary, .prediction)[[3]]
-      accumulator_prec = accumulator_prec + yardstick::precision(glm.logOdds_predictions, ClassBinary, .prediction)[[3]]
+      if (nlevels(glm.pred.complex$.prediction) > 1)
+      {
+        accumulator_c_sens = accumulator_c_sens + yardstick::sens(glm.pred.complex, ClassBinary, .prediction)[[3]]
+        accumulator_c_spec = accumulator_c_spec + yardstick::spec(glm.pred.complex, ClassBinary, .prediction)[[3]]
+        accumulator_c_prec = accumulator_c_prec + yardstick::precision(glm.pred.complex, ClassBinary, .prediction)[[3]]
+      }
       
-      #print(glm.logOdds_predictions %>% conf_mat(ClassBinary, .prediction))
+      # fit the additive model
+      glm.pred.additive = glm.fits.additive %>%  augment(newdata=testData) %>% 
+        dplyr::select(ClassBinary, .fitted)  %>% 
+        mutate(ClassBinary=factor(ClassBinary))%>%
+        mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < j, "No", "Yes")) %>%
+        mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+      
+      if (nlevels(glm.pred.additive$.prediction) > 1)
+      {
+        accumulator_a_sens = accumulator_a_sens + yardstick::sens(glm.pred.additive, ClassBinary, .prediction)[[3]]
+        accumulator_a_spec = accumulator_a_spec + yardstick::spec(glm.pred.additive, ClassBinary, .prediction)[[3]]
+        accumulator_a_prec = accumulator_a_prec + yardstick::precision(glm.pred.additive, ClassBinary, .prediction)[[3]]
+      }
+      
+      # fit the simple model
+      glm.pred.simple= glm.fits.simple %>%  augment(newdata=testData) %>% 
+        dplyr::select(ClassBinary, .fitted)  %>% 
+        mutate(ClassBinary=factor(ClassBinary))%>%
+        mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < j, "No", "Yes")) %>%
+        mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+      
+      if (nlevels(glm.pred.simple$.prediction) > 1)
+      {
+        accumulator_s_sens = accumulator_s_sens + yardstick::sens(glm.pred.simple, ClassBinary, .prediction)[[3]]
+        accumulator_s_spec = accumulator_s_spec + yardstick::spec(glm.pred.simple, ClassBinary, .prediction)[[3]]
+        accumulator_s_prec = accumulator_s_prec + yardstick::precision(glm.pred.simple, ClassBinary, .prediction)[[3]]
+      }
+      
   }
+
+  sensitivity_c_i[counter] = accumulator_c_sens / 10
+  specificity_c_i[counter] = accumulator_c_spec / 10
+  prec_c_i[counter] = accumulator_c_prec /10
   
-  sensitivity_i[counter] = accumulator_sens / 10
-  specificity_i[counter] = accumulator_spec / 10
-  prec_i[counter] = accumulator_prec /10
+  sensitivity_a_i[counter] = accumulator_a_sens / 10
+  specificity_a_i[counter] = accumulator_a_spec / 10
+  prec_a_i[counter] = accumulator_a_prec /10
+  
+  sensitivity_s_i[counter] = accumulator_s_sens / 10
+  specificity_s_i[counter] = accumulator_s_spec / 10
+  prec_s_i[counter] = accumulator_s_prec /10
   
   counter = counter + 1
 }
 
-outcome = data.frame(p_i,sensitivity_i, specificity_i, prec_i)
+outcome = data.frame(p_i, sensitivity_c_i, specificity_c_i, prec_c_i, sensitivity_a_i, specificity_a_i, prec_a_i, sensitivity_s_i, specificity_s_i, prec_s_i)
 
-outcome
+print(outcome, n = nrow(outcome))
 
 ```
-
-For Logistic Regression, p-values of 0.5, 0.95 are interesting.
+**Model 3**<br />
+Only p values of .1, .2, .3 and .35 was Model 3, the simple model, was unable to differentiate between blue tarps and not blue tarps. The sensitivity, specificity and precision did not approach the performance of the other two models. Model 3 will no longer be considered.
+<br />
+**Model 1 and Model 2**<br />
+The differences between Model 1, the more complex mode, and Model 2, the additive model, are more nuanced.
 <ul>
-<li>p = 0.5 provides the greatest Specificity and Precision</li>
-<li>p = 0.95 provides the greatest Sensitivity</li>
+<li>The highest **precision** for both models was with p == 0.1:
+  <li>Model 3: 0.9993</li>
+  <li>Model 2 == 0.9988</li>
+</li>
+<li>The highest **specificity** for both models was with p == 0.1: 
+  <li>Model 3: 0.9793<li>
+  <li>Model 2: 0.9630</li>
+</li>
+<li>The highest **sensitivity** for both models was with p == 0.95: 
+  <li>Model 3: 0.9996<li>
+  <li>Model 2: 0.9997</li>
+</li>
 </ul>
 
-All the values are similar; however, for Logistic Regression, I am selecting the value with the greatest Precision, **p == 0.5.**
+<br />
+Model 3 performed better on all measures.
+<br />
+Because geographic distribution of blue tarps is not included in this data set so I am not concerned with efficiency of sending resources over vast areas, I want to create a model that identifies the most blue tarps. p = 0.1 identified the most blue tarps, and had the highest precision when using 10-fold cross validation.
 
-Fortunately, p = 0.5 is the default for Logistic Regression cross-validation.
+$$ClassBinary = Blue + GBSqr + RBSqr$$
 
 ### Logistic Regression Performance
-10-fold cross-validation training resulted in a **best-threshold of XX** for the model when ROC was used as the performance metric.
+Below I use the entire training data set on the model with p = 0.95 to get the training Accuracy, TPR, FPR, and Precision:
 
 ```{r logisticTrainingPerf, warning=FALSE}
-trctrl.log.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T)
+glm.fits.model3 = glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = haitiBinarySqrs)
 
-log.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiBinarySqrs, method = "glm", trControl=trctrl.log.selected, tuneLength = 10)
+ # fit the complex model
+      glm.pred.model3 = glm.fits.model3 %>%  augment() %>% 
+        dplyr::select(ClassBinary, .fitted)  %>% 
+        mutate(ClassBinary=factor(ClassBinary))%>%
+        mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < 0.1, "No", "Yes")) %>%
+        mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+      
+caret::confusionMatrix(glm.pred.model3$.prediction, glm.pred.model3$ClassBinary)
 
-caret::confusionMatrix(log.cv.model.selected)
 ```
-For LDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
+
+For Logistic Regression, my calculations for Accuracy, TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
 <ul>
-<li>TPR: 2.9 / 3.2 = 0.906</li>
-<li>FPR: .2 / 96.8 = 0.002</li>
-<li>Precision: 2.9 / 3.1 = 0.935</li>
+<li>Accuracy: 0.9957</li>
+<li>TPR: 1982 / 2022 = 0.9802</li>
+<li>FPR: 231 / 61219 = 0.0038</li>
+<li>Precision: 1989 / 2022 = 0.984</li>
 </ul>
 
-
+<br />
+When using the entire training data set:
+<ul>
+<li>1,982 of the 2022 blue tarp pixels were identified by the model. Approximately, 2% of our blue tarp pixels will not be able to receive aid based on this model.</li>
+<li>231 pixels were identified as blue tarps, but were not blue tarps. Approximately, one-third of 1% of blue tarps were identified as blue tarps and were not which will result un wasted resources. That seems small, but it represents 10% of the number of blue tarps, and thus, may have a 10% impact on distribution of resources.</li>
+</ul>
 ### Logistic Regression Cross-Validation ROC Curve:
 
 ```{r LogROCCurve}
-result = evalm(log.cv.model.selected)
-result$roc
+library(ROCR)
+
+##predicted survival rate for testing data based on training data
+preds = predict(glm.fits.model3, newdata=haitiBinarySqrs, type="response") # need to use type=response for probabilities.
+
+##produce the numbers associated with classification table
+rates = prediction(preds, haitiBinarySqrs$ClassBinary)
+
+##store the true positive and false postive rates
+roc_result = performance(rates, measure="tpr", x.measure="fpr")
+
+##plot ROC curve and overlay the diagonal line for random guessing
+plot(roc_result, main="ROC Curve for Haiti Complex Logisitic Regression")
+lines(x = c(0,1), y = c(0,1), col="red")
+
+##compute the AUC
+auc = performance(rates, measure = "auc")
+auc@y.values[[1]]
+
 ```
 
 **The Logistic Regression ROC-AUC for the 10-fold cross-validated training data is: 1.0.**
@@ -587,7 +695,6 @@ For LDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it 
 <li>FPR: .1 / 96.8 = 0.001</li>
 <li>Precision: 2.7 / 2.8 = 0.964</li>
 </ul>
-
 
 ### LDA Training ROC Curve:
 ```{r ldaTrainingROC}
@@ -704,7 +811,9 @@ result.qda$roc
 ```{r knnTry1-21}
 set.seed(1976)
 
-knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid   = expand.grid(k = 1:21))
+trControl.knn <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.5)
+
+knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trControl.knn, tuneGrid   = expand.grid(k = 1:21))
 knn.cv.model
 ```
 
@@ -761,8 +870,6 @@ log.cv.model
 
 ### Tuning Parameters
 
-
-
 **NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**
 
 ## Threshold Selection
@@ -784,12 +891,12 @@ log.cv.model
 <tr>
   <td>Log Reg</td>
   <td><!-- Log Reg Tuning --> N/A</td>
-  <td><!-- Log Reg AUROC -->1.0</td>
-  <td><!-- Log Reg Threshold -->0.5</td>
-  <td><!-- Log Reg Accuracy -->0.9953</td>
-  <td><!-- Log Reg TPR -->0.906</td>
-  <td><!-- Log Reg FPR -->0.002</td>
-  <td><!-- Log Reg Precision -->0.935</td>
+  <td><!-- Log Reg AUROC -->0.9996</td>
+  <td><!-- Log Reg Threshold -->0.1</td>
+  <td><!-- Log Reg Accuracy -->0.9957</td>
+  <td><!-- Log Reg TPR -->0.9802</td>
+  <td><!-- Log Reg FPR -->0.0038</td>
+  <td><!-- Log Reg Precision -->0.984</td>
 </tr>
 
 <tr>
@@ -818,7 +925,7 @@ log.cv.model
   <td>KNN</td>
   <td><!-- KNN Tuning --> k = 27</td>
   <td><!-- KNN AUROC -->1.0</td>
-  <td><!-- KNN Threshold -->0.5</td>
+  <td><!-- KNN Threshold -->N/A</td>
   <td><!-- KNN Accuracy -->0.997</td>
   <td><!-- KNN TPR -->0.998</td>
   <td><!-- KNN FPR -->0.0313</td>
@@ -866,7 +973,7 @@ log.cv.model
 
 **Training Data Linearly Separates**<br />
 
-The training data linearly separates very well. Even the 5-class, un-transformed data set was visually separable in the 3-D R-G-B visualization of "Blue Tarps" vs. the other four classes. Collapsing the classes and transforming the variables to decrease variability of Red and Green further improved the linear separability. All the models used performed with 99% precision with ***training*** data and using the following function:
+Visually, the training data linearly separates very well. Even the 5-class, un-transformed data set was visually separable in the 3-D R-G-B visualization of "Blue Tarps" vs. the other four classes. Collapsing the classes and transforming the variables to decrease variability of Red and Green further improved the linear separability. All the models used performed with 99% accuracy with ***training*** data and using the following function:
 <br />
 $$ ClassBinary = Blue+Green+Red+GBSqr+RBSqr$$
 where $GBSqr=(Green + Blue)^2$ and $RBSqr=(Red + Blue)^2$
@@ -876,28 +983,46 @@ I look forward to discovering if the hold-out/validation data set also separates
 
 ### Conclusion \#2
 
-**Distribution of Classes**<br/>
+**Distribution of Classes and How It Affects Model Selection**<br/>
 
-Only 3% of the observations in the training data are labeled "Blue Tarp". This is a very unbalanced training set. This is not unexpected because it would be extremely surprising is a high percentage of land area was covered by blue tarps. In fact, if that were the case, then I would expect it would not be challenging for aid workers to find survivors because survivors would be covering a high percentage of haiti. That said, this imbalance of the data can give a false sense of faith in a model. In this haiti toy problem, **a random guess of "not blue tarp" will be correct 97% of the time**, thus our model must perform better than a random guess. Additionally, our problem's aid workers must not have their limited time and resources expended on false blue tarps, so our False Positive Rate (FPR) must be kept low.
+Only 3% of the observations in the training data are labeled "Blue Tarp". This is a very unbalanced training set. This is not unexpected because it would be extremely surprising is a high percentage of land area was covered by blue tarps. In fact, if that were the case, then I would expect it would not be challenging for aid workers to find survivors because survivors would be covering a high percentage of haiti. That said, this imbalance of the data can give a false sense of faith in a model. In this haiti toy problem, **a random guess of "not blue tarp" will be correct 97% of the time**, thus our model must perform better than a random guess, i.e. the Negative Predictive Value (NPV). In this problem the NPV could be thought of as a measure of efficiency of resource usage, i.e. are the predictions good at keeping our imagined aid workers from traveling to non blue tarps.<br /><br/>Tne NPV's for the models are:
+<ul>
+<li>Logistic Regression with Complex Model: 0.9993</li>
+<li>LDA with Complex Model: 0.9949</li>
+<li>QDA with Complex Model: 0.9969</li>
+<li>KNN | k = 27 with Complex Model: 0.999</li>
+<li>Penalized Log Reg with Complex Model: **TBD**</li>
+</ul>
+<br />
+Additionally, we do not want to miss blue tarps. Missing a blue tarp may result in the loss of multiple lives. The False Negative Rate (FNR) directly measures the rate of missed blue tarps.
+<ul>
+<li>Logistic Regression with Complex Model: 0.0198</li>
+<li>LDA with Complex Model: 0.1563</li>
+<li>QDA with Complex Model: 0.0938</li>
+<li>KNN | k = 27 with Complex Model: 0.0313</li>
+<li>Penalized Log Reg with Complex Model: **TBD**</li>
+</ul>
+<br />
+I recommend working with experienced aid workers and local Haitian residents with knowledge of the land to determine the choice between, and balance of these considerations. If we want the model that is least likely to send aid workers to non blue tarps we will select **CHOOSE THE MODEL**; however if we want the model that correctly identified the greatest percentage of blue tarps we will select **CHOOSE THE MODEL**.
+
 
 
 ### Conclusion \#3
 
 **Request For Additional Information for Real-World Implementation**<br />
-I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to visualize and calculate locations where the most blue tarps will be found to able to help the most people. This assumes an identity relationship between number of tarps and number of people. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. Additionally, GIS information for pre-earthquake roads, and another model that could be used to whether corresponding pixels for pre-earthquake roads remain passable (could we use RBG values for intact paved roads, unpaved roads, and bridges) would be useful.
+
+I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to visualize and calculate locations where the most blue tarps will be found to able to help the most people; however, there may not be a 1:1 relationship between number of tarps and number of people, so resource allocation becomes even trickier. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. And, demographic information regarding population density, and members-per-household would be pricelessly valuable. Additionally, GIS information for pre-earthquake roads, and other geographic features would be useful.
 
 ### Conclusion \#4
 
 **Model Comments and Selection Based on Training Data**<br />
 
-The models need to be validated using the hold-out test data, and I do not have information regarding the size of the training data vs. the size of real-life data, or the computing power of computers that would be running these models in a real-life scenario. Based on my computer's performance while running cross-validation with the various models, if performance time is a concern, the LDA and QDA models ran significantly faster than the other models. The QDA model performed better than the LDA model, which is surprising for two reasons:
+The models need to be validated using the hold-out test data, and I do not have information regarding the size of the training data vs. the size of real-life data, or the computing power of computers that would be running these models in a real-life scenario. **SOMETHING SOMETHING SOMETHING SOMETHING**
 <br />
 1. the data visually appears linearly separable<br />
 2. the high performance of the logistic regression model<br />
 <br /><br/>
-The QDA model performed with identical TPR (0.998), FPR (0.094), and Precision (0.997) to the logistic regression model, and ran faster. Thus, if computing time is of concern, I recommend the QDA model, but this may change after model testing with the hold-out data.
 
-However, the KNN model with k == 27 produced the lowest FPR (0.03), and greatest Precision (0.999) which is particularly of interest because we do not want to spend precious time and people-power sending aid workers to locations were we mistakenly predict survivors. This KNN model performed very well, and if the size of n, computing power, and validation performance align, then this is my current recommended model.
 
 ## References
 <ul>
@@ -907,6 +1032,7 @@ However, the KNN model with k == 27 produced the lowest FPR (0.03), and greatest
 <li>Predictive Modeling with R and the caret Package: <http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf></li>
 <li>caret::train: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/train></li>
 <li>MLeval::evalm: <https://www.rdocumentation.org/packages/MLeval/versions/0.3/topics/evalm></li>
+<li>Caret Model Training and Tuning: <https://topepo.github.io/caret/model-training-and-tuning.html></li>
 </ul>
 ```{r, echo=FALSE}
 knitr::knit_exit()    # ignore everything after this
