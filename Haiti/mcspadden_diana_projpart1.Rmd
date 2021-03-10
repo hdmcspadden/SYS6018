@@ -341,7 +341,7 @@ library(boot)
 
 ## Cross-Validation Performance 
 
-For logistic regression, LDA, QDA, and **???KNN** Cross-Validation threshold performance used ROC for tuning.
+For logistic regression, LDA, QDA, KNN  and Penalized Logistic Regression Cross-Validation threshold performance use ROC for tuning.
 
 The following performance measures are collected for both the 10-fold cross-validation and the hold-out/testing/validation data:
 <ul>
@@ -977,15 +977,18 @@ Visually, the training data linearly separates very well. Even the 5-class, un-t
 <br />
 $$ ClassBinary = Blue+Green+Red+GBSqr+RBSqr$$
 where $GBSqr=(Green + Blue)^2$ and $RBSqr=(Red + Blue)^2$
+<br />
+This function performed better than the simplest model (ClassBinary = Blue), and slightly better than the basic additive model (ClassBinary = Blue + Red + Green).
 <br /><br />
+99% accuracy, while impressive sounding, needs to be considered within the context that accuracy would be 97% if the model predicted "No" for every pixel; **however** no blue tarps would be identified and survivors would remain undiscovered by aid workers. The "best guess" scenario, with high accuracy, provides no value for the humans in our toy problem. 99% accuracy is better than guessing, and the closer to 100% accuracy we can get, the better.
+<br /><br/>
 I look forward to discovering if the hold-out/validation data set also separates as well.
-
 
 ### Conclusion \#2
 
 **Distribution of Classes and How It Affects Model Selection**<br/>
 
-Only 3% of the observations in the training data are labeled "Blue Tarp". This is a very unbalanced training set. This is not unexpected because it would be extremely surprising is a high percentage of land area was covered by blue tarps. In fact, if that were the case, then I would expect it would not be challenging for aid workers to find survivors because survivors would be covering a high percentage of haiti. That said, this imbalance of the data can give a false sense of faith in a model. In this haiti toy problem, **a random guess of "not blue tarp" will be correct 97% of the time**, thus our model must perform better than a random guess, i.e. the Negative Predictive Value (NPV). In this problem the NPV could be thought of as a measure of efficiency of resource usage, i.e. are the predictions good at keeping our imagined aid workers from traveling to non blue tarps.<br /><br/>Tne NPV's for the models are:
+Only 3% of the observations in the training data are labeled "Blue Tarp". This is a very unbalanced training set. This is not unexpected because it would be extremely surprising if a high percentage of land area was covered by blue tarps. In fact, if that were the case, then I would expect it would not be challenging for aid workers to find survivors because survivors would be covering a high percentage of Haiti, or Haiti would just have blue tarps everywhere and they would be of little predictive power for finding survivors. That said, this imbalance of the data can give a false sense of faith in a model if only evaluating specificity, aka True Negative Rate of nonblue tarps. In this toy problem (as stated on Conclusion \#1) **a random guess of "not blue tarp" will be correct 97% of the time**, thus our model must perform better than a random guess, i.e. the Negative Predictive Value (NPV). In this problem the NPV could be thought of as a measure of efficiency of resource usage, i.e. are the predictions good at keeping our imagined aid workers from traveling to non blue tarps.<br /><br/>The NPV's for the models are:
 <ul>
 <li>Logistic Regression with Complex Model: 0.9993</li>
 <li>LDA with Complex Model: 0.9949</li>
@@ -1006,22 +1009,11 @@ Additionally, we do not want to miss blue tarps. Missing a blue tarp may result 
 I recommend working with experienced aid workers and local Haitian residents with knowledge of the land to determine the choice between, and balance of these considerations. If we want the model that is least likely to send aid workers to non blue tarps we will select **CHOOSE THE MODEL**; however if we want the model that correctly identified the greatest percentage of blue tarps we will select **CHOOSE THE MODEL**.
 
 
-
 ### Conclusion \#3
 
 **Request For Additional Information for Real-World Implementation**<br />
 
 I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to visualize and calculate locations where the most blue tarps will be found to able to help the most people; however, there may not be a 1:1 relationship between number of tarps and number of people, so resource allocation becomes even trickier. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. And, demographic information regarding population density, and members-per-household would be pricelessly valuable. Additionally, GIS information for pre-earthquake roads, and other geographic features would be useful.
-
-### Conclusion \#4
-
-**Model Comments and Selection Based on Training Data**<br />
-
-The models need to be validated using the hold-out test data, and I do not have information regarding the size of the training data vs. the size of real-life data, or the computing power of computers that would be running these models in a real-life scenario. **SOMETHING SOMETHING SOMETHING SOMETHING**
-<br />
-1. the data visually appears linearly separable<br />
-2. the high performance of the logistic regression model<br />
-<br /><br/>
 
 
 ## References
