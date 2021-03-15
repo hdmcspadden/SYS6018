@@ -49,28 +49,23 @@ Y = B0 + (B1 * X) + (B2 * X^2) + (B3 * X^3) + E
 Use the regsubsets() function to perform best subset selection in order to choose the best model containing the predictors X,X2, . . .,X10. 
 
 ```{r q8c-1}
-df.q8c = data.frame(x1 = X, x2 = X^2, x3 = X^3, x4 = X^4, x5 = X^5, x6 = X^6, x7 = X^8, x9 = X^9, x10 = X^10, y = Y)
+df.q8c = data.frame(x1 = X, x2 = X^2, x3 = X^3, x4 = X^4, x5 = X^5, x6 = X^6, x7 = X^7, x8 = X^8, x9 = X^9, x10 = X^10, y = Y)
 
 head(df.q8c)
 ```
 
 ``` {r q8c-2}
 library(leaps)
-regfit.full <- leaps::regsubsets(y~., df.q8c)
+regfit.full <- leaps::regsubsets(y~., data = df.q8c, nvmax=10)
 #summary(regfit.full)
 regfit.full %>% broom::tidy()
 
 reg.summary = regfit.full %>% broom::tidy() 
 
 #reg.summary %>% names()
-
 #reg.summary %>% dplyr::select(adj.r.squared)
-
 #reg.summary %>% dplyr::select(BIC)
-
 #reg.summary %>% dplyr::select(mallows_cp)
-
-
 ```
 What is the best model obtained according to Cp, BIC, and adjusted R2? 
 
@@ -78,35 +73,35 @@ What is the best model obtained according to Cp, BIC, and adjusted R2?
 <ul>
 <li>Cp: $Y = Intercept + X + X^2 + X^3 + X^4$</li>
 <li>BIC: $Y = Intercept + X^3$</li>
-<li>Adj R^2: $Y = Intercept + X + X^2 + X^3 + X^7 + X^{10}$</li>
+<li>Adj R^2: $Y = Intercept + X + X^2 + X^3 + X^8 + X^{10}$</li>
 </ul>
 
 Show some plots to provide evidence for your answer, and report the coefficients of the best model obtained. Note you will need to use the data.frame() function to create a single data set containing both X and Y.
 
-```{r q8c-3}
+``` {r q8c-3}
+adjR2s_plot = function(model.summary, xlab) {
+  model.summary %>%
+  ggplot(aes(x=seq_along(adj.r.squared), y=adj.r.squared)) + geom_line() +
+  geom_point(model.summary, color='red', size=2, mapping=aes(x=which.max(adj.r.squared), y=max(adj.r.squared)))  + xlab(xlab) 
+}
+
+mallows_cps_plot = function(model.summary, xlab) {
+  model.summary %>%
+  ggplot(aes(x=seq_along(mallows_cp), y=mallows_cp)) + geom_line() +
+  geom_point(model.summary, color='red', size=2, mapping=aes(x=which.min(mallows_cp), y=min(mallows_cp))) +  xlab(xlab)
+}
+
+BICs_plot = function(model.summary, xlab) {
+  model.summary %>%
+  ggplot(aes(x=seq_along(BIC), y=BIC)) + geom_line() +
+  geom_point(model.summary, color='red', size=2, mapping=aes(x=which.min(BIC), y=min(BIC))) +  xlab(xlab) 
+}
+```
+
+```{r q8c-4}
 library(gridExtra)
 
-# plot of adjusted R^2 by number of predictors in the model
-adjR2s = reg.summary %>%
-  ggplot(aes(x=seq_along(adj.r.squared), y=adj.r.squared)) + geom_line() +
-  geom_point(reg.summary, color='red', size=2, mapping=aes(x=which.max(adj.r.squared), y=max(adj.r.squared))) + xlab("Number of Variables") 
-
-
-# plot Cp by number of predictors in the model
-mallows_cps = reg.summary %>%
-  ggplot(aes(x=seq_along(mallows_cp), y=mallows_cp)) + geom_line() +
-  geom_point(reg.summary, color='red', size=2,
-             mapping=aes(x=which.min(mallows_cp), y=min(mallows_cp))) +
-  xlab("Number of Variables") 
-
-# plot BIC by number of predictors in the model
-BICs = reg.summary %>%
-  ggplot(aes(x=seq_along(BIC), y=BIC)) + geom_line() +
-  geom_point(reg.summary, color='red', size=2,
-             mapping=aes(x=which.min(BIC), y=min(BIC))) +
-  xlab("Number of Variables") 
-
-grid.arrange(adjR2s, mallows_cps, BICs, nrow=2)
+grid.arrange(adjR2s_plot(reg.summary, "RegSubSets: Number of Variables"), mallows_cps_plot(reg.summary, "RegSubSets: Number of Variables"), BICs_plot(reg.summary, "RegSubSets: Number of Variables"), nrow=2)
 ```
 
 ## Q8 (d) 
@@ -120,27 +115,7 @@ regfit.fwd.summary = regfit.fwd %>% broom::tidy()
 
 regfit.fwd.summary
 
-# plot of adjusted R^2 by number of predictors in the model
-adjR2s = regfit.fwd.summary %>%
-  ggplot(aes(x=seq_along(adj.r.squared), y=adj.r.squared)) + geom_line() +
-  geom_point(reg.summary, color='red', size=2, mapping=aes(x=which.max(adj.r.squared), y=max(adj.r.squared))) + xlab("Stepwise Fwd: Number of Variables") 
-
-
-# plot Cp by number of predictors in the model
-mallows_cps = regfit.fwd.summary %>%
-  ggplot(aes(x=seq_along(mallows_cp), y=mallows_cp)) + geom_line() +
-  geom_point(reg.summary, color='red', size=2,
-             mapping=aes(x=which.min(mallows_cp), y=min(mallows_cp))) +
-  xlab("Stepwise Fwd: Number of Variables") 
-
-# plot BIC by number of predictors in the model
-BICs = regfit.fwd.summary %>%
-  ggplot(aes(x=seq_along(BIC), y=BIC)) + geom_line() +
-  geom_point(reg.summary, color='red', size=2,
-             mapping=aes(x=which.min(BIC), y=min(BIC))) +
-  xlab("Stepwise Fwd: Number of Variables") 
-
-grid.arrange(adjR2s, mallows_cps, BICs, nrow=2)
+grid.arrange(adjR2s_plot(regfit.fwd.summary, "Stepwise Fwd: Number of Variables"), mallows_cps_plot(regfit.fwd.summary, "Stepwise Fwd: Number of Variables"), BICs_plot(regfit.fwd.summary, "Stepwise Fwd: Number of Variables"), nrow=2)
 ```
 
 **Answer for Q8d - Forward StepWise Selection: **
@@ -161,27 +136,7 @@ regfit.bwd.sumary = regfit.bwd %>% broom::tidy()
 
 regfit.bwd.sumary
 
-# plot of adjusted R^2 by number of predictors in the model
-adjR2s = regfit.bwd.sumary %>%
-  ggplot(aes(x=seq_along(adj.r.squared), y=adj.r.squared)) + geom_line() +
-  geom_point(reg.summary, color='red', size=2, mapping=aes(x=which.max(adj.r.squared), y=max(adj.r.squared))) + xlab("Stepwise Bwd: Number of Variables") 
-
-
-# plot Cp by number of predictors in the model
-mallows_cps = regfit.bwd.sumary %>%
-  ggplot(aes(x=seq_along(mallows_cp), y=mallows_cp)) + geom_line() +
-  geom_point(reg.summary, color='red', size=2,
-             mapping=aes(x=which.min(mallows_cp), y=min(mallows_cp))) +
-  xlab("Stepwise Bwd: Number of Variables") 
-
-# plot BIC by number of predictors in the model
-BICs = regfit.bwd.sumary %>%
-  ggplot(aes(x=seq_along(BIC), y=BIC)) + geom_line() +
-  geom_point(reg.summary, color='red', size=2,
-             mapping=aes(x=which.min(BIC), y=min(BIC))) +
-  xlab("Stepwise Bwd: Number of Variables") 
-
-grid.arrange(adjR2s, mallows_cps, BICs, nrow=2)
+grid.arrange(adjR2s_plot(regfit.bwd.sumary, "Stepwise Bwd: Number of Variables"), mallows_cps_plot(regfit.bwd.sumary, "Stepwise Bwd: Number of Variables"), BICs_plot(regfit.bwd.sumary, "Stepwise Bwd: Number of Variables"), nrow=2)
 ```
 
 **Answer for Q8d - Backward StepWise Selection: **
@@ -189,10 +144,12 @@ The best models identified with backward step-wise are:
 <ul>
 <li>Cp: $Y = Intercept + X + X^2 + X^3$</li>
 <li>BIC: $Y = Intercept + X^3$</li>
-<li>Adj R^2: $Y = Intercept + X + X^2 + X^3 + X^7 + X^{10}$</li>
+<li>Adj R^2: $Y = Intercept + X + X^2 + X^3 + X^7 + X^9 + X^{10}$</li>
 </ul>
 
-Using backward step-wise selection, all three measures produce different models. THe best backwards step-wise for BIC and Adj-R^2 are the same as the regsubset models using BIC and Adj-R^2. The best BIC model has been the same for all three subset selection methods.
+Using backward step-wise selection, all three measures produce different models. The best BIC model has been the same for all three subset selection methods. Adj-R2 and Cp measures select different models when the three selection methods are used.
+
+It is clear that BOC places the greatest penalty on increasing the number of predictors as BIC always recommends the most minimal models when comparing to other measures of fit.
 
 ## Q8 (e) 
 Now fit a lasso model to the simulated data, again using X,X2,. . . , X10 as predictors. 
@@ -219,7 +176,7 @@ print(paste("Best Lambda with CV: ",lassoCV$bestTune$lambda))
 ```
 **Answer Q8e:** Using cross-validation with lasso, the optimal value of lambda was **0.23**, and the best model, based on RMSE, is:
 $$y = \beta0 + \beta1X + \beta2X^2 + \beta3X^3 + \beta4X^4$$
-where:
+where:<br />
 <ul>
 <li>B0 = 10.28</li>
 <li>B1 = -12.6</li>
@@ -228,7 +185,7 @@ where:
 <li>B4 = 0.08</li>
 </ul>
 
-These values compare well to the values with which I created the data set: 
+These values **compare well** to the values with which I created the data set: <br />
 <ul>
 <li>B0 = 10</li>
 <li>B1 = -13</li>
@@ -239,12 +196,96 @@ These values compare well to the values with which I created the data set:
 ## Q8 (f) 
 Now generate a response vector Y according to the model:
 
-Y = β0 + β7X7 + E,
-
-and perform best subset selection and the lasso. 
+Y = β0 + β7X7 + E, and perform best subset selection and the lasso. 
 
 Discuss the results obtained.
 
+```{r q8f-1}
+
+# generate the new vector
+B7 = 9.04
+Y.Q8f = B0 + (B7 * X^7) + E
+df.q8f = data.frame(x1 = X, x2 = X^2, x3 = X^3, x4 = X^4, x5 = X^5, x6 = X^6, x7 = X^7, x8 = X^8, x9 = X^9, x10 = X^10, y=Y.Q8f)
+
+# regsubsets model
+regfit.full.q8f <- leaps::regsubsets(y~., df.q8f)
+reg.summary.q8f = regfit.full.q8f %>% broom::tidy() 
+reg.summary.q8f
+# show BIC coefficients
+coef(regfit.full.q8f,1) %>% broom::tidy()
+
+grid.arrange(adjR2s_plot(reg.summary.q8f, "Q8f RegSubSets: Number of Variables"), mallows_cps_plot(reg.summary.q8f, "Q8f RegSubSets: Number of Variables"), BICs_plot(reg.summary.q8f, "Q8f RegSubSets: Number of Variables"), nrow=2)
+
+
+# fwd stepwise
+regfit.fwd.q8f <- regsubsets(y~., data=df.q8f, nvmax=10, method="forward")
+regfit.fwd.summary.q8f = regfit.fwd.q8f %>% broom::tidy()
+regfit.fwd.summary.q8f
+# show BIC coefficients
+coef(regfit.fwd.q8f,1) %>% broom::tidy()
+
+grid.arrange(adjR2s_plot(regfit.fwd.summary.q8f, " Q8f Stepwise Fwd: Number of Variables"), mallows_cps_plot(regfit.fwd.summary.q8f, "Q8f Stepwise Fwd: Number of Variables"), BICs_plot(regfit.fwd.summary.q8f, "Q8f Stepwise Fwd: Number of Variables"), nrow=2)
+
+# bwd stepwise
+regfit.bwd.q8f <- regsubsets(y~., data=df.q8f, nvmax=10, method="backward")
+regfit.bwd.summary.q8f = regfit.bwd.q8f %>% broom::tidy()
+regfit.bwd.summary.q8f
+# show BIC coefficients
+coef(regfit.bwd.q8f,1) %>% broom::tidy()
+
+grid.arrange(adjR2s_plot(regfit.bwd.summary.q8f, " Q8f Stepwise Bwd: Number of Variables"), mallows_cps_plot(regfit.bwd.summary.q8f, "Q8f Stepwise Bwd: Number of Variables"), BICs_plot(regfit.bwd.summary.q8f, "Q8f Stepwise Bwd: Number of Variables"), nrow=2)
+
+# lasso
+set.seed(1976)
+# alpha 1 == lasso
+lassoCV.q8f = caret::train(y~., data=df.q8f, method="glmnet", 
+             tuneGrid=data.frame(alpha=rep(1,100), lambda=10^seq(1,-2,length=100)),
+             trControl=trainControl("cv", number=10, returnResamp='all'))
+
+lassoCV.q8f$results %>% ggplot(aes(seq_along(RMSE), RMSE)) + geom_line(size=1, color='red')
+
+coef(lassoCV.q8f$finalModel, lassoCV.q8f$bestTune$lambda)
+
+print(paste("Q8f Best Lambda with CV: ",lassoCV.q8f$bestTune$lambda))
+
+```
+**Answer Q8f:**<br />
+
+The **true** model is:
+$$y = 10 + (9.04 * X^7) + E$$
+
+Using **RegSubSets** the best models are:
+<ul>
+<li>Cp: $Y = Intercept + X^6 + X^7 + X^8 + X^{10}$</li>
+<li>BIC: $Y = Intercept + X^7$</li>
+<li>Adj R^2 produces a tie between many models, one includes the same model as identified with Cp: $Y = Intercept + X^6 + X^7 + X^8 + X^{10}$</li>
+</ul>
+
+
+Using **Fwd Selection** the best models are:
+<ul>
+<li>Cp: $Y = Intercept + X^2 + X^7 + X^8$</li>
+<li>BIC: $Y = Intercept + X^7$</li>
+<li>Adj R^2 produces a tie between many models, one includes the same model as identified with Cp: $Y = Intercept + X^2 + X^7 + X^8$</li>
+</ul>
+
+The function with forward selection estimated coefficients as identified in the best BIC model are:
+$$y = 9.95 + (9.03 * X^7)$$
+
+Using **Bwd Selection** the best models are:
+<ul>
+<li>Cp: $Y = Intercept + X^5 + X^7 + X^9$</li>
+<li>BIC: $Y = Intercept + X^7$</li>
+<li>Adj R^2 produces a tie between many models, the most minimal of the ties is: $Y = Intercept + X^3 + X^5 + X^7 + X^9$</li>
+</ul>
+
+The function with regsubsets, fwd selection, and bwd selection estimated coefficients as identified in the best BIC model are:
+$$y = 9.95 + (9.03 * X^7)$$
+This is **very close** to the true model.
+
+
+Using the **lasso** the model identified uses lambda of **8.1** and is defined:
+$$y = 7.78 + (8.78 * X^7)$$
 
 
 # Question 9
