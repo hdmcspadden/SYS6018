@@ -217,5 +217,4 @@ bs %>% dplyr::select(2:4) %>% sapply(sd)
 lm(mpg~horsepower+I(horsepower^2), data=Auto) %>% tidy()
 ```
 
-  
-  
+

@@ -1,0 +1,286 @@
+---
+title: "mod5_mcspadden_diana"
+author: "Diana McSpadden"
+date: "3/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(tibble)
+```
+
+# Question 8
+In this exercise, we will generate simulated data, and will then use this data to perform best subset selection.
+
+## Q8 (a) 
+Use the rnorm() function to generate a predictor X of length n = 100, as well as a noise vector E of length n = 100. 
+
+```{r q8a-1}
+set.seed (1976)
+
+X = rnorm(100)
+
+E = rnorm (100)
+```
+
+
+## Q8 (b) 
+Generate a response vector Y of length n = 100 according to the model:
+
+Y = β0 + β1X + β2X2 + β3X3 + E,
+
+where β0, β1, β2, and β3 are constants of your choice.
+
+```{r q8b-1}
+B0 = 10
+B1 = -13
+B2 = 3.27
+B3 = -9.11
+
+Y = B0 + (B1 * X) + (B2 * X^2) + (B3 * X^3) + E
+
+```
+
+
+## Q8 (c) 
+Use the regsubsets() function to perform best subset selection in order to choose the best model containing the predictors X,X2, . . .,X10. 
+
+```{r q8c-1}
+df.q8c = data.frame(x1 = X, x2 = X^2, x3 = X^3, x4 = X^4, x5 = X^5, x6 = X^6, x7 = X^8, x9 = X^9, x10 = X^10, y = Y)
+
+head(df.q8c)
+```
+
+``` {r q8c-2}
+library(leaps)
+regfit.full <- leaps::regsubsets(y~., df.q8c)
+#summary(regfit.full)
+regfit.full %>% broom::tidy()
+
+reg.summary = regfit.full %>% broom::tidy() 
+
+#reg.summary %>% names()
+
+#reg.summary %>% dplyr::select(adj.r.squared)
+
+#reg.summary %>% dplyr::select(BIC)
+
+#reg.summary %>% dplyr::select(mallows_cp)
+
+
+```
+What is the best model obtained according to Cp, BIC, and adjusted R2? 
+
+**Answer For Q8c, best model using regsubsets:** The best models are:
+<ul>
+<li>Cp: $Y = Intercept + X + X^2 + X^3 + X^4$</li>
+<li>BIC: $Y = Intercept + X^3$</li>
+<li>Adj R^2: $Y = Intercept + X + X^2 + X^3 + X^7 + X^{10}$</li>
+</ul>
+
+Show some plots to provide evidence for your answer, and report the coefficients of the best model obtained. Note you will need to use the data.frame() function to create a single data set containing both X and Y.
+
+```{r q8c-3}
+library(gridExtra)
+
+# plot of adjusted R^2 by number of predictors in the model
+adjR2s = reg.summary %>%
+  ggplot(aes(x=seq_along(adj.r.squared), y=adj.r.squared)) + geom_line() +
+  geom_point(reg.summary, color='red', size=2, mapping=aes(x=which.max(adj.r.squared), y=max(adj.r.squared))) + xlab("Number of Variables") 
+
+
+# plot Cp by number of predictors in the model
+mallows_cps = reg.summary %>%
+  ggplot(aes(x=seq_along(mallows_cp), y=mallows_cp)) + geom_line() +
+  geom_point(reg.summary, color='red', size=2,
+             mapping=aes(x=which.min(mallows_cp), y=min(mallows_cp))) +
+  xlab("Number of Variables") 
+
+# plot BIC by number of predictors in the model
+BICs = reg.summary %>%
+  ggplot(aes(x=seq_along(BIC), y=BIC)) + geom_line() +
+  geom_point(reg.summary, color='red', size=2,
+             mapping=aes(x=which.min(BIC), y=min(BIC))) +
+  xlab("Number of Variables") 
+
+grid.arrange(adjR2s, mallows_cps, BICs, nrow=2)
+```
+
+## Q8 (d) 
+Repeat (c), using forward step-wise selection and also using backwards step-wise selection. How does your answer compare to the results in (c)?
+
+#### Forward
+```{r q8d-1}
+regfit.fwd <- regsubsets(y~., data=df.q8c, nvmax=10, method="forward")
+#summary(regfit.fwd)
+regfit.fwd.summary = regfit.fwd %>% broom::tidy()
+
+regfit.fwd.summary
+
+# plot of adjusted R^2 by number of predictors in the model
+adjR2s = regfit.fwd.summary %>%
+  ggplot(aes(x=seq_along(adj.r.squared), y=adj.r.squared)) + geom_line() +
+  geom_point(reg.summary, color='red', size=2, mapping=aes(x=which.max(adj.r.squared), y=max(adj.r.squared))) + xlab("Stepwise Fwd: Number of Variables") 
+
+
+# plot Cp by number of predictors in the model
+mallows_cps = regfit.fwd.summary %>%
+  ggplot(aes(x=seq_along(mallows_cp), y=mallows_cp)) + geom_line() +
+  geom_point(reg.summary, color='red', size=2,
+             mapping=aes(x=which.min(mallows_cp), y=min(mallows_cp))) +
+  xlab("Stepwise Fwd: Number of Variables") 
+
+# plot BIC by number of predictors in the model
+BICs = regfit.fwd.summary %>%
+  ggplot(aes(x=seq_along(BIC), y=BIC)) + geom_line() +
+  geom_point(reg.summary, color='red', size=2,
+             mapping=aes(x=which.min(BIC), y=min(BIC))) +
+  xlab("Stepwise Fwd: Number of Variables") 
+
+grid.arrange(adjR2s, mallows_cps, BICs, nrow=2)
+```
+
+**Answer for Q8d - Forward StepWise Selection: **
+The best models identified with forward step-wise are:
+<ul>
+<li>Cp: $Y = Intercept + X + X^2 + X^3 + X^4$</li>
+<li>BIC: $Y = Intercept + X^3$</li>
+<li>Adj R^2: $Y = Intercept + X + X^2 + X^3 + X^4$</li>
+</ul>
+
+Using forward step-wise selection, the best Adjusted R^2 Model is now the same as the best Mallow's Cp model which was not true with the regsubsets.
+
+#### Backward
+``` {r q8d-2}
+regfit.bwd <- regsubsets(y~., data=df.q8c, nvmax=10, method="backward")
+#summary(regfit.bwd)
+regfit.bwd.sumary = regfit.bwd %>% broom::tidy()
+
+regfit.bwd.sumary
+
+# plot of adjusted R^2 by number of predictors in the model
+adjR2s = regfit.bwd.sumary %>%
+  ggplot(aes(x=seq_along(adj.r.squared), y=adj.r.squared)) + geom_line() +
+  geom_point(reg.summary, color='red', size=2, mapping=aes(x=which.max(adj.r.squared), y=max(adj.r.squared))) + xlab("Stepwise Bwd: Number of Variables") 
+
+
+# plot Cp by number of predictors in the model
+mallows_cps = regfit.bwd.sumary %>%
+  ggplot(aes(x=seq_along(mallows_cp), y=mallows_cp)) + geom_line() +
+  geom_point(reg.summary, color='red', size=2,
+             mapping=aes(x=which.min(mallows_cp), y=min(mallows_cp))) +
+  xlab("Stepwise Bwd: Number of Variables") 
+
+# plot BIC by number of predictors in the model
+BICs = regfit.bwd.sumary %>%
+  ggplot(aes(x=seq_along(BIC), y=BIC)) + geom_line() +
+  geom_point(reg.summary, color='red', size=2,
+             mapping=aes(x=which.min(BIC), y=min(BIC))) +
+  xlab("Stepwise Bwd: Number of Variables") 
+
+grid.arrange(adjR2s, mallows_cps, BICs, nrow=2)
+```
+
+**Answer for Q8d - Backward StepWise Selection: **
+The best models identified with backward step-wise are:
+<ul>
+<li>Cp: $Y = Intercept + X + X^2 + X^3$</li>
+<li>BIC: $Y = Intercept + X^3$</li>
+<li>Adj R^2: $Y = Intercept + X + X^2 + X^3 + X^7 + X^{10}$</li>
+</ul>
+
+Using backward step-wise selection, all three measures produce different models. THe best backwards step-wise for BIC and Adj-R^2 are the same as the regsubset models using BIC and Adj-R^2. The best BIC model has been the same for all three subset selection methods.
+
+## Q8 (e) 
+Now fit a lasso model to the simulated data, again using X,X2,. . . , X10 as predictors. 
+
+Use cross-validation to select the optimal value of λ. 
+
+Create plots of the cross-validation error as a function of λ. 
+
+Report the resulting coefficient estimates, and discuss the results obtained.
+
+```{r q8e-1}
+library(caret)
+set.seed(19)
+# alpha 1 == lasso
+lassoCV = caret::train(y~., data=df.q8c, method="glmnet", 
+             tuneGrid=data.frame(alpha=rep(1,100), lambda=10^seq(1,-2,length=100)),
+             trControl=trainControl("cv", number=10, returnResamp='all'))
+
+lassoCV$results %>% ggplot(aes(seq_along(RMSE), RMSE)) + geom_line(size=1, color='red')
+
+coef(lassoCV$finalModel, lassoCV$bestTune$lambda)
+
+print(paste("Best Lambda with CV: ",lassoCV$bestTune$lambda))
+```
+**Answer Q8e:** Using cross-validation with lasso, the optimal value of lambda was **0.23**, and the best model, based on RMSE, is:
+$$y = \beta0 + \beta1X + \beta2X^2 + \beta3X^3 + \beta4X^4$$
+where:
+<ul>
+<li>B0 = 10.28</li>
+<li>B1 = -12.6</li>
+<li>B2 = 2.75</li>
+<li>B3 = -9.04</li>
+<li>B4 = 0.08</li>
+</ul>
+
+These values compare well to the values with which I created the data set: 
+<ul>
+<li>B0 = 10</li>
+<li>B1 = -13</li>
+<li>B2 = 3.27</li>
+<li>B3 = -9.11</li>
+</ul>
+
+## Q8 (f) 
+Now generate a response vector Y according to the model:
+
+Y = β0 + β7X7 + E,
+
+and perform best subset selection and the lasso. 
+
+Discuss the results obtained.
+
+
+
+# Question 9
+In this exercise, we will predict the number of applications received using the other variables in the College data set.
+
+## Q9 (a) 
+Split the data set into a training set and a test set.
+
+
+## Q9 (b) 
+Fit a linear model using least squares on the training set, and report the test error obtained.
+
+
+## Q9 (c) 
+Fit a ridge regression model on the training set, with λ chosen by cross-validation. 
+
+Report the test error obtained.
+
+## Q9 (d) 
+Fit a lasso model on the training set, with λ chosen by cross-validation.
+
+Report the test error obtained, along with the number of non-zero coefficient estimates.
+
+## Q9 (e) 
+Fit a PCR model on the training set, with M chosen by cross-validation.
+
+Report the test error obtained, along with the value of M selected by cross-validation.
+
+
+## Q9 (f) 
+Fit a PLS model on the training set, with M chosen by cross-validation.
+
+Report the test error obtained, along with the value of M selected by cross-validation.
+
+## Q9 (g) 
+Comment on the results obtained. How accurately can we predict the number of college applications received? Is there much difference among the test errors resulting from these five approaches?
+
+
+

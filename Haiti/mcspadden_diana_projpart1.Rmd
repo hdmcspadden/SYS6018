@@ -703,6 +703,8 @@ result.lda$roq
 ```
 **The LDA ROC-AUC for the 10-fold cross-validated training data with p=0.8 is: 0.99.**
 
+From the curves provided in the MLeval library one can see that precision (positive preditive value) drops off faster with an increase in sensitivity/recall, 
+
 
 ```{r ldaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
 #lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>% 
@@ -868,6 +870,12 @@ log.cv.model
 
 ```
 
+```{r glmnetConfusionMatrix}
+caret::confusionMatrix(log.cv.model)
+```
+
+
+
 ### Tuning Parameters
 
 **NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**
@@ -1024,6 +1032,7 @@ I am interested in how to use limited resources to reach the greatest number of 
 <li>Predictive Modeling with R and the caret Package: <http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf></li>
 <li>caret::train: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/train></li>
 <li>MLeval::evalm: <https://www.rdocumentation.org/packages/MLeval/versions/0.3/topics/evalm></li>
+<li>MLeval: <https://cran.r-project.org/web/packages/MLeval/vignettes/introduction.pdf></li>
 <li>Caret Model Training and Tuning: <https://topepo.github.io/caret/model-training-and-tuning.html></li>
 </ul>
 ```{r, echo=FALSE}
