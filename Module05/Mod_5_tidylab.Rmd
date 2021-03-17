@@ -39,6 +39,8 @@ hitters_drop_na
 
 `install.packages('leaps')`
 
+Use regsubsets to determine best model. RegSubSets reviews all possible models of each size and returns best for each number of predictors.
+
 ```{r leaps}
 library(leaps)
 regfit.full <- leaps::regsubsets(Salary~., hitters_drop_na)
@@ -51,7 +53,9 @@ reg.summary <- regfit.full %>% broom::tidy()
 #names(reg.summary)
 reg.summary %>% names()
 
-#reg.summary$rsq
+reg.summary
+
+reg.summary$mallows_cp
 reg.summary %>% dplyr::select(r.squared)
 ```
 
@@ -103,6 +107,11 @@ grid.arrange(RSSs, adjR2s, mallows_cps, BICs, nrow=2)
 # https://www.r-graph-gallery.com/79-levelplot-with-ggplot2.html
 # https://stackoverflow.com/questions/16220812/how-do-i-change-the-na-color-from-gray-to-white-in-a-ggplot-choropleth-map
 # https://www.datanovia.com/en/blog/ggplot-axis-ticks-set-and-rotate-text-labels/
+
+#reg.summary
+
+# arrange() sorts in ASC order by the variable
+
 model_search <- function(var){
   reg.summary %>% arrange(reg.summary[[var]]) %>% dplyr::select(1:20) %>%
     mutate_all(function(col){sort(reg.summary[[var]])*col}) %>% 
@@ -165,6 +174,7 @@ MSE <- function(id){
   mean((hitters_drop_na$Salary[!train]-pred)^2)
 }
 library(purrr)
+# set_names: when it prints it out these are the names
 val.errors <- set_names(1:19) %>% purrr::map(MSE)
 val.errors
 
@@ -190,7 +200,7 @@ val.errors %>% bind_cols() %>% which.min() %>%
 #regfit.best=regsubsets(Salary~.,data=Hitters,nvmax=19)
 #coef(regfit.best,10)
 
-# if we force these three variables, which others produce the best model?
+
 outcome <- 'Salary'
 hitters_drop_na_regsubsetsNaming <- hitters_drop_na
 names(hitters_drop_na_regsubsetsNaming)[[14]] <- 'LeagueN'
@@ -199,6 +209,7 @@ names(hitters_drop_na_regsubsetsNaming)[[20]] <- 'NewLeagueN'
 features <- names(hitters_drop_na_regsubsetsNaming)
 features <- features[features!=outcome]
 p <- length(features)
+
 regfit.best %>% broom::tidy() 
 
 #regfit.best
@@ -361,6 +372,7 @@ ridgeCV$results$lambda[50]
 #coef(ridge.mod)[,50]
 coef(ridgeCV$finalModel)[,50]
 #sqrt(sum(coef(ridge.mod)[-1,50]^2))
+# this calculates the l2 norm
 sqrt(sum(coef(ridgeCV$finalModel)[-1,50]^2))
 ```
 

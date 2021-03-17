@@ -246,7 +246,7 @@ lassoCV.q8f$results %>% ggplot(aes(seq_along(RMSE), RMSE)) + geom_line(size=1, c
 
 coef(lassoCV.q8f$finalModel, lassoCV.q8f$bestTune$lambda)
 
-print(paste("Q8f Best Lambda with CV: ",lassoCV.q8f$bestTune$lambda))
+lassoCV.q8f$bestTune$lambda
 
 ```
 **Answer Q8f:**<br />
@@ -269,8 +269,6 @@ Using **Fwd Selection** the best models are:
 <li>Adj R^2 produces a tie between many models, one includes the same model as identified with Cp: $Y = Intercept + X^2 + X^7 + X^8$</li>
 </ul>
 
-The function with forward selection estimated coefficients as identified in the best BIC model are:
-$$y = 9.95 + (9.03 * X^7)$$
 
 Using **Bwd Selection** the best models are:
 <ul>
@@ -280,23 +278,49 @@ Using **Bwd Selection** the best models are:
 </ul>
 
 The function with regsubsets, fwd selection, and bwd selection estimated coefficients as identified in the best BIC model are:
-$$y = 9.95 + (9.03 * X^7)$$
+$$y = 9.95 + (9.04 * X^7)$$
 This is **very close** to the true model.
 
 
 Using the **lasso** the model identified uses lambda of **8.1** and is defined:
 $$y = 7.78 + (8.78 * X^7)$$
-
+The lasso did not get as close to the true values as the subset selection methods did.
 
 # Question 9
 In this exercise, we will predict the number of applications received using the other variables in the College data set.
 
 ## Q9 (a) 
 Split the data set into a training set and a test set.
+```{r q9a-1}
+library(ISLR)
 
+head(College)
+#dim(College)
+```
+```{r q9a-2}
+library(caret)
+
+set.seed(1976)
+college = sample_n(College, nrow(College))
+train_indices <- sample(1:nrow(College), nrow(College) * .75)
+
+college_train = College[train_indices,]
+college_test = College[-train_indices,]
+```
 
 ## Q9 (b) 
 Fit a linear model using least squares on the training set, and report the test error obtained.
+```{r q9b-1}
+model.lm = lm(Apps ~ ., data = college_train)
+broom::glance(model.lm)
+
+```
+```{r q9b-2}
+model.glm_predictions = broom::augment(model.lm, newdata=college_test) 
+
+#model.glm_predictions
+mean((model.glm_predictions$Apps-model.glm_predictions$.fitted)^2)
+```
 
 
 ## Q9 (c) 
@@ -304,24 +328,220 @@ Fit a ridge regression model on the training set, with λ chosen by cross-valida
 
 Report the test error obtained.
 
+**Here is the training**
+```{r q9c-1}
+# ridge
+set.seed(1976)
+# alpha 0 == ridge
+ridge.q9c = caret::train(Apps ~ ., data=college_train, method="glmnet", 
+             tuneGrid=data.frame(alpha=rep(0,100), lambda=10^seq(5,-4,length=100)),
+             trControl=trainControl("cv", number=10, returnResamp='all'))
+
+ridge.q9c$results %>% ggplot(aes(seq_along(RMSE), RMSE)) + geom_line(size=1, color='red')
+
+coef(ridge.q9c$finalModel, ridge.q9c$bestTune$lambda)
+
+ridge.q9c$bestTune$lambda
+
+```
+
+**Here is the test**
+```{r q9c-2}
+q9c.pred = predict(ridge.q9c, newdata=college_test)
+
+# print the MSE for the predictions
+mean((college_test$Apps-q9c.pred)^2)
+
+# this would print the final model
+#ridge.q9c$finalModel %>% summary()
+
+#https://stackoverflow.com/questions/40493412/how-to-pick-a-different-model-from-the-finalmodel-in-caret
+# if I wanted a different model from the one selected:
+#ridge.q9c <- update(ridge.q9c, param = list(ncomp = 7))
+#ridge.q9c$finalModel %>% summary()
+```
+**Observation Q9c:** the ***test MSE*** for the ridge regression is slightly lower than the linear model.
+<ul>
+<li>lm: 879419.2</li>
+<li>ridge model: 860609.3</li>
+</ul>
+
 ## Q9 (d) 
 Fit a lasso model on the training set, with λ chosen by cross-validation.
 
 Report the test error obtained, along with the number of non-zero coefficient estimates.
+
+**Here is the training**
+```{r q9d-1}
+# lasso
+set.seed(1976)
+# alpha 1 == lasso
+lasso.q9 = caret::train(Apps ~ ., data=college_train, method="glmnet", 
+             tuneGrid=data.frame(alpha=rep(1,100), lambda=10^seq(5,-4,length=100)),
+             trControl=trainControl("cv", number=10, returnResamp='all'))
+
+lasso.q9$results %>% ggplot(aes(seq_along(RMSE), RMSE)) + geom_line(size=1, color='red')
+
+coef(lasso.q9$finalModel, lasso.q9$bestTune$lambda)
+
+lasso.q9$bestTune$lambda
+```
+
+**Here is the test**
+
+```{r q9d-2}
+q9d.pred = predict(lasso.q9, newdata=college_test)
+
+# print the MSE for the predictions
+mean((college_test$Apps-q9d.pred)^2)
+
+```
+
+**Observations Q9d:** The MSE for the lasso model is much less than the linear model, and less than the ridge model:
+<ul>
+<li>lm: 879419.2</li>
+<li>ridge model: 860609.3</li>
+<li>lasso model: 809997.9</li>
+</ul>
+
+And, of the predictors, there are ***11 with non-zero coefficients*** using the lasso:
+<ol>
+<li>PrivateYes: -442.87727790</li>
+<li>Accept: 1.48335384</li>
+<li>Enroll: -0.24851834</li>
+<li>Top10perc: 29.75710945</li>
+<li>Top25perc: -0.17766001</li>
+<li>Outstate: -0.04732921</li>
+<li>Room.Board: 0.08992306</li>
+<li>PhD: -1.65337906</li>
+<li>Terminal: -5.31239943</li>
+<li>Expend: 0.06544648</li>
+<li>Grad.Rate: 4.88401358</li>
+</ol>
 
 ## Q9 (e) 
 Fit a PCR model on the training set, with M chosen by cross-validation.
 
 Report the test error obtained, along with the value of M selected by cross-validation.
 
+```{r q9e-1}
+set.seed(1976)
+
+# use the pcr model - requires standardization: for 17 parameters
+q9epcr.fits = train(Apps~., data=college_train, method="pcr", tuneLength=16, scale=TRUE, trControl=trainControl("cv", number=10, returnResamp='all'))
+
+# plot the MSE as
+q9epcr.fits$results %>% dplyr::mutate(MSE=RMSE^2) %>% ggplot(aes(seq_along(MSE), MSE)) + geom_line(size=2, color='red')
+
+q9epcr.fits$resample %>% 
+  dplyr::mutate(MSE=RMSE^2) %>%
+  dplyr::group_split(Resample) %>% 
+  dplyr::bind_rows() %>%
+  ggplot(aes(ncomp, MSE)) + geom_point() +
+  geom_line(q9epcr.fits$results%>%dplyr::mutate(MSE=RMSE^2), 
+            mapping=aes(seq_along(MSE), MSE),
+            size=2, color='red')
+
+summary(q9epcr.fits)
+
+```
+
+```{r q9e-2}
+
+# get the predictions
+q9epcr.pred <- predict(q9epcr.fits, newdata=college_test)
+
+mean((college_test$Apps-q9epcr.pred)^2)
+
+q9epcr.fits$finalModel %>% summary()
+
+```
+
+**Observations Q9e:** The MSE for the PCR model where cross-validation selected M = 16 is between the ridge and lasso models.
+<ul>
+<li>lm: 879419.2</li>
+<li>ridge model: 860609.3</li>
+<li>lasso model: 809997.9</li>
+<li>PCR | M == 16: 843803.1</li>
+</ul>
 
 ## Q9 (f) 
-Fit a PLS model on the training set, with M chosen by cross-validation.
+Fit a PLS (Partial Least Squares) model on the training set, with M chosen by cross-validation.
 
 Report the test error obtained, along with the value of M selected by cross-validation.
+
+```{r q9f-1}
+set.seed(1976)
+
+q9fpls.fits = train(Apps~., data=college_train, method="pls", tuneLength=17, scale=TRUE, trControl=trainControl("cv", number=10, returnResamp='all'))
+
+#summary(pls.fit)
+q9fpls.fits$finalModel %>% summary()
+```
+```{r q9f-2}
+q9fpls.fits$results %>% dplyr::mutate(MSE=RMSE^2) %>% ggplot(aes(seq_along(MSE), MSE)) + geom_line(size=2, color='red')
+
+q9fpls.fits$resample %>% 
+  dplyr::mutate(MSE=RMSE^2) %>%
+  dplyr::group_split(Resample) %>% 
+  dplyr::bind_rows() %>%
+  ggplot(aes(ncomp, MSE)) + geom_point() +
+  geom_line(q9fpls.fits$results%>%dplyr::mutate(MSE=RMSE^2), 
+            mapping=aes(seq_along(MSE), MSE),
+            size=2, color='red')
+```
+
+```{r q9f-3}
+q9fpls.pred = predict(q9fpls.fits, newdata=college_test)
+#mean((pls.pred-y.test)^2)
+mean((college_test$Apps-q9fpls.pred)^2)
+
+q9fpls.fits$finalModel %>% summary()
+```
+**Observations Q9f:** The MSE for the PLS model where cross-validation selected M = 12 is only slightly better performing on the test data than the linear model.
+<ul>
+<li>lm: 879419.2</li>
+<li>ridge model: 860609.3</li>
+<li>lasso model: 809997.9</li>
+<li>PCR | M == 16: 843803.1</li>
+<li>PLS | M == 12: 876331.9</li>
+</ul>
 
 ## Q9 (g) 
 Comment on the results obtained. How accurately can we predict the number of college applications received? Is there much difference among the test errors resulting from these five approaches?
 
+```{r q9g-1}
+lasso.tibble = as_tibble(lasso.q9$results)
 
+lasso.tibble %>% filter(RMSE == min(RMSE))
 
+```
+
+```{r}
+#lasso.q9$finalModel %>% summary()
+
+#lasso.q9$finalModel$tuneValue
+
+calc.RSquare = function(actual,predict){
+  cor(actual,predict)^2
+}
+
+calc.RSquare(college_test$Apps, q9d.pred)
+
+```
+
+**Answer Q9g: ** The best performing model using the measure of MSE is the lasso model, which has an R Squared value of .937. This tells use that the model selected using a lambda of 28.5 and using the following 11 predictors predicts 93.7% of the variance in the number of applications to the universities in the sample.
+
+<ol>
+<li>PrivateYes: -442.87727790</li>
+<li>Accept: 1.48335384</li>
+<li>Enroll: -0.24851834</li>
+<li>Top10perc: 29.75710945</li>
+<li>Top25perc: -0.17766001</li>
+<li>Outstate: -0.04732921</li>
+<li>Room.Board: 0.08992306</li>
+<li>PhD: -1.65337906</li>
+<li>Terminal: -5.31239943</li>
+<li>Expend: 0.06544648</li>
+<li>Grad.Rate: 4.88401358</li>
+</ol>

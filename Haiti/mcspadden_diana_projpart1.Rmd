@@ -859,14 +859,62 @@ From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificit
 
 
 ## Penalized Logistic Regression (ElasticNet)
+Subset selection using glmnet/ElasticNet provides an opportunity to see if additional predictors are of use improving the precision of our model.
+
+I am going to add some additional interaction terms to the model. The interactions between Red, Blue, and Green are intuitively significant because the combinations of these values create the visible spectrum of color. 
+
+The predictors in the ElasticNet model are:
+<ul>
+<li>Red</li>
+<li>Blue</li>
+<li>Green</li>
+<li>GBSqr = $(Green + Blue)^2$</li>
+<li>RBSqr = $(Red + Blue)^2$</li>
+<li>RGSqr = $(Red + Green)^2$>
+<li>RGBSqr = $(Red + Blue + Green)^2$</li>
+</ul>
+
+```{r}
+haitiBinaryFull = haitiBinarySqrs %>%
+  mutate(RGSqr = I(((Red + Green)^2)),  RGBSqr = I(((Red + Green + Blue)^2))) %>%
+  mutate(Red = scale(Red), Blue = scale(Blue), Green = scale(Green), GBSqr = scale(GBSqr), RBSqr = scale(RBSqr), RGSqr = scale(RGSqr), RGBSqr = scale(RGBSqr))
+```
+
+```{r}
+head(haitiBinaryFull)
+```
+
 
 ```{r}
 set.seed(1976)
 # number: number of folds for cross validation
 trctrl <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, number = 10, repeats = 2)
 
-log.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "glmnet", trControl=trctrl, tuneLength = 10)
+log.cv.model = train(ClassBinary~Blue+Green+Red+GBSqr+RBSqr+RGSqr+RGBSqr, data = haitiBinaryFull, method = "glmnet", trControl=trctrl, tuneLength = 10)
 log.cv.model
+```
+
+
+
+
+```{r}
+set.seed(1976)
+
+trctrl <- trainControl(method = "repeatedcv",
+                           number = 10,
+                           repeats = 10,
+                           classProbs = T,
+                           savePredictions = T,
+                           summaryFunction = twoClassSummary,
+                           search = "random")
+
+set.seed(825)
+log.pen.cv.model <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr+RGSqr+RGBSqr, data = train, 
+                  method = "glmnet",
+                  metric = "ROC",
+                  tuneLength = 10,
+                  trControl = trctrl)
+log.pen.cv.model
 
 ```
 
@@ -1034,6 +1082,7 @@ I am interested in how to use limited resources to reach the greatest number of 
 <li>MLeval::evalm: <https://www.rdocumentation.org/packages/MLeval/versions/0.3/topics/evalm></li>
 <li>MLeval: <https://cran.r-project.org/web/packages/MLeval/vignettes/introduction.pdf></li>
 <li>Caret Model Training and Tuning: <https://topepo.github.io/caret/model-training-and-tuning.html></li>
+<li>Random Hyperparameter Search: <https://topepo.github.io/caret/random-hyperparameter-search.html></li>
 </ul>
 ```{r, echo=FALSE}
 knitr::knit_exit()    # ignore everything after this

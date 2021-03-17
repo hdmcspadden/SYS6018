@@ -152,6 +152,7 @@ Smarket.2005 %>% dim()
 #table(glm.pred,Direction.2005)
 glm.fits <- glm(Direction~Lag1+Lag2+Lag3+Lag4+Lag5+Volume,
                 data=Smarket, family=binomial, subset=train)
+
 glm.logOdds_predictions <- glm.fits %>% augment(newdata=Smarket.2005) %>% 
   dplyr::select(Direction, .fitted)  %>% 
   mutate(.prediction=ifelse(.fitted<0, "Down", "Up")) %>%
