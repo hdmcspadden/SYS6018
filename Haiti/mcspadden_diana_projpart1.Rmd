@@ -815,7 +815,7 @@ set.seed(1976)
 
 trControl.knn <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.5)
 
-knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trControl.knn, tuneGrid   = expand.grid(k = 1:21))
+knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trControl.knn, tuneGrid = expand.grid(k = 1:21))
 knn.cv.model
 ```
 
@@ -876,50 +876,88 @@ The predictors in the ElasticNet model are:
 
 ```{r}
 haitiBinaryFull = haitiBinarySqrs %>%
-  mutate(RGSqr = I(((Red + Green)^2)),  RGBSqr = I(((Red + Green + Blue)^2))) %>%
-  mutate(Red = scale(Red), Blue = scale(Blue), Green = scale(Green), GBSqr = scale(GBSqr), RBSqr = scale(RBSqr), RGSqr = scale(RGSqr), RGBSqr = scale(RGBSqr))
+  mutate(RGSqr = I(((Red + Green)^2)),  RGBSqr = I(((Red + Green + Blue)^2))) 
 ```
 
 ```{r}
 head(haitiBinaryFull)
 ```
 
+I do not need to scale the predictors because the glmnet library will scale to standard deviation units.
 
-```{r}
+```{r glmnet-creatematrix}
+frmla = as.formula(ClassBinary~Red+Green+Blue+GBSqr+RBSqr+RGSqr+RGBSqr)
+
+x.haitiFull.train = model.matrix(frmla, data = haitiBinaryFull)[,-1] # removing the intercept term from the formula
+
+y.haitiFull.train = haitiBinaryFull$ClassBinary
+
+```
+
+
+```{r glmnetCrossVal}
+library(glmnet)
+
 set.seed(1976)
-# number: number of folds for cross validation
-trctrl <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, number = 10, repeats = 2)
+# number of folds
+K = 10
+# make folds
+folds = rep(1:K, length=nrow(x.haitiFull.train)) 
 
-log.cv.model = train(ClassBinary~Blue+Green+Red+GBSqr+RBSqr+RGSqr+RGBSqr, data = haitiBinaryFull, method = "glmnet", trControl=trctrl, tuneLength = 10)
-log.cv.model
+out = tibble()
+
+# TO DO: ADD A LOOP FOR alpha: 0 (ridge), 0.5 (elasticnet), and 1 (lasso)
+
+#-- Get lambda sequence so consistent over all folds
+lam_seq = glmnet(X.train, Y.train, family="binomial", alpha=0)$lambda
+
+# TO DO: ADD LOOP OVER p values of .5, .6, .7, .75 .8, .85 .9, .95, 1.0
+
+#-- Loop over K folds
+
+for(k in unique(folds)){
+  
+  #- Get train/test split for fold k
+  ind.train = which(folds != k)
+  ind.test = which(folds == k)
+  
+  #- fit ridge model(s) over all lambdas in lam_seq
+  ridge = fit.ridge = glmnet(X.train[ind.train,], Y.train[ind.train], 
+                             alpha = 0,          # this uses ridge penalty
+                             family="binomial",  # this makes it logistic regression
+                             lambda = lam_seq)   # all models use same lambda sequence
+  
+  #- make predictions on test set fold k
+  pred = predict(ridge, X.train[ind.test, ], s=lam_seq, type = "response")
+  
+  #- evaluate fold k
+  y_true = Y.train[ind.test]
+  thres = .25
+  y_hat = pred > thres
+  acc = apply(y_hat, 2, function(y) mean(y == y_true))
+  
+  #- output
+  out = bind_rows(out, 
+            tibble(accuracy = acc, 
+                   lambda = lam_seq,
+                   n_train = length(ind.train),
+                   n_test = length(ind.test),
+                   k = k))
+}
+```
+```{r glmnet-getBestAccuracy}
+#-- Get mean accuracy
+perf = out %>% 
+  group_by(lambda) %>% 
+  summarize(mean_acc = mean(accuracy), se_acc = sd(accuracy)/K) 
+
+perf %>% arrange(-mean_acc)
 ```
 
 
-
-
-```{r}
-set.seed(1976)
-
-trctrl <- trainControl(method = "repeatedcv",
-                           number = 10,
-                           repeats = 10,
-                           classProbs = T,
-                           savePredictions = T,
-                           summaryFunction = twoClassSummary,
-                           search = "random")
-
-set.seed(825)
-log.pen.cv.model <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr+RGSqr+RGBSqr, data = train, 
-                  method = "glmnet",
-                  metric = "ROC",
-                  tuneLength = 10,
-                  trControl = trctrl)
-log.pen.cv.model
-
-```
 
 ```{r glmnetConfusionMatrix}
-caret::confusionMatrix(log.cv.model)
+# confusion matrix
 ```
 
 
