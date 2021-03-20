@@ -538,49 +538,68 @@ Model 3 performed better on all measures.
 <br />
 Because geographic distribution of blue tarps is not included in this data set so I am not concerned with efficiency of sending resources over vast areas, I want to create a model that identifies the most blue tarps. p = 0.1 identified the most blue tarps, and had the highest precision when using 10-fold cross validation.
 
-$$ClassBinary = Blue + GBSqr + RBSqr$$
+$$ClassBinary = Blue + Green + Red + GBSqr + RBSqr$$
 
 ### Logistic Regression Performance
-Below I use the entire training data set on the model with p = 0.95 to get the training Accuracy, TPR, FPR, and Precision:
+Below I use the entire training data set on the model with p = 0.1 to get the training Accuracy, TPR, FPR, and Precision:
 
-```{r logisticTrainingPerf, warning=FALSE}
-glm.fits.model3 = glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = haitiBinarySqrs)
+```{r warning = FALSE}
+set.seed(1976)
+#Randomly shuffle the data
+haitiBinarySqrsShuffled = haitiBinarySqrs[sample(nrow(haitiBinarySqrs)),]
 
- # fit the complex model
-      glm.pred.model3 = glm.fits.model3 %>%  augment() %>% 
-        dplyr::select(ClassBinary, .fitted)  %>% 
-        mutate(ClassBinary=factor(ClassBinary))%>%
-        mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < 0.1, "No", "Yes")) %>%
-        mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
-      
-caret::confusionMatrix(glm.pred.model3$.prediction, glm.pred.model3$ClassBinary)
+#Create 10 equally size folds
+folds <- cut(seq(1,nrow(haitiBinarySqrsShuffled)),breaks=10,labels=FALSE)
+
+out_lr.complex = tibble()
+
+#Perform 10 fold cross validation
+for(i in 1:10) {
+  
+    #Segement your data by fold using the which() function 
+    testIndexes = which(folds==i,arr.ind=TRUE)
+    testData = haitiBinarySqrsShuffled[testIndexes, ]
+    trainData = haitiBinarySqrsShuffled[-testIndexes, ]
+    
+    # define complex model
+    glm.fits.complex = glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = trainData)
+
+    # fit the complex model
+    glm.pred.complex = glm.fits.complex %>%  augment(newdata=testData) %>% 
+      dplyr::select(ClassBinary, .fitted)  %>% 
+      mutate(ClassBinary=factor(ClassBinary))%>%
+      mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < .1, "No", "Yes")) %>%
+      mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+    
+    out_lr.complex = bind_rows(out_lr.complex, 
+            tibble(truth = testData$ClassBinary, 
+                   prediction = glm.pred.complex$.prediction,
+                   fitted = glm.pred.complex$.fitted))
+    
+}
+
+caret::confusionMatrix(out_lr.complex$prediction, out_lr.complex$truth)
+
 
 ```
 
 For Logistic Regression, my calculations for Accuracy, TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
+
+The following cross-validation measures were calculated with a threshold, p, of 0.1:
 <ul>
 <li>Accuracy: 0.9957</li>
-<li>TPR: 1982 / 2022 = 0.9802</li>
-<li>FPR: 231 / 61219 = 0.0038</li>
-<li>Precision: 1989 / 2022 = 0.984</li>
+<li>TPR: 1981 / 2022 = 0.98</li>
+<li>FPR: 232 / 61219 = 0.0038</li>
+<li>Precision: 1981 / 2212 = 0.896</li>
 </ul>
 
-<br />
-When using the entire training data set:
-<ul>
-<li>1,982 of the 2022 blue tarp pixels were identified by the model. Approximately, 2% of our blue tarp pixels will not be able to receive aid based on this model.</li>
-<li>231 pixels were identified as blue tarps, but were not blue tarps. Approximately, one-third of 1% of blue tarps were identified as blue tarps and were not which will result un wasted resources. That seems small, but it represents 10% of the number of blue tarps, and thus, may have a 10% impact on distribution of resources.</li>
-</ul>
 ### Logistic Regression Cross-Validation ROC Curve:
 
 ```{r LogROCCurve}
 library(ROCR)
 
-##predicted survival rate for testing data based on training data
-preds = predict(glm.fits.model3, newdata=haitiBinarySqrs, type="response") # need to use type=response for probabilities.
-
 ##produce the numbers associated with classification table
-rates = prediction(preds, haitiBinarySqrs$ClassBinary)
+rates = prediction(out_lr.complex$fitted, out_lr.complex$truth)
 
 ##store the true positive and false postive rates
 roc_result = performance(rates, measure="tpr", x.measure="fpr")
@@ -595,43 +614,7 @@ auc@y.values[[1]]
 
 ```
 
-**The Logistic Regression ROC-AUC for the 10-fold cross-validated training data is: 1.0.**
-
-<!--## Logistic Regression: Testing -->
-
-```{r include=FALSE, echo=FALSE, eval=FALSE}
-
-#test.YesNo = test
-
-#levels(test.YesNo$ClassBinary)
-
-#levels(test.YesNo$ClassBinary)=c("No","Yes")
-
-#levels(test.YesNo$ClassBinary)
-
-#fct_count(test.YesNo$ClassBinary)
-```
-
-
-```{r logisticTestResults, include=FALSE, echo=FALSE, eval=FALSE}
-#log.test = predict(log.cv.model, newdata = test.YesNo, type="prob") %>% 
-#  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
-```  
-  
-```{r include=FALSE, echo=FALSE, eval=FALSE}
-#log.test = log.test %>% 
-#  mutate(ClassBinary = factor(ClassBinary)) 
-```
-
-```{r include=FALSE, echo=FALSE, eval=FALSE}  
-#caret::confusionMatrix(log.test$ClassBinary, test.YesNo$ClassBinary)
-```
-
-```{r logROCTest, include=FALSE, echo=FALSE, eval=FALSE}
-#plot(roc.curve(test.YesNo$ClassBinary, log.test$ClassBinary)) # Base R version
-
-#test.result = evalm(log.test)
-```
+**The Logistic Regression ROC-AUC for the 10-fold cross-validated training data is: 0.9996.**
 
 ## LDA
 
@@ -781,6 +764,8 @@ For QDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it 
 </ul>
 
 
+
+
 ### QDA Training ROC Curve:
 ```{r qdaTrainingROC}
 result.qda = evalm(qda.cv.model.selected)
@@ -822,7 +807,7 @@ knn.cv.model
 ```{r knnTry17-35}
 set.seed(1976)
 
-knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid   = expand.grid(k = 17:35))
+knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid = expand.grid(k = 17:35))
 knn.cv.model
 ```
 
@@ -833,12 +818,69 @@ knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, met
 knn.cv.model
 
 ```
+### Tune the probability threshold, p, for KNN | k = 27
 
+Running manual KNN cross validation to tune for p took significant time for my laptop to process. I ran with smaller lists of p just to get a feel for the results. I had previously ran with p = 0.5 and received accuracy of 0.996
+
+```{r tunePKNN, cache=TRUE}
+library(class)
+
+out_knn_p = tibble()
+
+haitiBinarySqrsShuffled = haitiBinarySqrsShuffled %>% mutate(ClassBinaryTF = factor(if_else(ClassBinary == "No", FALSE, TRUE)))
+
+
+#for (p in c(.1,.2,.3,.7,.8,.9)) 
+for (p in c(.2,.3,.4,.5,.6,.7,.8)) 
+{
+    for (j in 1:10)
+    {
+  
+      #Segement your data by fold using the which() function 
+      testIndexes = which(folds==j,arr.ind=TRUE)
+      testData = haitiBinarySqrsShuffled[testIndexes, ]
+      trainData = haitiBinarySqrsShuffled[-testIndexes, ] 
+
+      train_knn <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = trainData, method = "knn", tuneGrid = data.frame(k=27))
+  
+      # test with the fold's test data
+      preds = predict(train_knn, newdata = testData, type="prob")
+      
+      #- evaluate fold k
+      y_true = testData$ClassBinaryTF
+      # set the threshold to p
+      thres = p
+      y_hat = tibble(preds$Yes > thres)
+      acc = apply(y_hat, 2, function(y) mean(y == y_true))
+    
+        #- output
+      out_knn_p = bind_rows(out_knn_p, tibble(threshold = p, accuracy = acc))
+  }
+}
+
+out_knn_p
+```
+
+```{r getMeanKNNAccuracy}
+#-- Get mean accuracy
+perf_knn_p = out_knn_p %>% 
+  group_by(threshold) %>% 
+  summarize(mean_acc = mean(accuracy)) 
+
+perf_knn_p %>% arrange(-mean_acc)
+```
+After testing the following values of p: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, p == 0.5 is the value that produced the highest mean accuracy. This is convenient because both glmnet's and caret's cross-validation for knn models default to a 0.5 threshold.
+
+
+```{r knnCrossValue}
+
+
+```
 
 ```{r knnTrainConfusionMatrix}
 caret::confusionMatrix(knn.cv.model)
 ```
-### KNN k=17 Training ROC Curve:
+### KNN k=27 Training ROC Curve:
 ```{r knnTrainingROC}
 result.knn = evalm(knn.cv.model)
 result.knn$roc
@@ -883,17 +925,20 @@ haitiBinaryFull = haitiBinarySqrs %>%
 head(haitiBinaryFull)
 ```
 
-I do not need to scale the predictors because the glmnet library will scale to standard deviation units.
+I do not need to scale the predictors because the glmnet library will scale to standard deviation units. For the glmnet library, the training data must be in matrix format:
 
 ```{r glmnet-creatematrix}
 frmla = as.formula(ClassBinary~Red+Green+Blue+GBSqr+RBSqr+RGSqr+RGBSqr)
 
 x.haitiFull.train = model.matrix(frmla, data = haitiBinaryFull)[,-1] # removing the intercept term from the formula
 
-y.haitiFull.train = haitiBinaryFull$ClassBinary
+# switch ClassBinary to TRUE FALSE to facilitate the next bit of code
+y.haitiFull.train = (haitiBinaryFull %>% mutate(ClassBinary = ifelse(ClassBinary == 'No', FALSE, TRUE)))$ClassBinary
 
 ```
 
+
+Using penalized logistic regression (PLR), I evaluate three different PLR methods: ridge, lasso, and elasticnet (a combination of ridge and lasso). I am also tuning both by lambda and the probability threshold (p). Based on best testing of the threshold tuning parameter, I will only consider p values of .5, .6, .7, .75, .8, .85, .9, and .95.
 
 ```{r glmnetCrossVal}
 library(glmnet)
@@ -906,63 +951,150 @@ folds = rep(1:K, length=nrow(x.haitiFull.train))
 
 out = tibble()
 
-# TO DO: ADD A LOOP FOR alpha: 0 (ridge), 0.5 (elasticnet), and 1 (lasso)
+# LOOP FOR alpha: 0 (ridge), 0.5 (elasticnet), and 1 (lasso)
+for (a in c(0, .5, 1)){
 
-#-- Get lambda sequence so consistent over all folds
-lam_seq = glmnet(X.train, Y.train, family="binomial", alpha=0)$lambda
+  # lambda may be different for the different PLR methods, so this is decided within the alpha loop
+  #-- Get lambda sequence so consistent over all folds
+  lam_seq = glmnet(x.haitiFull.train, y.haitiFull.train, family="binomial", alpha=a)$lambda
 
-# TO DO: ADD LOOP OVER p values of .5, .6, .7, .75 .8, .85 .9, .95, 1.0
+  # TO DO: ADD LOOP OVER p values of .5, .6, .7, .75 .8, .85 .9, .95
+  for (p in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95)){
 
-#-- Loop over K folds
+    #-- Loop over K folds
+    for(k in unique(folds)){
+      
+      #- Get train/test split for fold k
+      ind.train = which(folds != k)
+      ind.test = which(folds == k)
+      
+      #- fit the alpha model over all lambdas in lam_seq
+      fit.model = glmnet(x.haitiFull.train[ind.train,], y.haitiFull.train[ind.train], 
+                                 alpha = a,          # use the alpha for the loop
+                                 family="binomial",  # logistic regression
+                                 lambda = lam_seq)   # all models in this alpha loop use same lambda sequence
+      
+      #- make predictions on test set fold k
+      pred = predict(fit.model, x.haitiFull.train[ind.test, ], s=lam_seq, type = "response")
+      
+      #- evaluate fold k
+      y_true = y.haitiFull.train[ind.test]
+      # set the threshold to p
+      thres = p
+      y_hat = pred > thres
+      acc = apply(y_hat, 2, function(y) mean(y == y_true))
+      
+      #- output
+      out = bind_rows(out, 
+                tibble(accuracy = acc, 
+                       lambda = lam_seq,
+                       n_train = length(ind.train),
+                       n_test = length(ind.test),
+                       alpha = a,
+                       thres = p,
+                       k = k))
+    }
+  }
+}
+```
 
+```{r}
+out %>% filter(accuracy == max(accuracy))
+```
+
+```{r glmnet-getBestAccuracy}
+#-- Get mean accuracy
+perf = out %>% 
+  group_by(alpha, thres, lambda) %>% 
+  summarize(mean_acc = mean(accuracy), se_acc = sd(accuracy)/k) 
+
+perf %>% arrange(-mean_acc)
+```
+
+```{r}
+log(5.630136e-05)
+```
+
+The plot below charts the change in mean accuracy as the log of lambda increases for each of the 10 folds. The red error bars display the difference between the (mean accuracy - standard error accuracy) and the (max accuracy + the standard error accuracy) - giving the range of mean accuracy for  log lambda. The plot demonstrates that generally accuracy decreases, and the standard error of accuracy increases as log lambda increases. The highest mean accuracy is at a log lambda -9.78.
+```{r}
+ggplot(perf, aes(log(lambda), mean_acc)) +
+  geom_point() + geom_line() +
+  geom_errorbar(aes(ymin=mean_acc-se_acc, ymax=mean_acc + se_acc), 
+                color="red", alpha=1)
+```
+
+From the manual cross-validation testing of accuracy the PLR lasso method with lambda of 5.630136e-05 and a threshold of 0.2 produced the greatest mean accuracy: 0.996.
+
+
+```{r}
+
+out_confusion = tibble()
+
+
+ #-- Loop over K folds
 for(k in unique(folds)){
   
   #- Get train/test split for fold k
   ind.train = which(folds != k)
   ind.test = which(folds == k)
   
-  #- fit ridge model(s) over all lambdas in lam_seq
-  ridge = fit.ridge = glmnet(X.train[ind.train,], Y.train[ind.train], 
-                             alpha = 0,          # this uses ridge penalty
-                             family="binomial",  # this makes it logistic regression
-                             lambda = lam_seq)   # all models use same lambda sequence
+  #- fit the lasso
+  cv.glmnet.model = glmnet(x.haitiFull.train[ind.train,], y.haitiFull.train[ind.train], 
+                             alpha = 1,          
+                             family="binomial",  # logistic regression
+                             lambda = lam_seq)   
   
   #- make predictions on test set fold k
-  pred = predict(ridge, X.train[ind.test, ], s=lam_seq, type = "response")
+  pred = predict(fit.model, x.haitiFull.train[ind.test, ], s=0.00005630136, type = "response")
   
   #- evaluate fold k
-  y_true = Y.train[ind.test]
-  thres = .25
+  y_true = y.haitiFull.train[ind.test]
+  # set the threshold to p
+  thres = 0.2
   y_hat = pred > thres
-  acc = apply(y_hat, 2, function(y) mean(y == y_true))
-  
-  #- output
-  out = bind_rows(out, 
-            tibble(accuracy = acc, 
-                   lambda = lam_seq,
-                   n_train = length(ind.train),
-                   n_test = length(ind.test),
-                   k = k))
+
+    #- output
+  out_confusion = bind_rows(out_confusion, 
+            tibble(truth = y_true, 
+                   glmnet.fitted = y_hat))
 }
 ```
-```{r glmnet-getBestAccuracy}
-#-- Get mean accuracy
-perf = out %>% 
-  group_by(lambda) %>% 
-  summarize(mean_acc = mean(accuracy), se_acc = sd(accuracy)/K) 
 
-perf %>% arrange(-mean_acc)
+```{r}
+head(out_confusion)
+dim(out_confusion)
+summary(out_confusion)
+
 ```
 
+The optimal lambda:
+```{r}
 
-
-```{r glmnetConfusionMatrix}
-# confusion matrix
+coef(cv.glmnet.model, 0.00005630136)
 ```
 
+This result is very interesting. Cross-validated lasso, with p = 0.2 set the coefficients for GBSqr, RBSqr and RGBSqr to 0. This could be due to collinearity with Blue, or because the variables are truly not significant to the accuracy of the model. This did determine that the new variable RGSqr was significant; although the coefficient is very small.
+
+```{r glmnetConfM}
+out_confusion %>% 
+  mutate(truth = factor, glmnet.fitted = factor(glmnet.fitted)) %>%
+  conf_mat(truth, glmnet.fitted)
+```
+```{r glmnetAUC}
 
 
-### Tuning Parameters
+assess.glmnet(pred, newy = y.haitiFull.train[ind.test], family="binomial")
+
+```
+**AUC** for the lasso PLR model with a lambda of 0.00005630136 is 0.9996.
+
+Using lasso penalized logistic regression with a threshold = 0.2, lambda = 0.00005630136: 
+<ul>
+<li>Accuracy: (1940 + 61045) / 63241: 0.996</li>
+<li>TPR: 1940 / 2022 = 0.959</li>
+<li>FPR: 174 / 61219 = 0.0028</li>
+<li>Precision: 1940 / 2114 = 0.918</li>
+</ul>
 
 **NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**
 
@@ -990,7 +1122,7 @@ perf %>% arrange(-mean_acc)
   <td><!-- Log Reg Accuracy -->0.9957</td>
   <td><!-- Log Reg TPR -->0.9802</td>
   <td><!-- Log Reg FPR -->0.0038</td>
-  <td><!-- Log Reg Precision -->0.984</td>
+  <td><!-- Log Reg Precision -->0.896</td>
 </tr>
 
 <tr>
@@ -1028,13 +1160,13 @@ perf %>% arrange(-mean_acc)
 
 <tr>
   <td>Penalized Log Reg</td>
-  <td><!-- Penalized Log Reg Tuning --></td>
-  <td><!-- Penalized Log Reg AUROC --></td>
-  <td><!-- Penalized Log Reg Threshold --></td>
-  <td><!-- Penalized Log Reg Accuracy --></td>
-  <td><!-- Penalized Log Reg TPR --></td>
-  <td><!-- Penalized Log Reg FPR --></td>
-  <td><!-- Penalized Log Reg Precision --></td>
+  <td><!-- Penalized Log Reg Tuning -->alpha = 1, lambda = 5.630136e-05</td>
+  <td><!-- Penalized Log Reg AUROC -->0.9996</td>
+  <td><!-- Penalized Log Reg Threshold -->0.2</td>
+  <td><!-- Penalized Log Reg Accuracy -->0.996</td>
+  <td><!-- Penalized Log Reg TPR -->0.959</td>
+  <td><!-- Penalized Log Reg FPR -->0.0028</td>
+  <td><!-- Penalized Log Reg Precision -->0.918</td>
 </tr>
 
 <tr>
@@ -1082,32 +1214,41 @@ I look forward to discovering if the hold-out/validation data set also separates
 
 **Distribution of Classes and How It Affects Model Selection**<br/>
 
-Only 3% of the observations in the training data are labeled "Blue Tarp". This is a very unbalanced training set. This is not unexpected because it would be extremely surprising if a high percentage of land area was covered by blue tarps. In fact, if that were the case, then I would expect it would not be challenging for aid workers to find survivors because survivors would be covering a high percentage of Haiti, or Haiti would just have blue tarps everywhere and they would be of little predictive power for finding survivors. That said, this imbalance of the data can give a false sense of faith in a model if only evaluating specificity, aka True Negative Rate of nonblue tarps. In this toy problem (as stated on Conclusion \#1) **a random guess of "not blue tarp" will be correct 97% of the time**, thus our model must perform better than a random guess, i.e. the Negative Predictive Value (NPV). In this problem the NPV could be thought of as a measure of efficiency of resource usage, i.e. are the predictions good at keeping our imagined aid workers from traveling to non blue tarps.<br /><br/>The NPV's for the models are:
+Only 3% of the observations in the training data are labeled "Blue Tarp". This is a very unbalanced training set. This is not unexpected because it would be extremely surprising if a high percentage of land area was covered by blue tarps. In fact, if that were the case, then I would expect it would not be challenging for aid workers to find survivors because survivors would be covering a high percentage of Haiti, or Haiti would just have blue tarps everywhere and they would be of little predictive power for finding survivors. That said, this imbalance of the data can give a false sense of faith in a model if only evaluating specificity, aka True Negative Rate of nonblue tarps. In this toy problem (as stated on Conclusion \#1) **a random guess of "not blue tarp" will be correct 97% of the time**, thus our model must perform better than a random guess, i.e. the Negative Predictive Value (NPV). In this problem the NPV is a measure of efficiency of resource usage, i.e. are the predictions good at keeping our imagined aid workers from traveling to non blue tarps.<br /><br/>The NPV's for the models are:
 <ul>
-<li>Logistic Regression with Complex Model: 0.9993</li>
+<li>Logistic Regression Model with Sqr Terms: 0.9993</li>
 <li>LDA with Complex Model: 0.9949</li>
-<li>QDA with Complex Model: 0.9969</li>
+<li>QDA with Complex Model: 0.9969</li>567
 <li>KNN | k = 27 with Complex Model: 0.999</li>
-<li>Penalized Log Reg with Complex Model: **TBD**</li>
+<li>Penalized Log Reg with Complex Model: 0.9987</li>
 </ul>
 <br />
 Additionally, we do not want to miss blue tarps. Missing a blue tarp may result in the loss of multiple lives. The False Negative Rate (FNR) directly measures the rate of missed blue tarps.
 <ul>
-<li>Logistic Regression with Complex Model: 0.0198</li>
+<li>Logistic Regression Model with Sqr Terms: 0.0198</li>
 <li>LDA with Complex Model: 0.1563</li>
 <li>QDA with Complex Model: 0.0938</li>
 <li>KNN | k = 27 with Complex Model: 0.0313</li>
-<li>Penalized Log Reg with Complex Model: **TBD**</li>
+<li>Penalized Log Reg with Complex Model: 0.041</li>
 </ul>
 <br />
-I recommend working with experienced aid workers and local Haitian residents with knowledge of the land to determine the choice between, and balance of these considerations. If we want the model that is least likely to send aid workers to non blue tarps we will select **CHOOSE THE MODEL**; however if we want the model that correctly identified the greatest percentage of blue tarps we will select **CHOOSE THE MODEL**.
-
+Before selecting any model, I recommend working with experienced aid workers and local Haitian residents with knowledge of the land to determine the choice between, and balance of these considerations. However, in this case, if we want the model that is least likely to send aid workers to non blue tarps we will select the tuned **Logistic Regression Model WIth Sqr Terms**; additionally if we want the model that correctly identified the greatest percentage of blue tarps we will also select the tuned **Logistic Regression Model with Sqr Terms**. 
 
 ### Conclusion \#3
 
+**If time is of the essence, KNN Took a Long Time to Tune on my Laptop:** Of all the models, tuning KNN for both the highest accuracy k and probability threshold took the most time for my laptop to complete. In fact, on my laptop, I started the threshold tuning loop and went and did chores while periodically checking for completion. I am assuming that in a real-world scenario, each night the model would be validated and tuned with additional labeled data to improve performance. If time is of the essence, which in this scenario it would be because getting predictions for locations of survivors is only the first step in making a plan for volunteers to reach the survivors, it may make sense to select a model that does not take as long to produce a result. The KNN model performed almost as well as the Logistic Regression with the complex model when considering Negative Predictive Value, and False Negative Rate; however the Logistic Regression Model performed better on these two metrics. However, the KNN model performed better at AUROC, and Precision than the Logistic Regression model, but with a significant increase in time to compute.
+
+### Conclusion \#4
+
+**Very small penalty for additional parameters:**
+
+The penalty ($\lambda$) that performed the best using elasticnet penalized regression was very small. The conclusion I draw is that while lasso performed the best as accuracy when comparing ridge, elasticnet, and lasso, the penalties for the additional predictors was **very small** and with such a small ratio of number of parameters to number of observations, it didn't provide additional value, in this case, to shrink the model.
+
+### Conclusion \#4
+
 **Request For Additional Information for Real-World Implementation**<br />
 
-I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to visualize and calculate locations where the most blue tarps will be found to able to help the most people; however, there may not be a 1:1 relationship between number of tarps and number of people, so resource allocation becomes even trickier. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. And, demographic information regarding population density, and members-per-household would be pricelessly valuable. Additionally, GIS information for pre-earthquake roads, and other geographic features would be useful.
+I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to visualize and calculate locations where the most blue tarps will be found to able to help the most people; however, there may not be a 1:1 relationship between number of tarps and number of people, so resource allocation becomes even trickier. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. And, demographic information regarding population density, and members-per-household would be of priceless value. Additionally, GIS information for pre-earthquake roads, and other geographic features would be useful.
 
 
 ## References

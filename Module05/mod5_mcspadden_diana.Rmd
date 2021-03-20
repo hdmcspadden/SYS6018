@@ -302,7 +302,7 @@ library(caret)
 
 set.seed(1976)
 college = sample_n(College, nrow(College))
-train_indices <- sample(1:nrow(College), nrow(College) * .75)
+train_indices = sample(1:nrow(College), nrow(College) * .75)
 
 college_train = College[train_indices,]
 college_test = College[-train_indices,]
@@ -316,12 +316,14 @@ broom::glance(model.lm)
 
 ```
 ```{r q9b-2}
+
 model.glm_predictions = broom::augment(model.lm, newdata=college_test) 
 
 #model.glm_predictions
 mean((model.glm_predictions$Apps-model.glm_predictions$.fitted)^2)
-```
 
+```
+**Answer Q9b:** The MLR model has an MSE of 879419.2 from the test data.
 
 ## Q9 (c) 
 Fit a ridge regression model on the training set, with λ chosen by cross-validation. 
@@ -478,6 +480,9 @@ q9fpls.fits = train(Apps~., data=college_train, method="pls", tuneLength=17, sca
 #summary(pls.fit)
 q9fpls.fits$finalModel %>% summary()
 ```
+
+View MSE as number of components changes, and for each fold.
+
 ```{r q9f-2}
 q9fpls.fits$results %>% dplyr::mutate(MSE=RMSE^2) %>% ggplot(aes(seq_along(MSE), MSE)) + geom_line(size=2, color='red')
 

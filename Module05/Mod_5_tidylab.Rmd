@@ -20,7 +20,7 @@ Drop NA's from hitters - you can see the NA's in the salary column with summary
 ```{r hitters}
 #library(ISLR)
 #fix(Hitters)
-#names(Hitters)
+names(Hitters)
 #dim(Hitters)
 library(tidyverse)
 library(tibble)
@@ -440,9 +440,10 @@ bestlam
 #ridge.pred=predict(ridge.mod,s=bestlam,newx=x[test,])
 hitters_drop_na_regsubsetsNaming <- hitters_drop_na
 names(hitters_drop_na_regsubsetsNaming)[[14]] <- 'LeagueN'
-names(hitters_drop_na_regsubsetsNaming)[[15]] <- 'DivisionW'
+names(hitters_drop_na_regsubsetsNaming)[[15]] <- 'DivisionW'predict
 names(hitters_drop_na_regsubsetsNaming)[[20]] <- 'NewLeagueN'
 x <- hitters_drop_na_regsubsetsNaming[, ridgeCV$finalModel$xNames]
+head(x)
 # https://stat.ethz.ch/R-manual/R-patched/library/base/html/data.matrix.html
 ridge.pred <- predict(ridgeCV$finalModel, newx=data.matrix(x[-train_indices,]))
 yhat <- ridge.pred[,which.min(ridgeCV$results$RMSE)]
