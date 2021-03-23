@@ -57,9 +57,9 @@ pre {
 
 # Introduction 
 
-When natural disasters or other emergencies result in compromised communications and logistical challenges, it can be impossible within a reasonable time to locate survivors using human-only methods. This disaster relief toy problem seeks to discover if an algorithm can effectively identify images corresponding to people who require relief.
+When natural disasters or other emergencies result in compromised communications and transportation challenges, it can be impossible within a reasonable time to locate survivors using human-only methods. This disaster relief toy problem seeks to discover if an algorithm can effectively identify images corresponding to people who require relief.
 
-To investigate whether this is possible a data set was provided of RGB color values corresponding to pixels. The pixels are from high-resolution images taken by an aircraft above Haiti. Blue tarps had been distributed to survivors, but rescue workers did not have information about where survivors were located after receiving the blue tarps. 
+To investigate whether this is possible a data set was provided containing RGB color values corresponding to pixels. The pixels are from high-resolution images taken by an aircraft above Haiti after the 2010 earthquake. Blue tarps had been distributed to survivors, but rescue workers did not have information about where survivors relocated after receiving the blue tarps. 
 
 Blue tarps have a distinct color when compared to other identifiable elements in Haiti. The training data set includes 63,241 RGB values for pixels in the toy problem's images. The training data set includes a label for each pixel. The labels include:
 <ul>
@@ -70,11 +70,10 @@ Blue tarps have a distinct color when compared to other identifiable elements in
 <li>Vegetation</li>
 </ul>
 
-Below the training data is explored, and various modeling methods applied to determine if, and which method can be effectively used to identify blue tarps by RGB values.
+Below the training data is explored, and various modeling methods are applied to determine if, and which method can be effectively used to identify blue tarps by RGB values.
 
 # Training Data / EDA
 
-Load data, explore data, etc. 
 ```{r echo=FALSE}
 #install.packages("pROC")
 #install.packages("randomForest")
@@ -101,17 +100,19 @@ library(broom)
 ```
 
 ```{r load-data, message=FALSE, warning=FALSE}
-url = 'HaitiPixels.csv'
+filename = 'HaitiPixels.csv'
 #url = 'https://collab.its.virginia.edu/access/lessonbuilder/item/1707832/group/17f014a1-d43d-4c78-a5c6-698a9643404f/Module3/HaitiPixels.csv' #this url is beng 
-haiti <- read_csv(url)
+haiti <- read_csv(filename)
 print(dim(haiti))
 
 ```
+Below are the first 6 rows of the training dataset.
+
 ```{r data-head1}
 head(haiti)
 ```
 
-The dataframe contains 4 columns, and 63,241 rows. The Class column contains the correct label for the observation. Red, Green and Blue parameters are **NEED TO INCLUDE CORRECT DEFINITION**
+The dataframe contains 4 columns, and 63,241 rows. The Class column contains the correct label for the observation. Red, Green and Blue parameters are each values between 0 and 255 used in the additive RBG color model.
 
 ## Class Factor
 To prepare the data for exploratory data analysis I make Class a factor.
@@ -130,7 +131,7 @@ haiti %>%
 ```
 
 #### Observations:
-The records are not evenly distributed between the categories. Of the Classes Blue Tarp, our "positive" category if we are thinking a binary positive/negative identification, is only 3% of our sample. Soil and Vegetation make up the majority of our sample at 74%.
+The records are not evenly distributed between the categories. Of the Classes, Blue Tarp, our "positive" category if we are thinking a binary positive/negative identification, is only 3% of our sample. Soil and Vegetation make up the majority of our sample at 74%.
 
 ## Binary Class Factor vs. 5 Class Factor
 It will be interesting to see performance predicting each of these categories, or a binary is or is not Blue Tarp.
@@ -149,7 +150,7 @@ After reviewing box plots for the 2-class data set, I also created two new calcu
 <br />
 2. RBSqr = (Red + Blue)^2 * .001
 
-I created these to continue using the Red and Green values, but I wanted to increase the difference in median value difference between the positive and negative classes. There is significant interplay in color values between Red, Green, and Blue in identifying the correct shade or blue, and I wanted to continue using Red and Green values but increase the linear separability between the classes. The 0.01 multiplier is to return the number scale to a range similar to standard RGB values.
+I created these to continue using the Red and Green values, but I wanted to increase the difference in median value difference between the positive and negative classes. There is significant interplay in color values between Red, Green, and Blue in identifying the correct shade or blue, and I want to continue using Red and Green values but increase the linear separability between the classes. The 0.01 multiplier is to return the number scale to a range similar to standard RGB values, i.e, a manual "scaling" of the new parameters. 
 ```{r createBinaryDataFrame}
 haitiBinary =  haiti %>%
   mutate(ClassBinary = if_else(Class == 'Blue Tarp', '1', '0'), ClassBinary = factor(ClassBinary))
@@ -160,7 +161,7 @@ haitiBinarySqrs = haiti %>%
 ```
 
 
-Examine the numbers and percentages in each of the **2** classes:
+Re-examine the numbers and percentages in each of the **2** classes:
 ```{r summarizeBinaryByCategory}
 
 haitiBinary %>%
@@ -218,8 +219,6 @@ blueplotB <- ggplot(haitiBinarySqrs, aes(x=ClassBinary, y=Blue)) +
 grid.arrange(redplotB, greenplotB, blueplotB)
 ```
 
-
-
 #### Box Plot Observations
 
 **For the 5-class box plots:**
@@ -250,7 +249,7 @@ There is ***almost*** **no overlap in the blue data** with non-blue tarps, and b
 
 ### View the correlation between Red, Green and Blue
 
-These correlations make sense as the pixels were of highly saturated colors, that are not pure Blue, Red or Green. There are few pixels in the data set with low values for R,G,B.
+These correlations make sense as the pixels were of highly saturated/"additive" colors. There are few pixels in the data set with low values for R,G,B.
 
 ```{r }
 #ggpairs(haiti, lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
@@ -305,7 +304,7 @@ binary3D
 ```
 **2-Class 3-D Scatter Plot Observations With Blue, GBSqr, and RBSqr**
 <br />
-Similar to the five category 3D scatter plot, the binary scatter plot shows distinct groupings for blue tarp and non-blue-tarp. There is a clear linear boundary between the blue tarp and non-blue tarp observations. 
+Similar to the five category 3D scatter plot, the binary scatter plot shows distinct groupings for blue tarp and non-blue-tarp. Visually, there is an near-distinct linear boundary between the blue tarp and non-blue tarp observations. 
 
 
 ### Parameter Selection:
@@ -323,13 +322,13 @@ Based on EDA, I am hopeful that my models will perform well using the following 
 
 ## Set-up 
 
-Normalization does not need to be considered because the ranges of Red, Green and Blue are the same.
+I so not consider normalization or additional scaling because the ranges of Red, Green, Blue, RBSqr, and GBSqr are the same.
 <br /><br/>
 I am using the 2-Class data set for the following reasons:
 <ol>
 <li>The distinctions in the 2-Class data set, as seen in the 3-D scatterplot, are clear.</li>
 <li>The stated problem is to classify 'Blue Tarp' from the other classes. Classifying the other classes is not of interest.</li>
-<li>I am using 10-fold cross-validation to evaluate the models.</li>
+<li>I am using 10-fold cross-validation to evaluate various models.</li>
 </ol>
 
 
@@ -341,7 +340,7 @@ library(boot)
 
 ## Cross-Validation Performance 
 
-For logistic regression, LDA, QDA, KNN  and Penalized Logistic Regression Cross-Validation threshold performance use ROC for tuning.
+For logistic regression, LDA, QDA, KNN  and Penalized Logistic Regression Cross-Validation threshold performance use ROC and Accuracy for tuning.
 
 The following performance measures are collected for both the 10-fold cross-validation and the hold-out/testing/validation data:
 <ul>
@@ -358,7 +357,7 @@ For the Models:
 
 ## Logistic Regression
 
-Per our course's Module 3 instruction, logistic regression is typically used when there are 2 classes. I will be using the **haitiBinary** dataframe with two classes:
+Per our course's Module 3 instruction, logistic regression is typically used when there are 2 classes. 
 <br /><br />
 
 Reset the level names to enable the caret functions for the ROC curve.
@@ -818,6 +817,19 @@ knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, met
 knn.cv.model
 
 ```
+#### Results of Tuning for K
+
+I ran 10-fold cross-validation for several ranges of k:
+<ul>
+<li>1 - 21: Returned best k == ***17***</li>
+<li>17 - 35: Returned best k == ***27***</li>
+<li>27 - 51: Returned best k == ***27***</li>
+</ul>
+
+<br /><br />
+From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificity were reviewed for each cross-validation training. From these tables one can see that the improvements within the range are in the hundredths of a percentage point of ROC, so k's in the range of 10 - 51, are all reasonable selections for the cross-validated training data.
+
+
 ### Tune the probability threshold, p, for KNN | k = 27
 
 Running manual KNN cross validation to tune for p took significant time for my laptop to process. I ran with smaller lists of p just to get a feel for the results. I had previously ran with p = 0.5 and received accuracy of 0.996
@@ -869,13 +881,11 @@ perf_knn_p = out_knn_p %>%
 
 perf_knn_p %>% arrange(-mean_acc)
 ```
-After testing the following values of p: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, p == 0.5 is the value that produced the highest mean accuracy. This is convenient because both glmnet's and caret's cross-validation for knn models default to a 0.5 threshold.
 
+#### Results of TUning for p:
 
-```{r knnCrossValue}
+After testing the following values of p: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, p == 0.5 is the value that produced the highest mean accuracy. This is convenient because caret's cross-validation for KNN models default to a 0.5 threshold.
 
-
-```
 
 ```{r knnTrainConfusionMatrix}
 caret::confusionMatrix(knn.cv.model)
@@ -885,20 +895,13 @@ caret::confusionMatrix(knn.cv.model)
 result.knn = evalm(knn.cv.model)
 result.knn$roc
 ```
-
-
-### How were tuning parameter(s) selected? What value is used? Plots/Tables/etc.
-
-I ran 10-fold cross-validation for several ranges of k:
-<ul>
-<li>1 - 21: Returned best k == ***17***</li>
-<li>17 - 35: Returned best k == ***27***</li>
-<li>27 - 51: Returned best k == ***27***</li>
-</ul>
-
-<br /><br />
-From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificity were reviewed for each cross-validation training. From these tables one can see that the improvements within the range are in the hundredths of a percentage point of ROC, so k's in the range of 10 - 51, are all reasonable selections for the cross-validated training data.
-
+  <td><!-- KNN Tuning --> k = 27</td>
+  <td><!-- KNN AUROC -->1.0</td>
+  <td><!-- KNN Threshold -->N/A</td>
+  <td><!-- KNN Accuracy -->0.997</td>
+  <td><!-- KNN TPR -->0.998</td>
+  <td><!-- KNN FPR -->0.0313</td>
+  <td><!-- KNN Precision -->0.999</td>
 
 ## Penalized Logistic Regression (ElasticNet)
 Subset selection using glmnet/ElasticNet provides an opportunity to see if additional predictors are of use improving the precision of our model.
@@ -1077,9 +1080,10 @@ This result is very interesting. Cross-validated lasso, with p = 0.2 set the coe
 
 ```{r glmnetConfM}
 out_confusion %>% 
-  mutate(truth = factor, glmnet.fitted = factor(glmnet.fitted)) %>%
+  mutate(truth = factor(truth), glmnet.fitted = factor(glmnet.fitted)) %>%
   conf_mat(truth, glmnet.fitted)
 ```
+
 ```{r glmnetAUC}
 
 
