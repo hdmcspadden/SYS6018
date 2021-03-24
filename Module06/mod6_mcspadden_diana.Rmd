@@ -1,0 +1,219 @@
+---
+title: "mod6_mcspadden_diana"
+author: "Diana McSpadden"
+date: "3/23/2021"
+output: html_document
+---
+
+# Question 6 
+In this exercise, you will further analyze the Wage data set considered throughout this chapter.
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(error=TRUE,        # Keep compiling upon error
+                      collapse=FALSE,    # collapse by default
+                      echo=TRUE,         # echo code by default
+                      comment = "#>",    # change comment character
+                      fig.width = 5.5,     # set figure width
+                      fig.align = "center",# set figure position
+                      out.width = "49%", # set width of displayed images
+                      warning=TRUE,      # show R warnings
+                      message=TRUE)      # show R messages
+```
+
+```{r q6-setup, warning=FALSE}
+library(ISLR)
+library(tidyverse)
+library(boot)
+```
+
+
+##  Q6a) Perform polynomial regression to predict wage using age. 
+Use cross-validation to select the optimal degree d for the polynomial.
+
+**Which Cross-Validation**
+```{r q6a-1}
+cv.error = rep (0,5)
+
+for (i in 1:5) {
+  glm.fit = glm(wage ∼ poly(age ,i), data=wage)
+  cv.error[i] = cv.glm (Wage ,glm.fit)$delta[1]
+}
+
+as.matrix(cv.error)
+
+```
+```{r q6a-2}
+fit.1 = lm(wage∼age ,data=Wage)
+fit.2 = lm(wage∼poly(age ,2) ,data=Wage)
+fit.3 = lm(wage∼poly(age ,3) ,data=Wage)
+fit.4 = lm(wage∼poly(age ,4) ,data=Wage)
+fit.5 = lm(wage∼poly(age ,5) ,data=Wage)
+
+anova(fit.1, fit.2, fit.3, fit.4, fit.5)
+```
+What degree was chosen, and how does this compare to the results of hypothesis testing using ANOVA? Make a plot of the resulting polynomial fit to the data.
+
+**Answer Q6a: Which Cross-Validation**: Cross-validation of poly models between 1 and 5 selected the degree-4 polynomial by error; however the cubic was nearly as good.
+
+Using ANOVA either the cubic or degree-4 polynomial provide a good fit.
+
+**Plot of resulting polynomial fit**:
+<br />
+```{r q6a-3}
+wage = ISLR::Wage %>% as_tibble()
+
+ggplot() + geom_hex(wage, mapping=aes(x=age, y=wage)) + 
+  geom_jitter(wage, mapping=aes(x=age, y=wage),
+              shape='.', size=.1, color='green', height=2) +
+  #geom_ribbon(data=prediction_interval, fill = "black", alpha = 0.2, mapping=aes(x=age, ymin=lower, ymax=upper)) + 
+  stat_smooth(wage, mapping=aes(x=age, y=wage), method='lm', formula='y~poly(x,4)', se=TRUE, alpha=1) #+
+  #geom_line(prediction_interval, mapping=aes(x=age, y=pred))
+```
+
+
+## Q6b) Fit a step function to predict wage using age, and perform crossvalidation ...
+to choose the optimal number of cuts. 
+
+``` {r q6battach}
+attach(Wage)
+```
+
+```{r q6b-1}
+library(stringr)
+
+set.seed(1976)
+
+out_step = tibble()
+
+
+for (i in 6:15){
+  cuts = levels(cut(age, i))
+  #print(cuts)
+  breaks = unique(c(as.numeric(sub("\\((.+),.*", "\\1", cuts)),
+                    as.numeric(sub("[^,]*,([^]]*)\\]", "\\1", cuts))))
+  step.fit = glm(wage~cut(age,unique(breaks)), data = Wage)
+  err.step =  cv.glm(Wage ,step.fit, K=10)$delta[1]
+   
+  out_step = bind_rows(out_step, tibble(numCuts = i, cvError = err.step, cuts = str_flatten(cuts, "-")))
+}
+
+out_step
+
+```
+**Answer Q6b NUmber Cuts:** The optimal number of cuts, calculated by cross validation is **8**.
+
+
+Make a plot of the fit obtained.
+
+```{r q6b-2}
+
+wage <- ISLR::Wage %>% as_tibble()
+
+ggplot() + geom_hex(wage, mapping=aes(x=age, y=wage)) + 
+  geom_jitter(wage, mapping=aes(x=age, y=wage), shape='.', size=.1, color='green', height=2) +
+  #geom_ribbon(data=prediction_interval, fill = "black", alpha = 0.2, mapping=aes(x=age, ymin=lower, ymax=upper)) + 
+  stat_smooth(wage, mapping=aes(x=age, y=wage), method='lm', formula='y~cut(x,8)', se=TRUE, alpha=1) #+
+  #geom_line(prediction_interval, mapping=aes(x=age, y=pred))
+```
+# Question 9
+This question uses the variables dis (the weighted mean of distances to five Boston employment centers) and nox (nitrogen oxides concentration in parts per 10 million) from the Boston data. We will treat dis as the predictor and nox as the response.
+```{r q9-setup-1}
+detach(Wage)
+```
+
+
+```{r q9-setup-2}
+library(MASS)
+head(Boston)
+```
+
+## (a) Use the poly() function...
+to fit a cubic polynomial regression to predict nox using dis. Report the regression output, and plot the resulting data and polynomial fits.
+
+```{r q9a-1}
+fit.q9.3 = lm(nox∼poly(dis ,3) ,data=Boston)
+
+summary(fit.q9.3)
+
+boston = MASS::Boston %>% as_tibble()
+
+ggplot() + geom_hex(boston, mapping=aes(x=dis, y=nox)) + 
+  geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=1, color='green', height=2) +
+  stat_smooth(boston, mapping=aes(x=dis, y=nox), method='lm', formula='y~poly(x,3)', se=TRUE, alpha=1)
+```
+
+
+## (b) Plot the polynomial fits ...
+for a range of different polynomial degrees (say, from 1 to 10), and report the associated residual sum of squares.
+
+```{r q9b-1, fig.height=30, fig.width=10}
+poly_plot = function(i) {
+  ggplot() + geom_hex(boston, mapping=aes(x=dis, y=nox)) + 
+  geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=2, color='green', height=2) +
+  stat_smooth(boston, mapping=aes(x=dis, y=nox), method='lm', formula=(paste("y~poly(x,", i, ")")), se=TRUE, alpha=1) + 
+  ggtitle(label = paste("nox ~ dis^", i))
+}
+
+library(gridExtra)
+
+grid.arrange(poly_plot(1), poly_plot(2), poly_plot(3), poly_plot(4), poly_plot(5), poly_plot(6), poly_plot(7), poly_plot(8), poly_plot(9), poly_plot(10), nrow=5)
+```
+
+
+```{r q9b-2}
+
+poly.error = rep (0,9)
+
+for (i in 1:10) {
+  poly.fit = glm(nox ∼ poly(dis ,i), data=boston)
+  poly.error[i] = sum(resid(poly.fit)^2)
+}
+
+as.matrix(poly.error)
+
+```
+**Q9b Observation:**
+Not surprising that with the entire data set the residual sum squares decreases as the polynomial increases. I am guessing I am seeing overfitting.
+
+## (c) Perform cross-validation or another approach ...
+to select the optimal degree for the polynomial, and explain your results.
+
+```{r}
+
+```
+
+
+
+## (d) Use the bs() function to fit a regression spline...
+to predict nox using dis. Report the output for the fit using four degrees of freedom. How did you choose the knots? Plot the resulting fit.
+
+
+## (e) Now fit a regression spline ...
+for a range of degrees of freedom, and plot the resulting fits and report the resulting RSS. 
+
+Describe the results obtained.
+
+
+##(f) Perform cross-validation or another approach...
+in order to select the best degrees of freedom for a regression spline on this data.
+
+Describe your results.
+
+
+# Question 10  
+
+## (a) Split the data into a training set and a test set. 
+Using out-of-state tuition as the response and the other variables as the predictors, perform forward stepwise selection on the training set in order to identify a satisfactory model that uses just a subset of the predictors.
+
+
+## (b) Fit a GAM on the training data, ...
+using out-of-state tuition as the response and the features selected in the previous step as the predictors. 
+
+Plot the results, and explain your findings.
+
+
+##(c) Evaluate the model obtained on the test set, ...
+and explain the results obtained.
+
+
+## (d) For which variables, if any, is there evidence of a non-linear relationship with the response?

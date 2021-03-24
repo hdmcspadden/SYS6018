@@ -173,7 +173,7 @@ haitiBinary %>%
 
 ### How are red, blue and green values distributed between the **5** classes?
 
-```{r colorValuesFiveCats, fig.height=5, fig.width=8}
+```{r colorValuesFiveCats, cache=TRUE, fig.height=5, fig.width=8}
 
 redplot <- ggplot(haiti, aes(x=Class, y=Red)) + 
   geom_boxplot(col='red')
@@ -190,7 +190,7 @@ grid.arrange(redplot, greenplot, blueplot)
 
 ### How are red, blue and green values distributed between the **2** classes?
 
-```{r colorValuesBinaryCats, fig.height=5, fig.width=5}
+```{r colorValuesBinaryCats, cache=TRUE, fig.height=5, fig.width=5}
 
 redplotB <- ggplot(haitiBinary, aes(x=ClassBinary, y=Red)) + 
   geom_boxplot(col='red')
@@ -205,7 +205,7 @@ grid.arrange(redplotB, greenplotB, blueplotB)
 ```
 ### How are red, blue and green values distributed between the **2** classes with the square values for Red + Blue and Green Blue?
 
-```{r colorValuesBinarySqrsCats, fig.height=5, fig.width=5}
+```{r colorValuesBinarySqrsCats, cache=TRUE, fig.height=5, fig.width=5}
 
 redplotB <- ggplot(haitiBinarySqrs, aes(x=ClassBinary, y=RBSqr)) + 
   geom_boxplot(col='red')
@@ -251,18 +251,18 @@ There is ***almost*** **no overlap in the blue data** with non-blue tarps, and b
 
 These correlations make sense as the pixels were of highly saturated/"additive" colors. There are few pixels in the data set with low values for R,G,B.
 
-```{r }
+```{r pairsHaiti5, cache=TRUE}
 #ggpairs(haiti, lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
 ggpairs(haiti, progress = F)
 ```
 
-```{r }
+```{r pairsHaitiBinary, cache=TRUE}
 #ggpairs(haiti, lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
 ggpairs(haitiBinary[-1], progress = F)
 ```
 
 
-```{r}
+```{r pairsHaitiBinarySqred, cache=TRUE}
 ggpairs(haitiBinarySqrs[-1], progress = F)
 ```
 The RBSqr and GBSqr have significantly less variance in their values, and better differentiation between the 2 classes than the Red and Green variables. I will be using these transformed variables in my models.
@@ -273,7 +273,7 @@ To view the relationship between the Red, Green, and Blue values between the fiv
 
 
 #### Five-Class 3-D Scatterplot
-```{r 3D5Class}
+```{r 3D5Class, cache=TRUE}
 
 fiveCat3D = plot_ly(x=haiti$Red, y=haiti$Blue, z=haiti$Green, type="scatter3d", mode="markers", color=haiti$Class, colors = c('blue2','azure4','chocolate4','coral2','chartreuse4'),
 marker = list(symbol = 'circle', sizemode = 'diameter', opacity =0.35))
@@ -293,7 +293,7 @@ The 3D scatter plot is particularly useful because, by zooming in, one can see t
 
 ##### Two-Class 3-D Scatterplot
 
-```{r 3DBinary}
+```{r 3DBinary, cache=TRUE}
 binary3D = plot_ly(x=haitiBinarySqrs$RBSqr, y=haitiBinarySqrs$Blue, z=haitiBinarySqrs$GBSqr, type="scatter3d", mode="markers", color=haitiBinary$ClassBinary, colors = c('red','blue2'),
 marker = list(symbol = 'circle', sizemode = 'diameter', opacity =0.35))
 
@@ -357,12 +357,11 @@ For the Models:
 
 ## Logistic Regression
 
-Per our course's Module 3 instruction, logistic regression is typically used when there are 2 classes. 
-<br /><br />
+In order to use R's built-in factor function I set ClassBinary to a factor and order it "No", "Yes". 
+<br />
+I also review the factor counts and create a dataframe named "train".
 
-Reset the level names to enable the caret functions for the ROC curve.
-
-```{r}
+```{r reviewSqrsLevel}
 levels(haitiBinarySqrs$ClassBinary)
 
 levels(haitiBinarySqrs$ClassBinary)=c("No","Yes")
@@ -385,7 +384,7 @@ $$ClassBinary = Blue + Green + Red$$
 
 ** Model 3: Simple Logistic Regression Model:**
 $$ClassBinary = Blue$$
-```{r logRegressionTuning, warning=FALSE}
+```{r logRegressionTuning, warning=FALSE, cache=TRUE}
 library(yardstick)
 
 set.seed(1976)
@@ -512,11 +511,11 @@ outcome = data.frame(p_i, sensitivity_c_i, specificity_c_i, prec_c_i, sensitivit
 print(outcome, n = nrow(outcome))
 
 ```
-**Model 3**<br />
-Only p values of .1, .2, .3 and .35 was Model 3, the simple model, was unable to differentiate between blue tarps and not blue tarps. The sensitivity, specificity and precision did not approach the performance of the other two models. Model 3 will no longer be considered.
+**SLR Model 3: ClassBinary = Blue**<br />
+Only p values of .1, .2, .3 and .35 are of interest in the SLR model. This model was unable to meaningfully differentiate between blue tarps and not blue tarps. The sensitivity, specificity and precision did not approach the performance of the other two models. Model 3 will no longer be considered.
 <br />
 **Model 1 and Model 2**<br />
-The differences between Model 1, the more complex mode, and Model 2, the additive model, are more nuanced.
+The differences between Model 1, the more complex mode, and Model 2, the additive model without the square terms, are more nuanced.
 <ul>
 <li>The highest **precision** for both models was with p == 0.1:
   <li>Model 3: 0.9993</li>
@@ -533,16 +532,14 @@ The differences between Model 1, the more complex mode, and Model 2, the additiv
 </ul>
 
 <br />
-Model 3 performed better on all measures.
+**Model 3**, with the square terms, performed better on all measures.
 <br />
-Because geographic distribution of blue tarps is not included in this data set so I am not concerned with efficiency of sending resources over vast areas, I want to create a model that identifies the most blue tarps. p = 0.1 identified the most blue tarps, and had the highest precision when using 10-fold cross validation.
-
-$$ClassBinary = Blue + Green + Red + GBSqr + RBSqr$$
+Because geographic distribution of blue tarps is not included in this data, I will focus on precision and specificity, i.e. the model that identifies the most blue tarps. **p = 0.1** identified the most blue tarps, and had the highest precision when using 10-fold cross validation.
 
 ### Logistic Regression Performance
 Below I use the entire training data set on the model with p = 0.1 to get the training Accuracy, TPR, FPR, and Precision:
 
-```{r warning = FALSE}
+```{r warning = FALSE, cache=TRUE}
 set.seed(1976)
 #Randomly shuffle the data
 haitiBinarySqrsShuffled = haitiBinarySqrs[sample(nrow(haitiBinarySqrs)),]
@@ -594,7 +591,7 @@ The following cross-validation measures were calculated with a threshold, p, of 
 
 ### Logistic Regression Cross-Validation ROC Curve:
 
-```{r LogROCCurve}
+```{r LogROCCurve, cache=TRUE}
 library(ROCR)
 
 ##produce the numbers associated with classification table
@@ -613,7 +610,7 @@ auc@y.values[[1]]
 
 ```
 
-**The Logistic Regression ROC-AUC for the 10-fold cross-validated training data is: 0.9996.**
+The Logistic Regression ROC-AUC for the 10-fold cross-validated training data with p=0.1 is: 0.9996.**
 
 ## LDA
 
@@ -621,7 +618,7 @@ Train the LDA model using 10-fold cross validation. Tuning is performed using RO
 
 10-fold cross validation was used for p-values from 0.05 to 1 at 0.05 intervals.
 
-```{r ldaCrossValidation}
+```{r ldaCrossValidation, cache=TRUE, warning=FALSE}
 set.seed(1976)
 
 # create storage variables for the p value, ROC, Specificity, and Sensitivity
@@ -648,8 +645,15 @@ for (i in 1:20)
 }
 
 outcome = data.frame(p_i,sensitivity_i, specificity_i, ROC_i)
+```
 
-outcome
+
+``` {r}
+outcome %>% filter(sensitivity_i == max(sensitivity_i))
+
+outcome %>% filter(specificity_i == max(specificity_i))
+
+outcome %>% filter(ROC_i == max(ROC_i))
 
 ```
 For LDA, p-values of 0.55, 0.8, and 1.0 are interesting.
@@ -661,9 +665,9 @@ For LDA, p-values of 0.55, 0.8, and 1.0 are interesting.
 
 All the values are similar, and any of these three could be a valid choice based on considerations of the risk of missing a true blue tarp, which could result in the loss of human life by not identifying the location of survivors, or the risk of wasted time of aid workers by sending them to an incorrectly predicted location of a blue tarp.
 
-I am selecting the value with the greatest ROC, **p == 0.80.**
+I am selecting the value with the greatest ROC, **p == 0.80.**.
 
-```{r ldaTrainConfusionMatrix}
+```{r ldaTrainConfusionMatrix, cache=TRUE}
 trctrl.lda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.8)
   
 #trctrl.lda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 1.0)
@@ -679,7 +683,7 @@ For LDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it 
 </ul>
 
 ### LDA Training ROC Curve:
-```{r ldaTrainingROC}
+```{r ldaTrainingROC, cache=TRUE}
 result.lda = evalm(lda.cv.model.selected)
 result.lda$roq
 ```
@@ -709,7 +713,7 @@ From the curves provided in the MLeval library one can see that precision (posit
 ## QDA
 
 Train the QDA model using 10-fold cross validation. Tuning performed using ROC.
-```{r qdaCrossValidation}
+```{r qdaCrossValidation, cache=TRUE}
 set.seed(1976)
 
 # create storage variables for the p value, ROC, Specificity, and Sensitivity
@@ -748,7 +752,7 @@ For QDA, the following p-values are interesting
 
 I will select p = 0.85 for the QDA model as it has near the greatest ROC and has the greatest specificity.
 
-```{r qdaTrainConfusionMatrix}
+```{r qdaTrainConfusionMatrix, cache=TRUE}
 trctrl.qda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.85)
   
 qda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "qda", trControl=trctrl.lda.selected, tuneLength = 10)
@@ -766,10 +770,12 @@ For QDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it 
 
 
 ### QDA Training ROC Curve:
-```{r qdaTrainingROC}
+```{r qdaTrainingROC, cache=TRUE}
 result.qda = evalm(qda.cv.model.selected)
 result.qda$roc
 ```
+
+**The QDA ROC-AUC for the 10-fold cross-validated training data with p=0.85 is: 1.0.**
 
 ```{r qdaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
 #qda.test = predict(qda.cv.model, newdata = test.YesNo, type="prob") %>% 
@@ -794,7 +800,7 @@ result.qda$roc
 
 ### Tuning Parameter $k$
 
-```{r knnTry1-21}
+```{r knnTry1-21, cache=TRUE}
 set.seed(1976)
 
 trControl.knn <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.5)
@@ -904,7 +910,7 @@ result.knn$roc
   <td><!-- KNN Precision -->0.999</td>
 
 ## Penalized Logistic Regression (ElasticNet)
-Subset selection using glmnet/ElasticNet provides an opportunity to see if additional predictors are of use improving the precision of our model.
+Subset selection using glmnet/ElasticNet provides an opportunity for me to see if additional predictors are of use improving the precision of our model.
 
 I am going to add some additional interaction terms to the model. The interactions between Red, Blue, and Green are intuitively significant because the combinations of these values create the visible spectrum of color. 
 
@@ -1100,7 +1106,7 @@ Using lasso penalized logistic regression with a threshold = 0.2, lambda = 0.000
 <li>Precision: 1940 / 2114 = 0.918</li>
 </ul>
 
-**NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**
+<!--**NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**-->
 
 ## Threshold Selection
 
@@ -1203,14 +1209,17 @@ Using lasso penalized logistic regression with a threshold = 0.2, lambda = 0.000
 
 **Training Data Linearly Separates**<br />
 
-Visually, the training data linearly separates very well. Even the 5-class, un-transformed data set was visually separable in the 3-D R-G-B visualization of "Blue Tarps" vs. the other four classes. Collapsing the classes and transforming the variables to decrease variability of Red and Green further improved the linear separability. All the models used performed with 99% accuracy with ***training*** data and using the following function:
+Visually, the training data linearly separates very well. Even the 5-class, un-transformed data set was visually separable in the 3-D R-G-B visualization of "Blue Tarps" vs. the other four classes. Collapsing the classes and transforming the variables to decrease variability of Red and Green further improved the linear separability. All the models used performed with 99% accuracy with cross validation using the ***training*** data. All except the Lasso model used the following formula:
 <br />
 $$ ClassBinary = Blue+Green+Red+GBSqr+RBSqr$$
 where $GBSqr=(Green + Blue)^2$ and $RBSqr=(Red + Blue)^2$
 <br />
-This function performed better than the simplest model (ClassBinary = Blue), and slightly better than the basic additive model (ClassBinary = Blue + Red + Green).
+The lasso model selected the formula:
+$$ClassBinary = Red + Green + Blue + (Red + Green)^2$$
+<br />
+Function  with the additive sqare terms performed better than the simplest model (ClassBinary = Blue), and slightly better than the basic additive model (ClassBinary = Blue + Red + Green).
 <br /><br />
-99% accuracy, while impressive sounding, needs to be considered within the context that accuracy would be 97% if the model predicted "No" for every pixel; **however** no blue tarps would be identified and survivors would remain undiscovered by aid workers. The "best guess" scenario, with high accuracy, provides no value for the humans in our toy problem. 99% accuracy is better than guessing, and the closer to 100% accuracy we can get, the better.
+99% accuracy, while impressive sounding, needs to be considered within context. Accuracy is 97% if the model predicted "No" for every pixel; **however** no blue tarps would be identified and survivors would remain undiscovered by aid workers. The "best guess" scenario, with high accuracy, provides no value for the humans in our toy problem. 99% accuracy is better than guessing, and the closer to 100% accuracy we can get, the better.
 <br /><br/>
 I look forward to discovering if the hold-out/validation data set also separates as well.
 
@@ -1218,7 +1227,9 @@ I look forward to discovering if the hold-out/validation data set also separates
 
 **Distribution of Classes and How It Affects Model Selection**<br/>
 
-Only 3% of the observations in the training data are labeled "Blue Tarp". This is a very unbalanced training set. This is not unexpected because it would be extremely surprising if a high percentage of land area was covered by blue tarps. In fact, if that were the case, then I would expect it would not be challenging for aid workers to find survivors because survivors would be covering a high percentage of Haiti, or Haiti would just have blue tarps everywhere and they would be of little predictive power for finding survivors. That said, this imbalance of the data can give a false sense of faith in a model if only evaluating specificity, aka True Negative Rate of nonblue tarps. In this toy problem (as stated on Conclusion \#1) **a random guess of "not blue tarp" will be correct 97% of the time**, thus our model must perform better than a random guess, i.e. the Negative Predictive Value (NPV). In this problem the NPV is a measure of efficiency of resource usage, i.e. are the predictions good at keeping our imagined aid workers from traveling to non blue tarps.<br /><br/>The NPV's for the models are:
+Only 3% of the observations in the training data are labeled "Blue Tarp". This is a very unbalanced training set. This is not unexpected because it would be extremely surprising if a high percentage of land area was covered by blue tarps. In fact, if that were the case, then I would expect it would not be challenging for aid workers to find survivors because survivors would be covering a high percentage of Haiti, or Haiti would just have blue tarps everywhere and they would be of little predictive power for finding survivors. 
+
+That said, this imbalance of the data can give a false sense of faith in a model if only evaluating specificity, aka True Negative Rate: non-blue tarps. In this toy problem (as stated on Conclusion \#1) **a random guess of "not blue tarp" will be correct 97% of the time**, thus our model must perform better than a random guess, i.e. the Negative Predictive Value (NPV). In this problem the NPV is a measure of efficiency of resource usage, i.e. are the predictions good at keeping our imagined aid workers from traveling to non blue tarps.<br /><br/>The NPV's for the models are:
 <ul>
 <li>Logistic Regression Model with Sqr Terms: 0.9993</li>
 <li>LDA with Complex Model: 0.9949</li>
@@ -1236,23 +1247,25 @@ Additionally, we do not want to miss blue tarps. Missing a blue tarp may result 
 <li>Penalized Log Reg with Complex Model: 0.041</li>
 </ul>
 <br />
-Before selecting any model, I recommend working with experienced aid workers and local Haitian residents with knowledge of the land to determine the choice between, and balance of these considerations. However, in this case, if we want the model that is least likely to send aid workers to non blue tarps we will select the tuned **Logistic Regression Model WIth Sqr Terms**; additionally if we want the model that correctly identified the greatest percentage of blue tarps we will also select the tuned **Logistic Regression Model with Sqr Terms**. 
+Before selecting any model, I recommend working with experienced aid workers and local Haitian residents with knowledge of the land to determine the choice between, and balance of these considerations. However, in this case, if we want the model that is least likely to send aid workers to non-blue tarps we will select the tuned **Logistic Regression Model WIth Sqr Terms**; additionally if we want the model that correctly identified the greatest percentage of blue tarps we will also select the tuned **Logistic Regression Model with Sqr Terms**. 
+
+The **Logistic Regression Model with Sqr Terms**, while lower in Precision, performed better on other measures which are more appropriate for this problem.
 
 ### Conclusion \#3
 
-**If time is of the essence, KNN Took a Long Time to Tune on my Laptop:** Of all the models, tuning KNN for both the highest accuracy k and probability threshold took the most time for my laptop to complete. In fact, on my laptop, I started the threshold tuning loop and went and did chores while periodically checking for completion. I am assuming that in a real-world scenario, each night the model would be validated and tuned with additional labeled data to improve performance. If time is of the essence, which in this scenario it would be because getting predictions for locations of survivors is only the first step in making a plan for volunteers to reach the survivors, it may make sense to select a model that does not take as long to produce a result. The KNN model performed almost as well as the Logistic Regression with the complex model when considering Negative Predictive Value, and False Negative Rate; however the Logistic Regression Model performed better on these two metrics. However, the KNN model performed better at AUROC, and Precision than the Logistic Regression model, but with a significant increase in time to compute.
+**If time is of the essence, KNN Took a Long Time to Tune on my Laptop:** Of all the models, tuning KNN for both the highest accuracy "number of neighbors" and highest accuracy probability threshold took the most time for my laptop to complete. In fact, on my laptop, I started the threshold tuning loop and went and did chores while periodically checking for completion. I am assuming that in a real-world scenario, each night the model would be validated and tuned with additional labeled data to improve performance. If time is of the essence, which in this scenario it would be because getting predictions for locations of survivors is only the first step in making a plan for volunteers to reach the survivors, it may make sense to select a model that does not take as long to produce a result. The KNN model performed almost as well as the Logistic Regression with the complex model when considering Negative Predictive Value, and False Negative Rate; however the Logistic Regression Model performed better on these two metrics. However, the KNN model performed better at AUROC, and Precision than the Logistic Regression model, but with a significant increase in time to compute.
 
 ### Conclusion \#4
 
 **Very small penalty for additional parameters:**
 
-The penalty ($\lambda$) that performed the best using elasticnet penalized regression was very small. The conclusion I draw is that while lasso performed the best as accuracy when comparing ridge, elasticnet, and lasso, the penalties for the additional predictors was **very small** and with such a small ratio of number of parameters to number of observations, it didn't provide additional value, in this case, to shrink the model.
+The penalty ($\lambda$) that performed the best using elasticnet penalized regression was very small. The conclusion I draw is that while lasso performed the best as accuracy when comparing ridge, elasticnet, and lasso, the penalties for the additional predictors was **very small** and with such a small ratio of number of parameters to number of observations, it wasn't useful, in this case, to shrink the model.
 
 ### Conclusion \#4
 
 **Request For Additional Information for Real-World Implementation**<br />
 
-I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to visualize and calculate locations where the most blue tarps will be found to able to help the most people; however, there may not be a 1:1 relationship between number of tarps and number of people, so resource allocation becomes even trickier. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. And, demographic information regarding population density, and members-per-household would be of priceless value. Additionally, GIS information for pre-earthquake roads, and other geographic features would be useful.
+I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to calculate locations where the most blue tarps will be found to able to help the most people; however, there may not be a 1:1 relationship between number of tarps and number of people, so resource allocation becomes even trickier. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. And, demographic information regarding population density, and members-per-household would be of priceless value. Additionally, GIS information for pre-earthquake roads, and other geographic features would be useful.
 
 
 ## References

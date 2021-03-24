@@ -388,7 +388,7 @@ plot(gam.lo.i, theta=75, phi=-30)
 ```
 
 
-```{r gams_3, fig.height=4}
+```{r gams_3, fig.height=4\}
 gam.lr<-gam(I(wage>250)~year+s(age,df=5)+education, family=binomial, data=wage)
 par(mfrow=c(1,3))
 plot(gam.lr, se=TRUE, col="green")
