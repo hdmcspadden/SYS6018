@@ -8,22 +8,12 @@ output: html_document
 # Question 6 
 In this exercise, you will further analyze the Wage data set considered throughout this chapter.
 
-```{r global_options, include=FALSE}
-knitr::opts_chunk$set(error=TRUE,        # Keep compiling upon error
-                      collapse=FALSE,    # collapse by default
-                      echo=TRUE,         # echo code by default
-                      comment = "#>",    # change comment character
-                      fig.width = 5.5,     # set figure width
-                      fig.align = "center",# set figure position
-                      out.width = "49%", # set width of displayed images
-                      warning=TRUE,      # show R warnings
-                      message=TRUE)      # show R messages
-```
-
 ```{r q6-setup, warning=FALSE}
 library(ISLR)
 library(tidyverse)
 library(boot)
+
+wage = ISLR::Wage %>% as_tibble()
 ```
 
 
@@ -60,10 +50,9 @@ Using ANOVA either the cubic or degree-4 polynomial provide a good fit.
 **Plot of resulting polynomial fit**:
 <br />
 ```{r q6a-3}
-wage = ISLR::Wage %>% as_tibble()
 
-ggplot() + geom_hex(wage, mapping=aes(x=age, y=wage)) + 
-  geom_jitter(wage, mapping=aes(x=age, y=wage),
+
+ggplot() + geom_jitter(wage, mapping=aes(x=age, y=wage),
               shape='.', size=.1, color='green', height=2) +
   #geom_ribbon(data=prediction_interval, fill = "black", alpha = 0.2, mapping=aes(x=age, ymin=lower, ymax=upper)) + 
   stat_smooth(wage, mapping=aes(x=age, y=wage), method='lm', formula='y~poly(x,4)', se=TRUE, alpha=1) #+
@@ -74,7 +63,7 @@ ggplot() + geom_hex(wage, mapping=aes(x=age, y=wage)) +
 ## Q6b) Fit a step function to predict wage using age, and perform crossvalidation ...
 to choose the optimal number of cuts. 
 
-``` {r q6battach}
+``` {r q6battach, warning=FALSE, echo=FALSE}
 attach(Wage)
 ```
 
@@ -109,8 +98,7 @@ Make a plot of the fit obtained.
 
 wage <- ISLR::Wage %>% as_tibble()
 
-ggplot() + geom_hex(wage, mapping=aes(x=age, y=wage)) + 
-  geom_jitter(wage, mapping=aes(x=age, y=wage), shape='.', size=.1, color='green', height=2) +
+ggplot() + geom_jitter(wage, mapping=aes(x=age, y=wage), shape='.', size=.1, color='green', height=2) +
   #geom_ribbon(data=prediction_interval, fill = "black", alpha = 0.2, mapping=aes(x=age, ymin=lower, ymax=upper)) + 
   stat_smooth(wage, mapping=aes(x=age, y=wage), method='lm', formula='y~cut(x,8)', se=TRUE, alpha=1) #+
   #geom_line(prediction_interval, mapping=aes(x=age, y=pred))
@@ -137,8 +125,7 @@ summary(fit.q9.3)
 
 boston = MASS::Boston %>% as_tibble()
 
-ggplot() + geom_hex(boston, mapping=aes(x=dis, y=nox)) + 
-  geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=1, color='green', height=2) +
+ggplot() + geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=1, color='black', height=2) +
   stat_smooth(boston, mapping=aes(x=dis, y=nox), method='lm', formula='y~poly(x,3)', se=TRUE, alpha=1)
 ```
 
@@ -148,8 +135,7 @@ for a range of different polynomial degrees (say, from 1 to 10), and report the 
 
 ```{r q9b-1, fig.height=30, fig.width=10}
 poly_plot = function(i) {
-  ggplot() + geom_hex(boston, mapping=aes(x=dis, y=nox)) + 
-  geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=2, color='green', height=2) +
+  ggplot() + geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=2, color='black', height=2) +
   stat_smooth(boston, mapping=aes(x=dis, y=nox), method='lm', formula=(paste("y~poly(x,", i, ")")), se=TRUE, alpha=1) + 
   ggtitle(label = paste("nox ~ dis^", i))
 }
@@ -158,14 +144,14 @@ library(gridExtra)
 
 grid.arrange(poly_plot(1), poly_plot(2), poly_plot(3), poly_plot(4), poly_plot(5), poly_plot(6), poly_plot(7), poly_plot(8), poly_plot(9), poly_plot(10), nrow=5)
 ```
-
+**Q9b Plot Observations:** as the polynomial increases I can see the increase in instability (i.e. the 9%% confidence interval) in the extreme ends of the data.
 
 ```{r q9b-2}
 
 poly.error = rep (0,9)
 
 for (i in 1:10) {
-  poly.fit = glm(nox ∼ poly(dis ,i), data=boston)
+  poly.fit = lm(nox ∼ poly(dis ,i), data=boston)
   poly.error[i] = sum(resid(poly.fit)^2)
 }
 
@@ -173,29 +159,101 @@ as.matrix(poly.error)
 
 ```
 **Q9b Observation:**
-Not surprising that with the entire data set the residual sum squares decreases as the polynomial increases. I am guessing I am seeing overfitting.
+Not surprising that with the entire data set the residual sum squares decreases as the polynomial increases. I am guessing I am seeing over fitting.
 
 ## (c) Perform cross-validation or another approach ...
 to select the optimal degree for the polynomial, and explain your results.
 
-```{r}
+```{r q9c-1}
+cv.9c.error = rep (0,10)
 
+for (i in 1:10) {
+  glm.fit = glm(nox ∼ poly(dis ,i), data=boston)
+  cv.9c.error[i] = cv.glm(boston ,glm.fit)$delta[1]
+}
+
+as.matrix(cv.9c.error)
 ```
 
-
+**Answer Q9c:** Based on cross-validation error the cubic polynomial performs the best. 
 
 ## (d) Use the bs() function to fit a regression spline...
 to predict nox using dis. Report the output for the fit using four degrees of freedom. How did you choose the knots? Plot the resulting fit.
 
+```{r q9d-setup}
+library (splines)
+```
+
+```{r q9d-1}
+fit.4df.spline = lm(nox∼bs(dis, df=4), data=boston)
+
+attr(bs(boston$dis , df=4), "knots")
+
+summary(fit.4df.spline)
+```
+**Answer Knots For DF=4 bs() spline:** I did not choose the knots, but let the bs function select the knot for 4 degrees of freedom. THe knot was selected to be evenly distributed, so it is at the median value, 3.20745.
+
+
+```{r q9d-2}
+# function for plotting regression spline with number of dfs
+bs_plot = function(dfs) {
+  ggplot() +geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=1, color='black', height=1) +
+  stat_smooth(boston, mapping=aes(x=dis, y=nox), method='lm', formula=(paste("y~bs(x, df=", dfs, ")")), se=TRUE, alpha=1) + 
+  ggtitle(label = paste("nox ~ bs(dis, df=", dfs,")"))
+}
+```
+
+```{r q9d-3}
+bs_plot(4)
+```
 
 ## (e) Now fit a regression spline ...
 for a range of degrees of freedom, and plot the resulting fits and report the resulting RSS. 
 
-Describe the results obtained.
+```{r q9e-1, fig.width=10, fig.height=30}
+
+grid.arrange(bs_plot(4), bs_plot(5), bs_plot(6), bs_plot(7), bs_plot(8), bs_plot(9), bs_plot(10), bs_plot(11), bs_plot(12), bs_plot(13), nrow=5)
+
+
+```
+
+```{r q9e-2}
+
+bs.error = rep (0,9)
+
+for (i in 4:13) {
+  bs.fit = lm(nox ∼ bs(dis, df = i), data=boston)
+  bs.error[i] = sum(resid(bs.fit)^2)
+}
+
+as.matrix(bs.error)
+```
+**Answer to "Describe the results obtained":**
 
 
 ##(f) Perform cross-validation or another approach...
 in order to select the best degrees of freedom for a regression spline on this data.
+
+
+I am going to try bootstrap to determine the best degrees of freedom for the regression spline.
+
+```{r q9f-1}
+n = nrow(boston)
+numBS = 100
+
+data_eval = boston
+YHAT = matrix(NA, nrow(boston), numBS)
+
+for (m in 1:numBS)
+{
+  ind = sample(boston, n, replace=TRUE)
+  boot_model = lm(nox ∼ bs(dis, df = 4)-1, data=boston[ind, ]) #removing the intercept
+  YHAT[,m] = predict(boot_model, newdata=data_eval)
+                  
+}
+
+```
+
 
 Describe your results.
 

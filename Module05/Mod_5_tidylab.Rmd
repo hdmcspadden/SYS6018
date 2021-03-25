@@ -589,3 +589,28 @@ mean((hitters_drop_na$Salary[-train_indices]-pls.pred)^2)
 #summary(pls.fit)
 pls.fits$finalModel %>% summary()
 ```
+
+
+
+```{r q6-setup, warning=FALSE}
+library(ISLR)
+library(tidyverse)
+library(boot)
+```
+
+
+##  Q6a) Perform polynomial regression to predict wage using age. 
+Use cross-validation to select the optimal degree d for the polynomial.
+
+**Which Cross-Validation**
+```{r q6a-1}
+cv.error = rep (0,5)
+
+for (i in 1:5) {
+  glm.fit = glm(wage ∼ poly(age ,i), data=wage)
+  cv.error[i] = cv.glm (Wage ,glm.fit)$delta[1]
+}
+
+as.matrix(cv.error)
+
+```

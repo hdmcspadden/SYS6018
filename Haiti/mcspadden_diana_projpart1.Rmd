@@ -29,6 +29,8 @@ knitr::opts_chunk$set(error=TRUE,        # Keep compiling upon error
 <!--- Change font sizes (or other css modifications) --->
 <style>
 h1.title {
+3
+
   font-size: 2.2em; /* Title font size */
 }
 h1 {
@@ -377,7 +379,7 @@ train = haitiBinarySqrs
 Using 10-fold cross validation and p values in the collection (.1,.2,.3,.35,.4,.45, .5,.55,.6,.65,.7,.75,.8,.85,.9,.95,1.0) I tested three models:
 <br />
 ** Model 1: Greatest Complexity:**
-$$ClassBinary = Blue + GBSqr + RBSqr \hspace{.3cm} | \hspace{.3cm} GBSqr = (Green + Blue)^2 \hspace{.3cm} and \hspace{.3cm} (Red + Blue)^2$$
+$$ClassBinary = Blue + GBSqr + RBSqr \hspace{.3cm} | \hspace{.3cm} GBSqr = (Green + Blue)^2 \hspace{.3cm} and \hspace{.3cm} RBSqr = (Red + Blue)^2$$
 
 ** Model 2: Standard Additive Model:**
 $$ClassBinary = Blue + Green + Red$$
@@ -522,11 +524,11 @@ The differences between Model 1, the more complex mode, and Model 2, the additiv
   <li>Model 2 == 0.9988</li>
 </li>
 <li>The highest **specificity** for both models was with p == 0.1: 
-  <li>Model 3: 0.9793<li>
+  <li>Model 3: 0.9793</li>
   <li>Model 2: 0.9630</li>
 </li>
 <li>The highest **sensitivity** for both models was with p == 0.95: 
-  <li>Model 3: 0.9996<li>
+  <li>Model 3: 0.9996</li>
   <li>Model 2: 0.9997</li>
 </li>
 </ul>
@@ -591,7 +593,7 @@ The following cross-validation measures were calculated with a threshold, p, of 
 
 ### Logistic Regression Cross-Validation ROC Curve:
 
-```{r LogROCCurve, cache=TRUE}
+```{r LogROCCurve, warning=FALSE, cache=TRUE}
 library(ROCR)
 
 ##produce the numbers associated with classification table
@@ -614,9 +616,9 @@ The Logistic Regression ROC-AUC for the 10-fold cross-validated training data wi
 
 ## LDA
 
-Train the LDA model using 10-fold cross validation. Tuning is performed using ROC.
+I trained the LDA model using 10-fold cross validation. 
 
-10-fold cross validation was used for p-values from 0.05 to 1 at 0.05 intervals.
+10-fold cross validation was used for p-values from 0.05 to 1 at 0.05 intervals. Tuning was performed using ROC.
 
 ```{r ldaCrossValidation, cache=TRUE, warning=FALSE}
 set.seed(1976)
@@ -712,8 +714,10 @@ From the curves provided in the MLeval library one can see that precision (posit
 
 ## QDA
 
-Train the QDA model using 10-fold cross validation. Tuning performed using ROC.
-```{r qdaCrossValidation, cache=TRUE}
+I trained the QDA model using 10-fold cross validation. 
+
+10-fold cross validation was used for p-values from 0.05 to 1 at 0.05 intervals. Tuning was performed using ROC.
+```{r qdaCrossValidation, warning=FALSE, cache=TRUE}
 set.seed(1976)
 
 # create storage variables for the p value, ROC, Specificity, and Sensitivity
@@ -750,7 +754,7 @@ For QDA, the following p-values are interesting
 <li>p = 0.85 provides the greatest specificity.</li>
 </ul>
 
-I will select p = 0.85 for the QDA model as it has near the greatest ROC and has the greatest specificity.
+I will select p = 0.85 for the QDA model as it has near the greatest ROC and greatest specificity.
 
 ```{r qdaTrainConfusionMatrix, cache=TRUE}
 trctrl.qda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.85)
@@ -800,7 +804,7 @@ result.qda$roc
 
 ### Tuning Parameter $k$
 
-```{r knnTry1-21, cache=TRUE}
+```{r knnTry1-21, cache=TRUE, warning=FALSE}
 set.seed(1976)
 
 trControl.knn <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.5)
@@ -809,14 +813,14 @@ knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, met
 knn.cv.model
 ```
 
-```{r knnTry17-35}
+```{r knnTry17-35, warning=FALSE, cache=TRUE}
 set.seed(1976)
 
 knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid = expand.grid(k = 17:35))
 knn.cv.model
 ```
 
-```{r knnTry27-51}
+```{r knnTry27-51, warning=FALSE, cache=TRUE}
 set.seed(1976)
 
 knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid   = expand.grid(k = 27:51))
@@ -833,7 +837,7 @@ I ran 10-fold cross-validation for several ranges of k:
 </ul>
 
 <br /><br />
-From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificity were reviewed for each cross-validation training. From these tables one can see that the improvements within the range are in the hundredths of a percentage point of ROC, so k's in the range of 10 - 51, are all reasonable selections for the cross-validated training data.
+From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificity were reviewed for each cross-validation training. From these tables one can see that the improvements within the range are in the hundredths of a percentage point of ROC, so k's in the range of 10 - 51, appear reasonable selections for the cross-validated training data.
 
 
 ### Tune the probability threshold, p, for KNN | k = 27
@@ -888,9 +892,9 @@ perf_knn_p = out_knn_p %>%
 perf_knn_p %>% arrange(-mean_acc)
 ```
 
-#### Results of TUning for p:
+#### Results of Tuning for p:
 
-After testing the following values of p: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, p == 0.5 is the value that produced the highest mean accuracy. This is convenient because caret's cross-validation for KNN models default to a 0.5 threshold.
+After testing the following values of p: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, **p == 0.5** is the value that produced the highest mean accuracy. This is convenient because caret's cross-validation for KNN models default to a 0.5 threshold.
 
 
 ```{r knnTrainConfusionMatrix}
@@ -912,7 +916,7 @@ result.knn$roc
 ## Penalized Logistic Regression (ElasticNet)
 Subset selection using glmnet/ElasticNet provides an opportunity for me to see if additional predictors are of use improving the precision of our model.
 
-I am going to add some additional interaction terms to the model. The interactions between Red, Blue, and Green are intuitively significant because the combinations of these values create the visible spectrum of color. 
+I added additional terms to the model. I selected additional additive relations between the colors because RGB color is, by design, an additive color model. The interplay between Red, Blue, and Green are intuitively significant because the combinations of these values create the visible spectrum of color. 
 
 The predictors in the ElasticNet model are:
 <ul>
@@ -921,7 +925,7 @@ The predictors in the ElasticNet model are:
 <li>Green</li>
 <li>GBSqr = $(Green + Blue)^2$</li>
 <li>RBSqr = $(Red + Blue)^2$</li>
-<li>RGSqr = $(Red + Green)^2$>
+<li>RGSqr = $(Red + Green)^2$</li>
 <li>RGBSqr = $(Red + Blue + Green)^2$</li>
 </ul>
 
@@ -934,7 +938,7 @@ haitiBinaryFull = haitiBinarySqrs %>%
 head(haitiBinaryFull)
 ```
 
-I do not need to scale the predictors because the glmnet library will scale to standard deviation units. For the glmnet library, the training data must be in matrix format:
+I did not scale the predictors because the glmnet library will scale to standard deviation units. For the glmnet library, the training data must be in matrix format:
 
 ```{r glmnet-creatematrix}
 frmla = as.formula(ClassBinary~Red+Green+Blue+GBSqr+RBSqr+RGSqr+RGBSqr)
@@ -947,7 +951,7 @@ y.haitiFull.train = (haitiBinaryFull %>% mutate(ClassBinary = ifelse(ClassBinary
 ```
 
 
-Using penalized logistic regression (PLR), I evaluate three different PLR methods: ridge, lasso, and elasticnet (a combination of ridge and lasso). I am also tuning both by lambda and the probability threshold (p). Based on best testing of the threshold tuning parameter, I will only consider p values of .5, .6, .7, .75, .8, .85, .9, and .95.
+Using penalized logistic regression (PLR), I evaluated three different PLR methods: ridge, lasso, and elasticnet (a combination of ridge and lasso). I tuned both lambda and the probability threshold (p). Based on best testing of the threshold tuning parameter, I considered p values of .5, .6, .7, .75, .8, .85, .9, and .95.
 
 ```{r glmnetCrossVal}
 library(glmnet)
@@ -1025,7 +1029,7 @@ log(5.630136e-05)
 ```
 
 The plot below charts the change in mean accuracy as the log of lambda increases for each of the 10 folds. The red error bars display the difference between the (mean accuracy - standard error accuracy) and the (max accuracy + the standard error accuracy) - giving the range of mean accuracy for  log lambda. The plot demonstrates that generally accuracy decreases, and the standard error of accuracy increases as log lambda increases. The highest mean accuracy is at a log lambda -9.78.
-```{r}
+```{r fig.width=8, fig.height=6}
 ggplot(perf, aes(log(lambda), mean_acc)) +
   geom_point() + geom_line() +
   geom_errorbar(aes(ymin=mean_acc-se_acc, ymax=mean_acc + se_acc), 
@@ -1069,7 +1073,7 @@ for(k in unique(folds)){
 }
 ```
 
-```{r}
+```{r echo=FALSE, include=FALSE, eval=FALSE}
 head(out_confusion)
 dim(out_confusion)
 summary(out_confusion)
@@ -1082,7 +1086,7 @@ The optimal lambda:
 coef(cv.glmnet.model, 0.00005630136)
 ```
 
-This result is very interesting. Cross-validated lasso, with p = 0.2 set the coefficients for GBSqr, RBSqr and RGBSqr to 0. This could be due to collinearity with Blue, or because the variables are truly not significant to the accuracy of the model. This did determine that the new variable RGSqr was significant; although the coefficient is very small.
+This resulting model is interesting. Cross-validated lasso, with p = 0.2 set the coefficients for GBSqr, RBSqr and RGBSqr to 0. This could be due to collinearity with Blue, or because the variables are truly not significant to the accuracy of the model. This did determine that the new variable RGSqr was significant.
 
 ```{r glmnetConfM}
 out_confusion %>% 
@@ -1106,14 +1110,79 @@ Using lasso penalized logistic regression with a threshold = 0.2, lambda = 0.000
 <li>Precision: 1940 / 2114 = 0.918</li>
 </ul>
 
-<!--**NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**-->
+I was curious to use the model selected by lasso performed well in a logistic regression model with a threshold of 0.2. This would be the model without the lambda penalty term, but with a model selected using a lambda penalty term.
+```{r lmUsingLassoModel, warning = FALSE, cache=TRUE}
+set.seed(1976)
+#Randomly shuffle the data
+haitiBinarySqrsFullShuffled = haitiBinaryFull[sample(nrow(haitiBinaryFull)),]
 
-## Threshold Selection
+#Create 10 equally size folds
+folds <- cut(seq(1,nrow(haitiBinarySqrsFullShuffled)),breaks=10,labels=FALSE)
+
+out_lr.full = tibble()
+
+#Perform 10 fold cross validation
+for(i in 1:10) {
+  
+    #Segement your data by fold using the which() function 
+    testIndexes = which(folds==i,arr.ind=TRUE)
+    testData = haitiBinarySqrsFullShuffled[testIndexes, ]
+    trainData = haitiBinarySqrsFullShuffled[-testIndexes, ]
+    
+    # define complex model
+    glm.fits.full = glm(ClassBinary ~ Blue+Green+Red+RGSqr, binomial, data = trainData)
+
+    # fit the glmnet lasso model
+    glm.pred.full = glm.fits.full %>%  augment(newdata=testData) %>% 
+      dplyr::select(ClassBinary, .fitted)  %>% 
+      mutate(ClassBinary=factor(ClassBinary))%>%
+      mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < .2, "No", "Yes")) %>%
+      mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+    
+    out_lr.full = bind_rows(out_lr.full, 
+            tibble(truth = testData$ClassBinary, 
+                   prediction = glm.pred.full$.prediction,
+                   fitted = glm.pred.full$.fitted))
+    
+}
+
+caret::confusionMatrix(out_lr.full$prediction, out_lr.full$truth)
+
+##produce the numbers associated with classification table
+rates.full = prediction(out_lr.full$fitted, out_lr.full$truth)
+
+##store the true positive and false postive rates
+roc_result.full = performance(rates.full, measure="tpr", x.measure="fpr")
+
+##plot ROC curve and overlay the diagonal line for random guessing
+plot(roc_result.full, main="ROC Curve for Haiti Logisitic Regression Using Lasso Model")
+lines(x = c(0,1), y = c(0,1), col="red")
+
+##compute the AUC
+auc = performance(rates.full, measure = "auc")
+auc@y.values[[1]]
+
+
+```
+Using logistic regression with a threshold = 0.2 and the model selected by lasso:
+<ul>
+<li>Accuracy: 0.996</li>
+<li>AUC: 0.9995</li>
+<li>TPR: 1949 / 2022 = 0.964</li>
+<li>FPR: 180 / 61219 = 0.003</li>
+<li>Precision: 1949 / 2129 = 0.915</li>
+<li>Neg Pred Value: 61039 / 61112 = 0.999</li>
+<li>False Pred Rate: 73 / 2022 = 0.036</li>
+</ul>
+
+It was interesting that this model, and it did perform slightly better based on Precision, and FPR, but not as well based on other measures.
+
+<!--**NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**-->
 
 # Results (Cross-Validation)
 
 <table width="800">
-<th>
+<tr>
   <td width="100">Model</td>
   <td width="100">Tuning</td>
   <td width="100">AUROC</td>
@@ -1122,17 +1191,17 @@ Using lasso penalized logistic regression with a threshold = 0.2, lambda = 0.000
   <td width="100">TPR</td>
   <td width="100">FPR</td>
   <td width="100">Precision</td>
-</th>
+</tr>
 
 <tr>
   <td>Log Reg</td>
-  <td><!-- Log Reg Tuning --> N/A</td>
-  <td><!-- Log Reg AUROC -->0.9996</td>
-  <td><!-- Log Reg Threshold -->0.1</td>
-  <td><!-- Log Reg Accuracy -->0.9957</td>
-  <td><!-- Log Reg TPR -->0.9802</td>
-  <td><!-- Log Reg FPR -->0.0038</td>
-  <td><!-- Log Reg Precision -->0.896</td>
+  <td><!-- LDA Tuning --> N/A</td>
+  <td><!-- LDA AUROC -->0.9996</td>
+  <td><!-- LDA Threshold -->0.1</td>
+  <td><!-- LDA Accuracy -->0.9957</td>
+  <td><!-- LDA TPR -->0.9802</td>
+  <td><!-- LDA FPR -->0.0038</td>
+  <td><!-- LDA Precision -->0.896</td>
 </tr>
 
 <tr>
@@ -1169,7 +1238,7 @@ Using lasso penalized logistic regression with a threshold = 0.2, lambda = 0.000
 </tr>
 
 <tr>
-  <td>Penalized Log Reg</td>
+  <td>Pen Log Reg</td>
   <td><!-- Penalized Log Reg Tuning -->alpha = 1, lambda = 5.630136e-05</td>
   <td><!-- Penalized Log Reg AUROC -->0.9996</td>
   <td><!-- Penalized Log Reg Threshold -->0.2</td>
@@ -1205,35 +1274,39 @@ Using lasso penalized logistic regression with a threshold = 0.2, lambda = 0.000
 
 # Conclusions
 
-### Conclusion \#1 
+## Conclusion \#1 
 
-**Training Data Linearly Separates**<br />
+**Training Data Linearly Separates, but Model is More Than Just Blue**<br />
 
 Visually, the training data linearly separates very well. Even the 5-class, un-transformed data set was visually separable in the 3-D R-G-B visualization of "Blue Tarps" vs. the other four classes. Collapsing the classes and transforming the variables to decrease variability of Red and Green further improved the linear separability. All the models used performed with 99% accuracy with cross validation using the ***training*** data. All except the Lasso model used the following formula:
 <br />
 $$ ClassBinary = Blue+Green+Red+GBSqr+RBSqr$$
 where $GBSqr=(Green + Blue)^2$ and $RBSqr=(Red + Blue)^2$
-<br />
+<br /><br />
 The lasso model selected the formula:
 $$ClassBinary = Red + Green + Blue + (Red + Green)^2$$
 <br />
-Function  with the additive sqare terms performed better than the simplest model (ClassBinary = Blue), and slightly better than the basic additive model (ClassBinary = Blue + Red + Green).
+The functions with the additive sqare terms performed better than the simplest model (ClassBinary = Blue), and slightly better than the basic additive model (ClassBinary = Blue + Red + Green). 
 <br /><br />
-99% accuracy, while impressive sounding, needs to be considered within context. Accuracy is 97% if the model predicted "No" for every pixel; **however** no blue tarps would be identified and survivors would remain undiscovered by aid workers. The "best guess" scenario, with high accuracy, provides no value for the humans in our toy problem. 99% accuracy is better than guessing, and the closer to 100% accuracy we can get, the better.
-<br /><br/>
+Even though a pixel with only a blue tarp in it is easily identifiable, pixels partially representing blue tarps require more predictors to perform better than guessing.
+<br /><br />
+
 I look forward to discovering if the hold-out/validation data set also separates as well.
 
-### Conclusion \#2
+## Conclusion \#2
 
 **Distribution of Classes and How It Affects Model Selection**<br/>
 
 Only 3% of the observations in the training data are labeled "Blue Tarp". This is a very unbalanced training set. This is not unexpected because it would be extremely surprising if a high percentage of land area was covered by blue tarps. In fact, if that were the case, then I would expect it would not be challenging for aid workers to find survivors because survivors would be covering a high percentage of Haiti, or Haiti would just have blue tarps everywhere and they would be of little predictive power for finding survivors. 
 
+99% accuracy, while impressive sounding, needs to be considered within context. Accuracy is 97% if the model predicted "No" for every pixel; **however** no blue tarps would be identified and survivors would remain undiscovered by aid workers. The "best guess" scenario, with high accuracy, provides no value for the humans in our toy problem. 99% accuracy is better than guessing, and the closer to 100% accuracy we can get, the better.
+<br /><br/>
+
 That said, this imbalance of the data can give a false sense of faith in a model if only evaluating specificity, aka True Negative Rate: non-blue tarps. In this toy problem (as stated on Conclusion \#1) **a random guess of "not blue tarp" will be correct 97% of the time**, thus our model must perform better than a random guess, i.e. the Negative Predictive Value (NPV). In this problem the NPV is a measure of efficiency of resource usage, i.e. are the predictions good at keeping our imagined aid workers from traveling to non blue tarps.<br /><br/>The NPV's for the models are:
 <ul>
 <li>Logistic Regression Model with Sqr Terms: 0.9993</li>
 <li>LDA with Complex Model: 0.9949</li>
-<li>QDA with Complex Model: 0.9969</li>567
+<li>QDA with Complex Model: 0.9969</li>
 <li>KNN | k = 27 with Complex Model: 0.999</li>
 <li>Penalized Log Reg with Complex Model: 0.9987</li>
 </ul>
@@ -1251,24 +1324,23 @@ Before selecting any model, I recommend working with experienced aid workers and
 
 The **Logistic Regression Model with Sqr Terms**, while lower in Precision, performed better on other measures which are more appropriate for this problem.
 
-### Conclusion \#3
+## Conclusion \#3
 
 **If time is of the essence, KNN Took a Long Time to Tune on my Laptop:** Of all the models, tuning KNN for both the highest accuracy "number of neighbors" and highest accuracy probability threshold took the most time for my laptop to complete. In fact, on my laptop, I started the threshold tuning loop and went and did chores while periodically checking for completion. I am assuming that in a real-world scenario, each night the model would be validated and tuned with additional labeled data to improve performance. If time is of the essence, which in this scenario it would be because getting predictions for locations of survivors is only the first step in making a plan for volunteers to reach the survivors, it may make sense to select a model that does not take as long to produce a result. The KNN model performed almost as well as the Logistic Regression with the complex model when considering Negative Predictive Value, and False Negative Rate; however the Logistic Regression Model performed better on these two metrics. However, the KNN model performed better at AUROC, and Precision than the Logistic Regression model, but with a significant increase in time to compute.
 
-### Conclusion \#4
+## Conclusion \#4
 
 **Very small penalty for additional parameters:**
 
-The penalty ($\lambda$) that performed the best using elasticnet penalized regression was very small. The conclusion I draw is that while lasso performed the best as accuracy when comparing ridge, elasticnet, and lasso, the penalties for the additional predictors was **very small** and with such a small ratio of number of parameters to number of observations, it wasn't useful, in this case, to shrink the model.
+The penalty ($\lambda$) that performed the best using elasticnet penalized regression was very small. The conclusion I draw is that while lasso performed the best as accuracy when comparing ridge, elasticnet, and lasso, the penalties for the additional predictors was **very small** and with such a small ratio of number of parameters to number of observations, it wasn't significantly useful, in this case, to shrink the model.
 
-### Conclusion \#4
+## Conclusion \#5
 
 **Request For Additional Information for Real-World Implementation**<br />
 
 I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to calculate locations where the most blue tarps will be found to able to help the most people; however, there may not be a 1:1 relationship between number of tarps and number of people, so resource allocation becomes even trickier. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. And, demographic information regarding population density, and members-per-household would be of priceless value. Additionally, GIS information for pre-earthquake roads, and other geographic features would be useful.
 
-
-## References
+# References
 <ul>
 <li>3D Scatter Plots in Python: <https://plotly.com/python/3d-scatter-plots/></li>
 <li>Axes Labels in R: <https://plotly.com/r/figure-labels/></li>

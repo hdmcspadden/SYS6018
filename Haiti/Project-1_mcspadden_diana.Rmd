@@ -1,0 +1,1474 @@
+---
+title: "Disaster Relief Project: Part I"
+author: "H. Diana McSpadden"
+date: "`r format(Sys.Date(), '%b %d, %Y')`"
+output:
+  html_document:
+    number_sections: true    
+    toc: true
+    toc_float: true
+    theme: cosmo
+    highlight: espresso    
+ 
+---
+
+<!--- Below are global settings for knitr. You can override any of them by adding the changes to individual chunks --->
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(error=TRUE,        # Keep compiling upon error
+                      collapse=FALSE,    # collapse by default
+                      echo=TRUE,         # echo code by default
+                      comment = "#>",    # change comment character
+                      fig.width = 5.5,     # set figure width
+                      fig.align = "center",# set figure position
+                      out.width = "49%", # set width of displayed images
+                      warning=TRUE,      # show R warnings
+                      message=TRUE)      # show R messages
+```
+
+<!--- Change font sizes (or other css modifications) --->
+<style>
+h1.title {
+3
+
+  font-size: 2.2em; /* Title font size */
+}
+h1 {
+  font-size: 2em;   /* Header 1 font size */
+}
+h2 {
+  font-size: 1.5em;
+}
+h3 { 
+  font-size: 1.2em;
+}
+pre {
+  font-size: 0.8em;  /* Code and R output font size */
+}
+</style>
+
+
+
+**SYS 6018 | Spring 2021 | University of Virginia **
+
+*******************************************
+# SYS 6018: Disaster Relief Project
+**H. Diana McSpadden**
+
+# Introduction 
+
+When natural disasters or other emergencies result in compromised communications and transportation challenges, it can be impossible within a reasonable time to locate survivors using human-only methods. This disaster relief toy problem seeks to discover if an algorithm can effectively identify images corresponding to people who require relief.
+
+To investigate whether this is possible a data set was provided containing RGB color values corresponding to pixels. The pixels are from high-resolution images taken by an aircraft above Haiti after the 2010 earthquake. Blue tarps had been distributed to survivors, but rescue workers did not have information about where survivors relocated after receiving the blue tarps. 
+
+Blue tarps have a distinct color when compared to other identifiable elements in Haiti. The training data set includes 63,241 RGB values for pixels in the toy problem's images. The training data set includes a label for each pixel. The labels include:
+<ul>
+<li>Blue Tarp</li>
+<li>Rooftop</li>
+<li>Soil</li>
+<li>Various Non-Tarp</li>
+<li>Vegetation</li>
+</ul>
+
+Below the training data is explored, and various modeling methods are applied to determine if, and which method can be effectively used to identify blue tarps by RGB values.
+
+# Training Data / EDA
+
+```{r echo=FALSE}
+#install.packages("pROC")
+#install.packages("randomForest")
+#install.packages("reticulate")
+#install("regclass")
+```
+
+
+```{r load-packages, warning=FALSE, message=FALSE}
+# Load Required Packages
+library(tidyverse)
+library(pROC)
+library(randomForest)
+library("GGally")
+library(gridExtra)
+library(plotly)
+library(caret)
+library(boot)
+library(regclass)
+library(MLeval)
+library(ggplot2)
+library(purrr)
+library(broom)
+```
+
+```{r load-data, message=FALSE, warning=FALSE}
+filename = 'HaitiPixels.csv'
+#url = 'https://collab.its.virginia.edu/access/lessonbuilder/item/1707832/group/17f014a1-d43d-4c78-a5c6-698a9643404f/Module3/HaitiPixels.csv' #this url is beng 
+haiti <- read_csv(filename)
+print(dim(haiti))
+
+```
+Below are the first 6 rows of the training dataset.
+
+```{r data-head1}
+head(haiti)
+```
+
+The dataframe contains 4 columns, and 63,241 rows. The Class column contains the correct label for the observation. Red, Green and Blue parameters are each values between 0 and 255 used in the additive RBG color model.
+
+## Class Factor
+To prepare the data for exploratory data analysis I make Class a factor.
+
+```{r factorClass}
+haiti %>% 
+  mutate(Class = factor(Class)) 
+```
+
+Examine the numbers and percentages in each of the **5** classes:
+```{r summarizeByCategory}
+haiti %>%
+  group_by(Class) %>%
+  summarize(N = n()) %>%
+  mutate(Perc = round(N / sum(N), 2) * 100)
+```
+
+#### Observations:
+The records are not evenly distributed between the categories. Of the Classes, Blue Tarp, our "positive" category if we are thinking a binary positive/negative identification, is only 3% of our sample. Soil and Vegetation make up the majority of our sample at 74%.
+
+## Binary Class Factor vs. 5 Class Factor
+It will be interesting to see performance predicting each of these categories, or a binary is or is not Blue Tarp.
+
+### Create Binary DataFrame
+
+Create a DataFrame that is only Blue Tarp, or not Blue Tarp:
+<ul>
+<li> 0 == Not a Blue Tarp</li>
+<li> 1 == Is a Blue Tarp</li>
+</ul>
+
+After reviewing box plots for the 2-class data set, I also created two new calculated variables:
+<br />
+1. GBSqr = (Green + Blue)^2 * .001
+<br />
+2. RBSqr = (Red + Blue)^2 * .001
+
+I created these to continue using the Red and Green values, but I wanted to increase the difference in median value difference between the positive and negative classes. There is significant interplay in color values between Red, Green, and Blue in identifying the correct shade or blue, and I want to continue using Red and Green values but increase the linear separability between the classes. The 0.01 multiplier is to return the number scale to a range similar to standard RGB values, i.e, a manual "scaling" of the new parameters. 
+```{r createBinaryDataFrame}
+haitiBinary =  haiti %>%
+  mutate(ClassBinary = if_else(Class == 'Blue Tarp', '1', '0'), ClassBinary = factor(ClassBinary))
+
+haitiBinarySqrs = haiti %>%
+  mutate(GBSqr = I(((Green + Blue)^2) * .001), RBSqr = I(((Red + Blue)^2) * .001), ClassBinary = if_else(Class == 'Blue Tarp', '1', '0'), ClassBinary = factor(ClassBinary))
+
+```
+
+
+Re-examine the numbers and percentages in each of the **2** classes:
+```{r summarizeBinaryByCategory}
+
+haitiBinary %>%
+  group_by(ClassBinary) %>%
+  summarize(N = n()) %>%
+  mutate(Perc = round(N / sum(N), 2) * 100)
+
+```
+
+### How are red, blue and green values distributed between the **5** classes?
+
+```{r colorValuesFiveCats, cache=TRUE, fig.height=5, fig.width=8}
+
+redplot <- ggplot(haiti, aes(x=Class, y=Red)) + 
+  geom_boxplot(col='red')
+
+greenplot <- ggplot(haiti, aes(x=Class, y=Green)) + 
+  geom_boxplot(col='darkgreen')
+
+blueplot <- ggplot(haiti, aes(x=Class, y=Blue)) + 
+  geom_boxplot(col='darkblue')
+
+grid.arrange(redplot, greenplot, blueplot)
+```
+
+
+### How are red, blue and green values distributed between the **2** classes?
+
+```{r colorValuesBinaryCats, cache=TRUE, fig.height=5, fig.width=5}
+
+redplotB <- ggplot(haitiBinary, aes(x=ClassBinary, y=Red)) + 
+  geom_boxplot(col='red')
+
+greenplotB <- ggplot(haitiBinary, aes(x=ClassBinary, y=Green)) + 
+  geom_boxplot(col='darkgreen')
+
+blueplotB <- ggplot(haitiBinary, aes(x=ClassBinary, y=Blue)) + 
+  geom_boxplot(col='darkblue')
+
+grid.arrange(redplotB, greenplotB, blueplotB)
+```
+### How are red, blue and green values distributed between the **2** classes with the square values for Red + Blue and Green Blue?
+
+```{r colorValuesBinarySqrsCats, cache=TRUE, fig.height=5, fig.width=5}
+
+redplotB <- ggplot(haitiBinarySqrs, aes(x=ClassBinary, y=RBSqr)) + 
+  geom_boxplot(col='red')
+
+greenplotB <- ggplot(haitiBinarySqrs, aes(x=ClassBinary, y=GBSqr)) + 
+  geom_boxplot(col='darkgreen')
+
+blueplotB <- ggplot(haitiBinarySqrs, aes(x=ClassBinary, y=Blue)) + 
+  geom_boxplot(col='darkblue')
+
+grid.arrange(redplotB, greenplotB, blueplotB)
+```
+
+#### Box Plot Observations
+
+**For the 5-class box plots:**
+
+"Blue Tarp" as the "positive" result, and other results as the "negative" result.
+
+Regarding the box plot of the five categories, of interest is that "Soil" and "Vegetation" are relatively unique in their RGB distributions. "Rooftop" and "Various Non-Tarp" are more similar in their RBG distributions
+
+**For the 2-class box plots:**
+
+If the classes are collapsed to binary values of "Blue Tarp (1)" and "Not Blue Tarp (0)" there is little overlap in the blue values for the two classes, and the ranges of red and green are much smaller for blue tarp than non-blue-tarp.
+<br /><br />
+Generally, the values of red have a larger range for negative results than for positive results, and the positive results have a similar median to the negative results.
+<br /></br>
+Green values have a larger range for negative results than for positive results, and the positive results have a higher median than the negative results. 
+<br /><br />
+There is ***almost*** **no overlap in the blue data** with non-blue tarps, and blue tarps.
+
+**For the 2-class box plots with the additive square values:**
+
+If the classes are collapsed to binary values of "Blue Tarp (1)" and "Not Blue Tarp (0)" there is little overlap in the blue values for the two classes, and the RBSqr and GBSqr values have much less overlap than without the additive square variables.
+<br /><br />
+The values of RBSqr have a larger range for negative results than for negative results, and median is significantly greater in the positive results.
+<br /></br>
+GBSqr values have a larger range for negative results than for positive results. The positive results have a significantly higher median than the negative results. 
+<br /><br />
+There is ***almost*** **no overlap in the blue data** with non-blue tarps, and blue tarps.
+
+### View the correlation between Red, Green and Blue
+
+These correlations make sense as the pixels were of highly saturated/"additive" colors. There are few pixels in the data set with low values for R,G,B.
+
+```{r pairsHaiti5, cache=TRUE}
+#ggpairs(haiti, lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
+ggpairs(haiti, progress = F)
+```
+
+```{r pairsHaitiBinary, cache=TRUE}
+#ggpairs(haiti, lower = list(continuous = "points", combo = "dot_no_facet"), progress = F)
+ggpairs(haitiBinary[-1], progress = F)
+```
+
+
+```{r pairsHaitiBinarySqred, cache=TRUE}
+ggpairs(haitiBinarySqrs[-1], progress = F)
+```
+The RBSqr and GBSqr have significantly less variance in their values, and better differentiation between the 2 classes than the Red and Green variables. I will be using these transformed variables in my models.
+
+### 3-D Scatterplot
+
+To view the relationship between the Red, Green, and Blue values between the five classes, and the binary classes, an interactive 3-D scatter plot is illustrative.
+
+
+#### Five-Class 3-D Scatterplot
+```{r 3D5Class, cache=TRUE}
+
+fiveCat3D = plot_ly(x=haiti$Red, y=haiti$Blue, z=haiti$Green, type="scatter3d", mode="markers", color=haiti$Class, colors = c('blue2','azure4','chocolate4','coral2','chartreuse4'),
+marker = list(symbol = 'circle', sizemode = 'diameter', opacity =0.35))
+
+fiveCat3D = fiveCat3D %>%
+  layout(title="5 Category RBG Plot", scene = list(xaxis = list(title = "Red", color="red"), yaxis = list(title = "Blue", color="blue"), zaxis = list(title = "Green", color="green")))
+
+fiveCat3D
+
+```
+**5-Class 3-D Scatter Plot Observations**
+<br />
+One can see that there are discernible groupings of pixel categories by RGB values. Unsurprisingly, the blue tarps are higher blue values, but they do have a range of red and green values.
+<br /><br />
+
+The 3D scatter plot is particularly useful because, by zooming in, one can see that while the 'Blue Tarp' values are generally distinct, there is a space in the 3D plot with mingling of "blue tarp" pixels and other pixel categories. That area of the data will provide a challenge for our model.
+
+##### Two-Class 3-D Scatterplot
+
+```{r 3DBinary, cache=TRUE}
+binary3D = plot_ly(x=haitiBinarySqrs$RBSqr, y=haitiBinarySqrs$Blue, z=haitiBinarySqrs$GBSqr, type="scatter3d", mode="markers", color=haitiBinary$ClassBinary, colors = c('red','blue2'),
+marker = list(symbol = 'circle', sizemode = 'diameter', opacity =0.35))
+
+binary3D = binary3D %>%
+  layout(title="Binary RBG Plot", scene = list(xaxis = list(title = "RBSqr", color="red"), yaxis = list(title = "Blue", color="blue"), zaxis = list(title = "GBSqr", color="green")))
+
+binary3D
+```
+**2-Class 3-D Scatter Plot Observations With Blue, GBSqr, and RBSqr**
+<br />
+Similar to the five category 3D scatter plot, the binary scatter plot shows distinct groupings for blue tarp and non-blue-tarp. Visually, there is an near-distinct linear boundary between the blue tarp and non-blue tarp observations. 
+
+
+### Parameter Selection:
+Based on EDA, I am hopeful that my models will perform well using the following predictors:
+<ol>
+<li>Red</li>
+<li>Green</li>
+<li>Blue</li>
+<li>GBSqr: ((Green + Blue)^2) * .001</li>
+<li>RBSqr: ((Red + Blue)^2) * .001</li>
+</ol>
+
+
+# Model Training
+
+## Set-up 
+
+I so not consider normalization or additional scaling because the ranges of Red, Green, Blue, RBSqr, and GBSqr are the same.
+<br /><br/>
+I am using the 2-Class data set for the following reasons:
+<ol>
+<li>The distinctions in the 2-Class data set, as seen in the 3-D scatterplot, are clear.</li>
+<li>The stated problem is to classify 'Blue Tarp' from the other classes. Classifying the other classes is not of interest.</li>
+<li>I am using 10-fold cross-validation to evaluate various models.</li>
+</ol>
+
+
+```{r warning=FALSE, message=FALSE}
+library(caret)
+library(boot)
+```
+
+
+## Cross-Validation Performance 
+
+For logistic regression, LDA, QDA, KNN  and Penalized Logistic Regression Cross-Validation threshold performance use ROC and Accuracy for tuning.
+
+The following performance measures are collected for both the 10-fold cross-validation and the hold-out/testing/validation data:
+<ul>
+<li>AUROC</li>
+<li>True Positive Rate</li>
+<li>False Positive Rate</li>
+<li>Precision</li>
+</ul>
+
+<br /><br />
+For the Models:
+* **No**: Not a Blue Tarp is **Negative**
+* **Yes**: Is a Blue Tarp is **Positive**
+
+## Logistic Regression
+
+In order to use R's built-in factor function I set ClassBinary to a factor and order it "No", "Yes". 
+<br />
+I also review the factor counts and create a dataframe named "train".
+
+```{r reviewSqrsLevel}
+levels(haitiBinarySqrs$ClassBinary)
+
+levels(haitiBinarySqrs$ClassBinary)=c("No","Yes")
+
+levels(haitiBinarySqrs$ClassBinary)
+
+fct_count(haitiBinarySqrs$ClassBinary)
+
+train = haitiBinarySqrs
+```
+
+### Comparison of Three Logistic Regression Models
+Using 10-fold cross validation and p values in the collection (.1,.2,.3,.35,.4,.45, .5,.55,.6,.65,.7,.75,.8,.85,.9,.95,1.0) I tested three models:
+<br />
+** Model 1: Greatest Complexity:**
+$$ClassBinary = Blue + GBSqr + RBSqr \hspace{.3cm} | \hspace{.3cm} GBSqr = (Green + Blue)^2 \hspace{.3cm} and \hspace{.3cm} RBSqr = (Red + Blue)^2$$
+
+** Model 2: Standard Additive Model:**
+$$ClassBinary = Blue + Green + Red$$
+
+** Model 3: Simple Logistic Regression Model:**
+$$ClassBinary = Blue$$
+```{r logRegressionTuning, warning=FALSE, cache=TRUE}
+library(yardstick)
+
+set.seed(1976)
+#Randomly shuffle the data
+haitiBinarySqrsShuffled = haitiBinarySqrs[sample(nrow(haitiBinarySqrs)),]
+
+#Create 10 equally size folds
+folds <- cut(seq(1,nrow(haitiBinarySqrsShuffled)),breaks=10,labels=FALSE)
+
+# create storage variables for the p value, ROC, Specificity, and Sensitivity
+k_start = 1
+k_end = 17
+out_nvar = k_end - k_start + 1
+
+p_i = rep(NA, out_nvar)
+# complex model measures
+sensitivity_c_i = rep(NA, out_nvar)
+specificity_c_i = rep(NA, out_nvar)
+prec_c_i = rep(NA, out_nvar)
+
+# additive model measures
+sensitivity_a_i = rep(NA, out_nvar)
+specificity_a_i = rep(NA, out_nvar)
+prec_a_i = rep(NA, out_nvar)
+
+# simple model measures
+sensitivity_s_i = rep(NA, out_nvar)
+specificity_s_i = rep(NA, out_nvar)
+prec_s_i = rep(NA, out_nvar)
+
+counter = 1
+
+for (j in c(.1,.2,.3,.35,.4,.45, .5,.55,.6,.65,.7,.75,.8,.85,.9,.95,1.0))
+{ 
+
+  p_i[counter] = j
+  
+  accumulator_c_sens = 0
+  accumulator_c_spec = 0
+  accumulator_c_prec = 0
+  accumulator_a_sens = 0
+  accumulator_a_spec = 0
+  accumulator_a_prec = 0
+  accumulator_s_sens = 0
+  accumulator_s_spec = 0
+  accumulator_s_prec = 0
+  
+  #Perform 10 fold cross validation
+  for(i in 1:10) {
+    
+      #Segement your data by fold using the which() function 
+      testIndexes = which(folds==i,arr.ind=TRUE)
+      testData = haitiBinarySqrsShuffled[testIndexes, ]
+      trainData = haitiBinarySqrsShuffled[-testIndexes, ]
+      
+      # define complex model
+      glm.fits.complex = glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = trainData)
+      # define additive model
+      glm.fits.additive = glm(ClassBinary ~ Blue+Green+Red, binomial, data = trainData)
+      # define simple model
+      glm.fits.simple = glm(ClassBinary ~ Blue, binomial, data = trainData)
+      
+      # fit the complex model
+      glm.pred.complex = glm.fits.complex %>%  augment(newdata=testData) %>% 
+        dplyr::select(ClassBinary, .fitted)  %>% 
+        mutate(ClassBinary=factor(ClassBinary))%>%
+        mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < j, "No", "Yes")) %>%
+        mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+      
+      if (nlevels(glm.pred.complex$.prediction) > 1)
+      {
+        accumulator_c_sens = accumulator_c_sens + yardstick::sens(glm.pred.complex, ClassBinary, .prediction)[[3]]
+        accumulator_c_spec = accumulator_c_spec + yardstick::spec(glm.pred.complex, ClassBinary, .prediction)[[3]]
+        accumulator_c_prec = accumulator_c_prec + yardstick::precision(glm.pred.complex, ClassBinary, .prediction)[[3]]
+      }
+      
+      # fit the additive model
+      glm.pred.additive = glm.fits.additive %>%  augment(newdata=testData) %>% 
+        dplyr::select(ClassBinary, .fitted)  %>% 
+        mutate(ClassBinary=factor(ClassBinary))%>%
+        mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < j, "No", "Yes")) %>%
+        mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+      
+      if (nlevels(glm.pred.additive$.prediction) > 1)
+      {
+        accumulator_a_sens = accumulator_a_sens + yardstick::sens(glm.pred.additive, ClassBinary, .prediction)[[3]]
+        accumulator_a_spec = accumulator_a_spec + yardstick::spec(glm.pred.additive, ClassBinary, .prediction)[[3]]
+        accumulator_a_prec = accumulator_a_prec + yardstick::precision(glm.pred.additive, ClassBinary, .prediction)[[3]]
+      }
+      
+      # fit the simple model
+      glm.pred.simple= glm.fits.simple %>%  augment(newdata=testData) %>% 
+        dplyr::select(ClassBinary, .fitted)  %>% 
+        mutate(ClassBinary=factor(ClassBinary))%>%
+        mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < j, "No", "Yes")) %>%
+        mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+      
+      if (nlevels(glm.pred.simple$.prediction) > 1)
+      {
+        accumulator_s_sens = accumulator_s_sens + yardstick::sens(glm.pred.simple, ClassBinary, .prediction)[[3]]
+        accumulator_s_spec = accumulator_s_spec + yardstick::spec(glm.pred.simple, ClassBinary, .prediction)[[3]]
+        accumulator_s_prec = accumulator_s_prec + yardstick::precision(glm.pred.simple, ClassBinary, .prediction)[[3]]
+      }
+      
+  }
+
+  sensitivity_c_i[counter] = accumulator_c_sens / 10
+  specificity_c_i[counter] = accumulator_c_spec / 10
+  prec_c_i[counter] = accumulator_c_prec /10
+  
+  sensitivity_a_i[counter] = accumulator_a_sens / 10
+  specificity_a_i[counter] = accumulator_a_spec / 10
+  prec_a_i[counter] = accumulator_a_prec /10
+  
+  sensitivity_s_i[counter] = accumulator_s_sens / 10
+  specificity_s_i[counter] = accumulator_s_spec / 10
+  prec_s_i[counter] = accumulator_s_prec /10
+  
+  counter = counter + 1
+}
+
+outcome = data.frame(p_i, sensitivity_c_i, specificity_c_i, prec_c_i, sensitivity_a_i, specificity_a_i, prec_a_i, sensitivity_s_i, specificity_s_i, prec_s_i)
+
+print(outcome, n = nrow(outcome))
+
+```
+**SLR Model 3: ClassBinary = Blue**<br />
+Only p values of .1, .2, .3 and .35 are of interest in the SLR model. This model was unable to meaningfully differentiate between blue tarps and not blue tarps. The sensitivity, specificity and precision did not approach the performance of the other two models. Model 3 will no longer be considered.
+<br />
+**Model 1 and Model 2**<br />
+The differences between Model 1, the more complex mode, and Model 2, the additive model without the square terms, are more nuanced.
+<ul>
+<li>The highest **precision** for both models was with p == 0.1:
+  <li>Model 3: 0.9993</li>
+  <li>Model 2 == 0.9988</li>
+</li>
+<li>The highest **specificity** for both models was with p == 0.1: 
+  <li>Model 3: 0.9793</li>
+  <li>Model 2: 0.9630</li>
+</li>
+<li>The highest **sensitivity** for both models was with p == 0.95: 
+  <li>Model 3: 0.9996</li>
+  <li>Model 2: 0.9997</li>
+</li>
+</ul>
+
+<br />
+**Model 3**, with the square terms, performed better on all measures.
+<br />
+Because geographic distribution of blue tarps is not included in this data, I will focus on precision and specificity, i.e. the model that identifies the most blue tarps. **p = 0.1** identified the most blue tarps, and had the highest precision when using 10-fold cross validation.
+
+### Logistic Regression Performance
+Below I use the entire training data set on the model with p = 0.1 to get the training Accuracy, TPR, FPR, and Precision:
+
+```{r warning = FALSE, cache=TRUE}
+set.seed(1976)
+#Randomly shuffle the data
+haitiBinarySqrsShuffled = haitiBinarySqrs[sample(nrow(haitiBinarySqrs)),]
+
+#Create 10 equally size folds
+folds <- cut(seq(1,nrow(haitiBinarySqrsShuffled)),breaks=10,labels=FALSE)
+
+out_lr.complex = tibble()
+
+#Perform 10 fold cross validation
+for(i in 1:10) {
+  
+    #Segement your data by fold using the which() function 
+    testIndexes = which(folds==i,arr.ind=TRUE)
+    testData = haitiBinarySqrsShuffled[testIndexes, ]
+    trainData = haitiBinarySqrsShuffled[-testIndexes, ]
+    
+    
+    # define complex model
+    glm.fits.complex = glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = trainData)
+
+    # fit the complex model
+    glm.pred.complex = glm.fits.complex %>%  augment(newdata=testData) %>% 
+      dplyr::select(ClassBinary, .fitted)  %>% 
+      mutate(ClassBinary=factor(ClassBinary))%>%
+      mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < .1, "No", "Yes")) %>%
+      mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+    
+    out_lr.complex = bind_rows(out_lr.complex, 
+            tibble(truth = testData$ClassBinary, 
+                   prediction = glm.pred.complex$.prediction,
+                   fitted = glm.pred.complex$.fitted))
+    
+}
+
+caret::confusionMatrix(out_lr.complex$prediction, out_lr.complex$truth)
+
+
+```
+
+For Logistic Regression, my calculations for Accuracy, TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
+
+The following cross-validation measures were calculated with a threshold, p, of 0.1:
+<ul>
+<li>Accuracy: 0.9957</li>
+<li>TPR: 1981 / 2022 = 0.98</li>
+<li>FPR: 232 / 61219 = 0.0038</li>
+<li>Precision: 1981 / 2212 = 0.896</li>
+</ul>
+
+### Logistic Regression Cross-Validation ROC Curve:
+
+```{r LogROCCurve, warning=FALSE, cache=TRUE}
+library(ROCR)
+
+##produce the numbers associated with classification table
+rates = prediction(out_lr.complex$fitted, out_lr.complex$truth)
+
+##store the true positive and false postive rates
+roc_result = performance(rates, measure="tpr", x.measure="fpr")
+
+##plot ROC curve and overlay the diagonal line for random guessing
+plot(roc_result, main="ROC Curve for Haiti Complex Logisitic Regression")
+lines(x = c(0,1), y = c(0,1), col="red")
+
+##compute the AUC
+auc = performance(rates, measure = "auc")
+auc@y.values[[1]]
+
+```
+
+The Logistic Regression ROC-AUC for the 10-fold cross-validated training data with p=0.1 is: 0.9996.**
+
+## LDA
+
+I trained the LDA model using 10-fold cross validation. 
+
+10-fold cross validation was used for p-values from 0.05 to 1 at 0.05 intervals. Tuning was performed using ROC.
+
+```{r ldaCrossValidation, cache=TRUE, warning=FALSE}
+set.seed(1976)
+
+# create storage variables for the p value, ROC, Specificity, and Sensitivity
+k_start = 1
+k_end = 20
+out_nvar = k_end - k_start + 1
+
+p_i = rep(NA, out_nvar)
+sensitivity_i = rep(NA, out_nvar)
+specificity_i = rep(NA, out_nvar)
+ROC_i = rep(NA, out_nvar)
+
+for (i in 1:20) 
+{ 
+  p_i[i] = i/20
+  
+  trctrl <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = i/20)
+  
+  lda.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "lda", trControl=trctrl, tuneLength = 10)
+  
+  sensitivity_i[i] = lda.cv.model$results[['Sens']]
+  specificity_i[i] = lda.cv.model$results[['Spec']]
+  ROC_i[i] = lda.cv.model$results[['ROC']]
+}
+
+outcome = data.frame(p_i,sensitivity_i, specificity_i, ROC_i)
+```
+
+
+``` {r}
+outcome %>% filter(sensitivity_i == max(sensitivity_i))
+
+outcome %>% filter(specificity_i == max(specificity_i))
+
+outcome %>% filter(ROC_i == max(ROC_i))
+
+```
+For LDA, p-values of 0.55, 0.8, and 1.0 are interesting.
+<ul>
+<li>p = 0.55 provides the greatest Sensitivity, or True Positive Rate of 0.992813</li>
+<li>p = 0.8 demonstrates the greatest ROC of 0.9945253</li>
+<li>p = 1.0, unsurprisingly, provides the greatest True Negative Rate. Unsurprisingly because it required the highest posterior probability for an observation to be classified as a blue tarp.</li>
+</ul>
+
+All the values are similar, and any of these three could be a valid choice based on considerations of the risk of missing a true blue tarp, which could result in the loss of human life by not identifying the location of survivors, or the risk of wasted time of aid workers by sending them to an incorrectly predicted location of a blue tarp.
+
+I am selecting the value with the greatest ROC, **p == 0.80.**.
+
+```{r ldaTrainConfusionMatrix, cache=TRUE}
+trctrl.lda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.8)
+  
+#trctrl.lda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 1.0)
+lda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "lda", trControl=trctrl.lda.selected, tuneLength = 10)
+
+caret::confusionMatrix(lda.cv.model.selected)
+```
+For LDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
+<ul>
+<li>TPR: 2.7 / 3.2 = 0.844</li>
+<li>FPR: .1 / 96.8 = 0.001</li>
+<li>Precision: 2.7 / 2.8 = 0.964</li>
+</ul>
+
+### LDA Training ROC Curve:
+```{r ldaTrainingROC, cache=TRUE}
+result.lda = evalm(lda.cv.model.selected)
+result.lda$roq
+```
+**The LDA ROC-AUC for the 10-fold cross-validated training data with p=0.8 is: 0.99.**
+
+From the curves provided in the MLeval library one can see that precision (positive preditive value) drops off faster with an increase in sensitivity/recall, 
+
+
+```{r ldaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
+#lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>% 
+#  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
+```  
+  
+```{r include=FALSE, echo=FALSE, eval=FALSE}
+#lda.test = lda.test %>% 
+#  mutate(ClassBinary = factor(ClassBinary)) 
+```
+
+```{r include=FALSE, echo=FALSE, eval=FALSE}  
+#caret::confusionMatrix(lda.test$ClassBinary, test.YesNo$ClassBinary)
+```
+
+```{r ldaROCTest, include=FALSE, echo=FALSE, eval=FALSE}
+#test.lda.result = evalm(lda.test)
+```
+
+## QDA
+
+I trained the QDA model using 10-fold cross validation. 
+
+10-fold cross validation was used for p-values from 0.05 to 1 at 0.05 intervals. Tuning was performed using ROC.
+```{r qdaCrossValidation, warning=FALSE, cache=TRUE}
+set.seed(1976)
+
+# create storage variables for the p value, ROC, Specificity, and Sensitivity
+k_start = 1
+k_end = 20
+out_nvar = k_end - k_start + 1
+
+p_i = rep(NA, out_nvar)
+sensitivity_i = rep(NA, out_nvar)
+specificity_i = rep(NA, out_nvar)
+ROC_i = rep(NA, out_nvar)
+
+for (i in 1:20) 
+{ 
+  p_i[i] = i/20
+  
+  trctrl <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = i/20)
+  
+  qda.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "qda", trControl=trctrl, tuneLength = 10)
+  
+  sensitivity_i[i] = qda.cv.model$results[['Sens']]
+  specificity_i[i] = qda.cv.model$results[['Spec']]
+  ROC_i[i] = qda.cv.model$results[['ROC']]
+}
+
+outcome = data.frame(p_i,sensitivity_i, specificity_i, ROC_i)
+
+outcome
+```
+For QDA, the following p-values are interesting
+<ul>
+<li>p = 0.8, 0.9, and 1.0 all provide the highest sensitivity of 0.9978</li>
+<li>p = 0.65, 0.70, 0.85. and 0.95 all provide similar, high ROCs' ~0.9974</li>
+<li>p = 0.85 provides the greatest specificity.</li>
+</ul>
+
+I will select p = 0.85 for the QDA model as it has near the greatest ROC and greatest specificity.
+
+```{r qdaTrainConfusionMatrix, cache=TRUE}
+trctrl.qda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.85)
+  
+qda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "qda", trControl=trctrl.lda.selected, tuneLength = 10)
+
+caret::confusionMatrix(qda.cv.model.selected)
+```
+For QDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
+<ul>
+<li>TPR: 2.9 / 3.2 = 0.906</li>
+<li>FPR: .2 / 96.8 = 0.002</li>
+<li>Precision: 2.9 / 3.0 = 0.97</li>
+</ul>
+
+
+
+
+### QDA Training ROC Curve:
+```{r qdaTrainingROC, cache=TRUE}
+result.qda = evalm(qda.cv.model.selected)
+result.qda$roc
+```
+
+**The QDA ROC-AUC for the 10-fold cross-validated training data with p=0.85 is: 1.0.**
+
+```{r qdaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
+#qda.test = predict(qda.cv.model, newdata = test.YesNo, type="prob") %>% 
+#  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
+```  
+  
+```{r qdaFactor, include=FALSE, echo=FALSE, eval=FALSE}
+#qda.test = qda.test %>% 
+#  mutate(ClassBinary = factor(ClassBinary)) 
+```
+
+```{r qdaTestCM, include=FALSE, echo=FALSE, eval=FALSE}  
+#caret::confusionMatrix(qda.test$ClassBinary, test.YesNo$ClassBinary)
+```
+
+
+```{r qdaROCTest, include=FALSE, echo=FALSE, eval=FALSE}
+#test.qda.result = evalm(qda.test)
+```
+
+## KNN
+
+### Tuning Parameter $k$
+
+```{r knnTry1-21, cache=TRUE, warning=FALSE}
+set.seed(1976)
+
+trControl.knn <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.5)
+
+knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trControl.knn, tuneGrid = expand.grid(k = 1:21))
+knn.cv.model
+```
+
+```{r knnTry17-35, warning=FALSE, cache=TRUE}
+set.seed(1976)
+
+knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid = expand.grid(k = 17:35))
+knn.cv.model
+```
+
+```{r knnTry27-51, warning=FALSE, cache=TRUE}
+set.seed(1976)
+
+knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid   = expand.grid(k = 27:51))
+knn.cv.model
+
+```
+#### Results of Tuning for K
+
+I ran 10-fold cross-validation for several ranges of k:
+<ul>
+<li>1 - 21: Returned best k == ***17***</li>
+<li>17 - 35: Returned best k == ***27***</li>
+<li>27 - 51: Returned best k == ***27***</li>
+</ul>
+
+<br /><br />
+From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificity were reviewed for each cross-validation training. From these tables one can see that the improvements within the range are in the hundredths of a percentage point of ROC, so k's in the range of 10 - 51, appear reasonable selections for the cross-validated training data.
+
+
+### Tune the probability threshold, p, for KNN | k = 27
+
+Running manual KNN cross validation to tune for p took significant time for my laptop to process. I ran with smaller lists of p just to get a feel for the results. I had previously ran with p = 0.5 and received accuracy of 0.996
+
+```{r tunePKNN, cache=TRUE}
+library(class)
+
+out_knn_p = tibble()
+
+haitiBinarySqrsShuffled = haitiBinarySqrsShuffled %>% mutate(ClassBinaryTF = factor(if_else(ClassBinary == "No", FALSE, TRUE)))
+
+
+#for (p in c(.1,.2,.3,.7,.8,.9)) 
+for (p in c(.2,.3,.4,.5,.6,.7,.8)) 
+{
+    for (j in 1:10)
+    {
+  
+      #Segement your data by fold using the which() function 
+      testIndexes = which(folds==j,arr.ind=TRUE)
+      testData = haitiBinarySqrsShuffled[testIndexes, ]
+      trainData = haitiBinarySqrsShuffled[-testIndexes, ] 
+
+      train_knn <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = trainData, method = "knn", tuneGrid = data.frame(k=27))
+  
+      # test with the fold's test data
+      preds = predict(train_knn, newdata = testData, type="prob")
+      
+      #- evaluate fold k
+      y_true = testData$ClassBinaryTF
+      # set the threshold to p
+      thres = p
+      y_hat = tibble(preds$Yes > thres)
+      acc = apply(y_hat, 2, function(y) mean(y == y_true))
+    
+        #- output
+      out_knn_p = bind_rows(out_knn_p, tibble(threshold = p, accuracy = acc))
+  }
+}
+
+out_knn_p
+```
+
+```{r getMeanKNNAccuracy}
+#-- Get mean accuracy
+perf_knn_p = out_knn_p %>% 
+  group_by(threshold) %>% 
+  summarize(mean_acc = mean(accuracy)) 
+
+perf_knn_p %>% arrange(-mean_acc)
+```
+
+#### Results of Tuning for p:
+
+After testing the following values of p: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, **p == 0.5** is the value that produced the highest mean accuracy. This is convenient because caret's cross-validation for KNN models default to a 0.5 threshold.
+
+
+```{r knnTrainConfusionMatrix}
+caret::confusionMatrix(knn.cv.model)
+```
+### KNN k=27 Training ROC Curve:
+```{r knnTrainingROC}
+result.knn = evalm(knn.cv.model)
+result.knn$roc
+```
+  <td><!-- KNN Tuning --> k = 27</td>
+  <td><!-- KNN AUROC -->1.0</td>
+  <td><!-- KNN Threshold -->N/A</td>
+  <td><!-- KNN Accuracy -->0.997</td>
+  <td><!-- KNN TPR -->0.998</td>
+  <td><!-- KNN FPR -->0.0313</td>
+  <td><!-- KNN Precision -->0.999</td>
+
+## Penalized Logistic Regression (ElasticNet)
+Subset selection using glmnet/ElasticNet provides an opportunity for me to see if additional predictors are of use improving the precision of our model.
+
+I added additional terms to the model. I selected additional additive relations between the colors because RGB color is, by design, an additive color model. The interplay between Red, Blue, and Green are intuitively significant because the combinations of these values create the visible spectrum of color. 
+
+The predictors in the ElasticNet model are:
+<ul>
+<li>Red</li>
+<li>Blue</li>
+<li>Green</li>
+<li>GBSqr = $(Green + Blue)^2$</li>
+<li>RBSqr = $(Red + Blue)^2$</li>
+<li>RGSqr = $(Red + Green)^2$</li>
+<li>RGBSqr = $(Red + Blue + Green)^2$</li>
+</ul>
+
+```{r}
+haitiBinaryFull = haitiBinarySqrs %>%
+  mutate(RGSqr = I(((Red + Green)^2)),  RGBSqr = I(((Red + Green + Blue)^2))) 
+```
+
+```{r}
+head(haitiBinaryFull)
+```
+
+I did not scale the predictors because the glmnet library will scale to standard deviation units. For the glmnet library, the training data must be in matrix format:
+
+```{r glmnet-creatematrix}
+frmla = as.formula(ClassBinary~Red+Green+Blue+GBSqr+RBSqr+RGSqr+RGBSqr)
+
+x.haitiFull.train = model.matrix(frmla, data = haitiBinaryFull)[,-1] # removing the intercept term from the formula
+
+# switch ClassBinary to TRUE FALSE to facilitate the next bit of code
+y.haitiFull.train = (haitiBinaryFull %>% mutate(ClassBinary = ifelse(ClassBinary == 'No', FALSE, TRUE)))$ClassBinary
+
+```
+
+
+Using penalized logistic regression (PLR), I evaluated three different PLR methods: ridge, lasso, and elasticnet (a combination of ridge and lasso). I tuned both lambda and the probability threshold (p). Based on best testing of the threshold tuning parameter, I considered p values of .5, .6, .7, .75, .8, .85, .9, and .95.
+
+```{r glmnetCrossVal}
+library(glmnet)
+
+set.seed(1976)
+# number of folds
+K = 10
+# make folds
+folds = rep(1:K, length=nrow(x.haitiFull.train)) 
+
+out = tibble()
+
+# LOOP FOR alpha: 0 (ridge), 0.5 (elasticnet), and 1 (lasso)
+for (a in c(0, .5, 1)){
+
+  # lambda may be different for the different PLR methods, so this is decided within the alpha loop
+  #-- Get lambda sequence so consistent over all folds
+  lam_seq = glmnet(x.haitiFull.train, y.haitiFull.train, family="binomial", alpha=a)$lambda
+
+  # TO DO: ADD LOOP OVER p values of .5, .6, .7, .75 .8, .85 .9, .95
+  for (p in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95)){
+
+    #-- Loop over K folds
+    for(k in unique(folds)){
+      
+      #- Get train/test split for fold k
+      ind.train = which(folds != k)
+      ind.test = which(folds == k)
+      
+      #- fit the alpha model over all lambdas in lam_seq
+      fit.model = glmnet(x.haitiFull.train[ind.train,], y.haitiFull.train[ind.train], 
+                                 alpha = a,          # use the alpha for the loop
+                                 family="binomial",  # logistic regression
+                                 lambda = lam_seq)   # all models in this alpha loop use same lambda sequence
+      
+      #- make predictions on test set fold k
+      pred = predict(fit.model, x.haitiFull.train[ind.test, ], s=lam_seq, type = "response")
+      
+      #- evaluate fold k
+      y_true = y.haitiFull.train[ind.test]
+      # set the threshold to p
+      thres = p
+      y_hat = pred > thres
+      acc = apply(y_hat, 2, function(y) mean(y == y_true))
+      
+      #- output
+      out = bind_rows(out, 
+                tibble(accuracy = acc, 
+                       lambda = lam_seq,
+                       n_train = length(ind.train),
+                       n_test = length(ind.test),
+                       alpha = a,
+                       thres = p,
+                       k = k))
+    }
+  }
+}
+```
+
+```{r}
+out %>% filter(accuracy == max(accuracy))
+```
+
+```{r glmnet-getBestAccuracy}
+#-- Get mean accuracy
+perf = out %>% 
+  group_by(alpha, thres, lambda) %>% 
+  summarize(mean_acc = mean(accuracy), se_acc = sd(accuracy)/k) 
+
+perf %>% arrange(-mean_acc)
+```
+
+```{r}
+log(5.630136e-05)
+```
+
+The plot below charts the change in mean accuracy as the log of lambda increases for each of the 10 folds. The red error bars display the difference between the (mean accuracy - standard error accuracy) and the (max accuracy + the standard error accuracy) - giving the range of mean accuracy for  log lambda. The plot demonstrates that generally accuracy decreases, and the standard error of accuracy increases as log lambda increases. The highest mean accuracy is at a log lambda -9.78.
+```{r fig.width=8, fig.height=6}
+ggplot(perf, aes(log(lambda), mean_acc)) +
+  geom_point() + geom_line() +
+  geom_errorbar(aes(ymin=mean_acc-se_acc, ymax=mean_acc + se_acc), 
+                color="red", alpha=1)
+```
+
+From the manual cross-validation testing of accuracy the PLR lasso method with lambda of 5.630136e-05 and a threshold of 0.2 produced the greatest mean accuracy: 0.996.
+
+
+```{r}
+
+out_confusion = tibble()
+
+
+ #-- Loop over K folds
+for(k in unique(folds)){
+  
+  #- Get train/test split for fold k
+  ind.train = which(folds != k)
+  ind.test = which(folds == k)
+  
+  #- fit the lasso
+  cv.glmnet.model = glmnet(x.haitiFull.train[ind.train,], y.haitiFull.train[ind.train], 
+                             alpha = 1,          
+                             family="binomial",  # logistic regression
+                             lambda = lam_seq)   
+  
+  #- make predictions on test set fold k
+  pred = predict(fit.model, x.haitiFull.train[ind.test, ], s=0.00005630136, type = "response")
+  
+  #- evaluate fold k
+  y_true = y.haitiFull.train[ind.test]
+  # set the threshold to p
+  thres = 0.2
+  y_hat = pred > thres
+
+    #- output
+  out_confusion = bind_rows(out_confusion, 
+            tibble(truth = y_true, 
+                   glmnet.fitted = y_hat))
+}
+```
+
+```{r echo=FALSE, include=FALSE, eval=FALSE}
+head(out_confusion)
+dim(out_confusion)
+summary(out_confusion)
+
+```
+
+The optimal lambda:
+```{r}
+
+coef(cv.glmnet.model, 0.00005630136)
+```
+
+This resulting model is interesting. Cross-validated lasso, with p = 0.2 set the coefficients for GBSqr, RBSqr and RGBSqr to 0. This could be due to collinearity with Blue, or because the variables are truly not significant to the accuracy of the model. This did determine that the new variable RGSqr was significant.
+
+```{r glmnetConfM}
+out_confusion %>% 
+  mutate(truth = factor(truth), glmnet.fitted = factor(glmnet.fitted)) %>%
+  conf_mat(truth, glmnet.fitted)
+```
+
+```{r glmnetAUC}
+
+
+assess.glmnet(pred, newy = y.haitiFull.train[ind.test], family="binomial")
+
+```
+**AUC** for the lasso PLR model with a lambda of 0.00005630136 is 0.9996.
+
+Using lasso penalized logistic regression with a threshold = 0.2, lambda = 0.00005630136: 
+<ul>
+<li>Accuracy: (1940 + 61045) / 63241: 0.996</li>
+<li>TPR: 1940 / 2022 = 0.959</li>
+<li>FPR: 174 / 61219 = 0.0028</li>
+<li>Precision: 1940 / 2114 = 0.918</li>
+</ul>
+
+I was curious to examine the performance of the model selected by lasso in a logistic regression model with a threshold also selected by lasso (0.2). This is the selected PLR model without the lambda penalty term.
+```{r lmUsingLassoModel, warning = FALSE, cache=TRUE}
+set.seed(1976)
+#Randomly shuffle the data
+haitiBinarySqrsFullShuffled = haitiBinaryFull[sample(nrow(haitiBinaryFull)),]
+
+#Create 10 equally size folds
+folds <- cut(seq(1,nrow(haitiBinarySqrsFullShuffled)),breaks=10,labels=FALSE)
+
+out_lr.full = tibble()
+
+#Perform 10 fold cross validation
+for(i in 1:10) {
+  
+    #Segement your data by fold using the which() function 
+    testIndexes = which(folds==i,arr.ind=TRUE)
+    testData = haitiBinarySqrsFullShuffled[testIndexes, ]
+    trainData = haitiBinarySqrsFullShuffled[-testIndexes, ]
+    
+    # define complex model
+    glm.fits.full = glm(ClassBinary ~ Blue+Green+Red+RGSqr, binomial, data = trainData)
+
+    # fit the glmnet lasso model
+    glm.pred.full = glm.fits.full %>%  augment(newdata=testData) %>% 
+      dplyr::select(ClassBinary, .fitted)  %>% 
+      mutate(ClassBinary=factor(ClassBinary))%>%
+      mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < .2, "No", "Yes")) %>%
+      mutate(.prediction=fct_relevel(as_factor(.prediction), c("No", "Yes"))) 
+    
+    out_lr.full = bind_rows(out_lr.full, 
+            tibble(truth = testData$ClassBinary, 
+                   prediction = glm.pred.full$.prediction,
+                   fitted = glm.pred.full$.fitted))
+    
+}
+
+caret::confusionMatrix(out_lr.full$prediction, out_lr.full$truth)
+
+##produce the numbers associated with classification table
+rates.full = prediction(out_lr.full$fitted, out_lr.full$truth)
+
+##store the true positive and false postive rates
+roc_result.full = performance(rates.full, measure="tpr", x.measure="fpr")
+
+##plot ROC curve and overlay the diagonal line for random guessing
+plot(roc_result.full, main="ROC Curve for Haiti Logisitic Regression Using Lasso Model")
+lines(x = c(0,1), y = c(0,1), col="red")
+
+##compute the AUC
+auc = performance(rates.full, measure = "auc")
+auc@y.values[[1]]
+
+
+```
+Using logistic regression with a threshold = 0.2 and the model selected by lasso:
+<ul>
+<li>Accuracy: 0.996</li>
+<li>AUC: 0.9995</li>
+<li>TPR: 1949 / 2022 = 0.964</li>
+<li>FPR: 180 / 61219 = 0.003</li>
+<li>Precision: 1949 / 2129 = 0.915</li>
+<li>Neg Pred Value: 61039 / 61112 = 0.999</li>
+<li>False Pred Rate: 73 / 2022 = 0.036</li>
+</ul>
+
+It was interesting that this model performed slightly better on Precision, and FPR, but not as well based on other measures as the logistic regression model Red + Green + Blue + RBSqr + GBSqr.
+
+<!--**NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**-->
+
+# Results (Cross-Validation)
+
+<table width="800">
+<tr>
+  <td width="100">Model</td>
+  <td width="100">Tuning</td>
+  <td width="100">AUROC</td>
+  <td width="100">Threshold</td>
+  <td width="100">Accuracy</td>
+  <td width="100">TPR</td>
+  <td width="100">FPR</td>
+  <td width="100">Precision</td>
+</tr>
+
+<tr>
+  <td>Log Reg</td>
+  <td><!-- LDA Tuning --> N/A</td>
+  <td><!-- LDA AUROC -->0.9996</td>
+  <td><!-- LDA Threshold -->0.1</td>
+  <td><!-- LDA Accuracy -->0.9957</td>
+  <td><!-- LDA TPR -->0.9802</td>
+  <td><!-- LDA FPR -->0.0038</td>
+  <td><!-- LDA Precision -->0.896</td>
+</tr>
+
+<tr>
+  <td>LDA</td>
+  <td><!-- LDA Tuning --> N/A</td>
+  <td><!-- LDA AUROC -->0.99</td>
+  <td><!-- LDA Threshold -->0.8</td>
+  <td><!-- LDA Accuracy -->0.994</td>
+  <td><!-- LDA TPR -->0.844</td>
+  <td><!-- LDA FPR -->0.001</td>
+  <td><!-- LDA Precision -->0.964</td>
+</tr>
+
+<tr>
+  <td>QDA</td>
+  <td><!-- QDA Tuning --> N/A</td>
+  <td><!-- QDA AUROC -->1.0</td>
+  <td><!-- QDA Threshold -->0.85</td>
+  <td><!-- QDA Accuracy -->0.995</td>
+  <td><!-- QDA TPR -->0.906</td>
+  <td><!-- QDA FPR -->0.002</td>
+  <td><!-- QDA Precision -->0.97</td>
+</tr>
+
+<tr>
+  <td>KNN</td>
+  <td><!-- KNN Tuning --> k = 27</td>
+  <td><!-- KNN AUROC -->1.0</td>
+  <td><!-- KNN Threshold -->N/A</td>
+  <td><!-- KNN Accuracy -->0.997</td>
+  <td><!-- KNN TPR -->0.998</td>
+  <td><!-- KNN FPR -->0.0313</td>
+  <td><!-- KNN Precision -->0.999</td>
+</tr>
+
+<tr>
+  <td>Pen Log Reg</td>
+  <td><!-- Penalized Log Reg Tuning -->alpha = 1, lambda = 5.630136e-05</td>
+  <td><!-- Penalized Log Reg AUROC -->0.9996</td>
+  <td><!-- Penalized Log Reg Threshold -->0.2</td>
+  <td><!-- Penalized Log Reg Accuracy -->0.996</td>
+  <td><!-- Penalized Log Reg TPR -->0.959</td>
+  <td><!-- Penalized Log Reg FPR -->0.0028</td>
+  <td><!-- Penalized Log Reg Precision -->0.918</td>
+</tr>
+
+<tr>
+  <td>Random Forest</td>
+  <td><!-- Random Forest Tuning --> </td>
+  <td><!-- Random Forest AUROC --></td>
+  <td><!-- Random Forest Threshold --></td>
+  <td><!-- Random Forest Accuracy --></td>
+  <td><!-- Random Forest TPR --></td>
+  <td><!-- Random Forest FPR --></td>
+  <td><!-- Random Forest Precision --></td>
+</tr>
+
+<tr>
+  <td>SVM</td>
+  <td><!-- SVM Tuning -->  </td>
+  <td><!-- SVM AUROC --></td>
+  <td><!-- SVM Threshold --></td>
+  <td><!-- SVM Accuracy --></td>
+  <td><!-- SVM TPR --></td>
+  <td><!-- SVM FPR --></td>
+  <td><!-- SVM Precision --></td>
+</tr>
+</table>
+
+
+# Conclusions
+
+## Conclusion \#1 
+
+**Training Data Linearly Separates, but Model is More Than Just Blue**<br />
+
+Visually, the training data linearly separates very well. Even the 5-class, un-transformed data set was visually separable in the 3-D R-G-B visualization of "Blue Tarps" vs. the other four classes. Collapsing the classes and transforming the variables to decrease variability of Red and Green further improved the linear separability. All the models used performed with 99% accuracy with cross validation using the ***training*** data. All except the Lasso model used the following formula:
+<br />
+$$ ClassBinary = Blue+Green+Red+GBSqr+RBSqr$$
+where $GBSqr=(Green + Blue)^2$ and $RBSqr=(Red + Blue)^2$
+<br /><br />
+The lasso model selected the formula:
+$$ClassBinary = Red + Green + Blue + (Red + Green)^2$$
+<br />
+The functions with the additive sqare terms performed better than the simplest model (ClassBinary = Blue), and slightly better than the basic additive model (ClassBinary = Blue + Red + Green). 
+<br /><br />
+Even though a pixel with only a blue tarp in it is easily identifiable, pixels partially representing blue tarps require more predictors to perform better than guessing.
+<br /><br />
+
+I look forward to discovering if the hold-out/validation data set also separates as well.
+
+## Conclusion \#2
+
+**Distribution of Classes and How It Affects Model Selection**<br/>
+
+Only 3% of the observations in the training data are labeled "Blue Tarp". This is a very unbalanced training set. This is not unexpected because it would be extremely surprising if a high percentage of land area was covered by blue tarps. In fact, if that were the case, then I would expect it would not be challenging for aid workers to find survivors because survivors would be covering a high percentage of Haiti, or Haiti would just have blue tarps everywhere and they would be of little predictive power for finding survivors. 
+
+99% accuracy, while impressive sounding, needs to be considered within context. Accuracy is 97% if the model predicted "No" for every pixel; **however** no blue tarps would be identified and survivors would remain undiscovered by aid workers. The "best guess" scenario, with high accuracy, provides no value for the humans in our toy problem. 99% accuracy is better than guessing, and the closer to 100% accuracy we can get, the better.
+<br /><br/>
+
+That said, this imbalance of the data can give a false sense of faith in a model if only evaluating specificity, aka True Negative Rate: non-blue tarps. In this toy problem (as stated on Conclusion \#1) **a random guess of "not blue tarp" will be correct 97% of the time**, thus our model must perform better than a random guess, i.e. the Negative Predictive Value (NPV). In this problem the NPV is a measure of efficiency of resource usage, i.e. are the predictions good at keeping our imagined aid workers from traveling to non blue tarps.<br /><br/>The NPV's for the models are:
+<ul>
+<li>Logistic Regression Model with Sqr Terms: 0.9993</li>
+<li>LDA with Complex Model: 0.9949</li>
+<li>QDA with Complex Model: 0.9969</li>
+<li>KNN | k = 27 with Complex Model: 0.999</li>
+<li>Penalized Log Reg with Complex Model: 0.9987</li>
+</ul>
+<br />
+Additionally, we do not want to miss blue tarps. Missing a blue tarp may result in the loss of multiple lives. The False Negative Rate (FNR) directly measures the rate of missed blue tarps.
+<ul>
+<li>Logistic Regression Model with Sqr Terms: 0.0198</li>
+<li>LDA with Complex Model: 0.1563</li>
+<li>QDA with Complex Model: 0.0938</li>
+<li>KNN | k = 27 with Complex Model: 0.0313</li>
+<li>Penalized Log Reg with Complex Model: 0.041</li>
+</ul>
+<br />
+Before selecting any model, I recommend working with experienced aid workers and local Haitian residents with knowledge of the land to determine the choice between, and balance of these considerations. However, in this case, if we want the model that is least likely to send aid workers to non-blue tarps we will select the tuned **Logistic Regression Model WIth Sqr Terms**; additionally if we want the model that correctly identified the greatest percentage of blue tarps we will also select the tuned **Logistic Regression Model with Sqr Terms**. 
+
+The **Logistic Regression Model with Sqr Terms**, while lower in Precision, performed better on other measures which are more appropriate for this problem.
+
+## Conclusion \#3
+
+**If time is of the essence, KNN Took a Long Time to Tune on my Laptop:** Of all the models, tuning KNN for both the highest accuracy "number of neighbors" and highest accuracy probability threshold took the most time for my laptop to complete. In fact, on my laptop, I started the threshold tuning loop and went and did chores while periodically checking for completion. I am assuming that in a real-world scenario, each night the model would be validated and tuned with additional labeled data to improve performance. If time is of the essence, which in this scenario it would be because getting predictions for locations of survivors is only the first step in making a plan for volunteers to reach the survivors, it may make sense to select a model that does not take as long to produce a result. The KNN model performed almost as well as the Logistic Regression with the complex model when considering Negative Predictive Value, and False Negative Rate; however the Logistic Regression Model performed better on these two metrics. However, the KNN model performed better at AUROC, and Precision than the Logistic Regression model, but with a significant increase in time to compute.
+
+## Conclusion \#4
+
+**Very small penalty for additional parameters:**
+
+The penalty ($\lambda$) that performed the best using elasticnet penalized regression was very small. The conclusion I draw is that while lasso performed the best as accuracy when comparing ridge, elasticnet, and lasso, the penalties for the additional predictors was **very small** and with such a small ratio of number of parameters to number of observations, it wasn't significantly useful, in this case, to shrink the model.
+
+## Conclusion \#5
+
+**Request For Additional Information for Real-World Implementation**<br />
+
+I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to calculate locations where the most blue tarps will be found to able to help the most people; however, there may not be a 1:1 relationship between number of tarps and number of people, so resource allocation becomes even trickier. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. And, demographic information regarding population density, and members-per-household would be of priceless value. Additionally, GIS information for pre-earthquake roads, and other geographic features would be useful.
+
+# References
+<ul>
+<li>3D Scatter Plots in Python: <https://plotly.com/python/3d-scatter-plots/></li>
+<li>Axes Labels in R: <https://plotly.com/r/figure-labels/></li>
+<li>caret::trainControl: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/trainControl></li>
+<li>Predictive Modeling with R and the caret Package: <http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf></li>
+<li>caret::train: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/train></li>
+<li>MLeval::evalm: <https://www.rdocumentation.org/packages/MLeval/versions/0.3/topics/evalm></li>
+<li>MLeval: <https://cran.r-project.org/web/packages/MLeval/vignettes/introduction.pdf></li>
+<li>Caret Model Training and Tuning: <https://topepo.github.io/caret/model-training-and-tuning.html></li>
+<li>Random Hyperparameter Search: <https://topepo.github.io/caret/random-hyperparameter-search.html></li>
+</ul>
+```{r, echo=FALSE}
+knitr::knit_exit()    # ignore everything after this
+## Uncomment this line for Part I
+## You can remove the entire code chunk for Part II
+```
+
+
+# Hold-out Data / EDA
+
+Load data, explore data, etc. 
+
+
+# Results (Hold-Out)
+
+# Results (Test/Validate Data)
+
+<table width="800">
+<th>
+  <td width="100">Model</td>
+  <td width="100">Tuning</td>
+  <td width="100">AUROC</td>
+  <td width="100">Threshold</td>
+  <td width="100">Accuracy</td>
+  <td width="100">TPR</td>
+  <td width="100">FPR</td>
+  <td width="100">Precision</td>
+</th>
+
+<tr>
+  <td>Log Reg</td>
+  <td><!-- Log Reg Tuning --> N/A</td>
+  <td><!-- Log Reg AUROC -->TBD</td>
+  <td><!-- Log Reg Threshold -->TBD</td>
+  <td><!-- Log Reg Accuracy -->TBD</td>
+  <td><!-- Log Reg TPR -->TBD</td>
+  <td><!-- Log Reg FPR -->TBD</td>
+  <td><!-- Log Reg Precision -->TBD</td>
+</tr>
+
+<tr>
+  <td>LDA</td>
+  <td><!-- LDA Tuning --> N/A</td>
+  <td><!-- LDA AUROC -->TBD</td>
+  <td><!-- LDA Threshold -->TBD</td>
+  <td><!-- LDA Accuracy -->TBD</td>
+  <td><!-- LDA TPR -->TBD</td>
+  <td><!-- LDA FPR -->TBD</td>
+  <td><!-- LDA Precision -->TBD</td>
+</tr>
+
+<tr>
+  <td>QDA</td>
+  <td><!-- QDA Tuning --> N/A</td>
+  <td><!-- QDA AUROC -->TBD</td>
+  <td><!-- QDA Threshold -->TBD</td>
+  <td><!-- QDA Accuracy -->TBD</td>
+  <td><!-- QDA TPR -->TBD</td>
+  <td><!-- QDA FPR -->TBD</td>
+  <td><!-- QDA Precision -->TBD</td>
+</tr>
+
+<tr>
+  <td>KNN</td>
+  <td><!-- KNN Tuning --> k = TBD</td>
+  <td><!-- KNN AUROC -->TBD</td>
+  <td><!-- KNN Threshold -->TBD</td>
+  <td><!-- KNN Accuracy -->TBD</td>
+  <td><!-- KNN TPR -->TBD</td>
+  <td><!-- KNN FPR -->TBD</td>
+  <td><!-- KNN Precision -->TBD</td>
+</tr>
+
+<tr>
+  <td>Penalized Log Reg</td>
+  <td><!-- Penalized Log Reg Tuning -->TBD</td>
+  <td><!-- Penalized Log Reg AUROC -->TBD</td>
+  <td><!-- Penalized Log Reg Threshold -->TBD</td>
+  <td><!-- Penalized Log Reg Accuracy -->TBD</td>
+  <td><!-- Penalized Log Reg TPR -->TBD</td>
+  <td><!-- Penalized Log Reg FPR -->TBD</td>
+  <td><!-- Penalized Log Reg Precision -->TBD</td>
+</tr>
+
+<tr>
+  <td>Random Forest</td>
+  <td><!-- Random Forest Tuning -->TBD</td>
+  <td><!-- Random Forest AUROC -->TBD</td>
+  <td><!-- Random Forest Threshold -->TBD</td>
+  <td><!-- Random Forest Accuracy -->TBD</td>
+  <td><!-- Random Forest TPR -->TBD</td>
+  <td><!-- Random Forest FPR -->TBD</td>
+  <td><!-- Random Forest Precision -->TBD</td>
+</tr>
+
+<tr>
+  <td>SVM</td>
+  <td><!-- SVM Tuning --> TBD</td>
+  <td><!-- SVM AUROC -->TBD</td>
+  <td><!-- SVM Threshold -->TBD</td>
+  <td><!-- SVM Accuracy -->TBD</td>
+  <td><!-- SVM TPR -->TBD</td>
+  <td><!-- SVM FPR -->TBD</td>
+  <td><!-- SVM Precision -->TBD</td>
+</tr>
+</table>
+
+
+# Final Conclusions
+
+### Conclusion \#1 
+
+### Conclusion \#2
+
+### Conclusion \#3
+
+### Conclusion \#4 
+
+### Conclusion \#5
+
+### Conclusion \#6
+

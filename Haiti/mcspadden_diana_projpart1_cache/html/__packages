@@ -25,3 +25,6 @@ MLeval
 broom
 yardstick
 ROCR
+class
+Matrix
+glmnet
