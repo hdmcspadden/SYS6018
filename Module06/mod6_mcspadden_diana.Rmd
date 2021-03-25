@@ -237,7 +237,29 @@ in order to select the best degrees of freedom for a regression spline on this d
 
 I am going to try bootstrap to determine the best degrees of freedom for the regression spline.
 
-```{r q9f-1}
+```{r q9f-0}
+library(tidymodels)
+library(boot)
+
+boot.fn = function (index, dfs){
+  boot_model = lm(nox~bs(dis, df = dfs)-1, data=data=boston[index, ])
+  return(boot_model)
+}
+
+set.seed(1976)
+boot(boot.fn, 1000, 4)
+```
+
+
+```{r q6c-1}
+
+set.seed(1976)
+boot(df.Default, boot.fn, 1000)
+```
+
+
+
+```{r q9f-1, eval=FALSE}
 n = nrow(boston)
 numBS = 100
 
@@ -246,11 +268,23 @@ YHAT = matrix(NA, nrow(boston), numBS)
 
 for (m in 1:numBS)
 {
-  ind = sample(boston, n, replace=TRUE)
+  ind = sample(n, replace=TRUE)
   boot_model = lm(nox ∼ bs(dis, df = 4)-1, data=boston[ind, ]) #removing the intercept
   YHAT[,m] = predict(boot_model, newdata=data_eval)
                   
 }
+
+#-- Convert to tibble and plot
+data_fit = as_tibble(YHAT) %>%
+bind_cols(data_eval) %>% # add the eval points
+gather(simulation, nox, -dis) # convert to long format
+
+
+ggplot(boston, aes(dis,nox)) +
+geom_smooth(method='lm',
+formula='nox~bs(dis, df=4)-1') +
+geom_line(data=data_fit, color="red", alpha=.10, aes(group=simulation)) +
+geom_point()
 
 ```
 
