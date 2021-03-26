@@ -197,7 +197,7 @@ summary(fit.4df.spline)
 ```{r q9d-2}
 # function for plotting regression spline with number of dfs
 bs_plot = function(dfs) {
-  ggplot() +geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=1, color='black', height=1) +
+  ggplot() + geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=1, color='black', height=1) +
   stat_smooth(boston, mapping=aes(x=dis, y=nox), method='lm', formula=(paste("y~bs(x, df=", dfs, ")")), se=TRUE, alpha=1) + 
   ggtitle(label = paste("nox ~ bs(dis, df=", dfs,")"))
 }
@@ -213,17 +213,15 @@ for a range of degrees of freedom, and plot the resulting fits and report the re
 ```{r q9e-1, fig.width=10, fig.height=30}
 
 grid.arrange(bs_plot(4), bs_plot(5), bs_plot(6), bs_plot(7), bs_plot(8), bs_plot(9), bs_plot(10), bs_plot(11), bs_plot(12), bs_plot(13), nrow=5)
-
-
 ```
 
 ```{r q9e-2}
 
-bs.error = rep (0,9)
+bs.error = rep(0,13)
 
 for (i in 4:13) {
   bs.fit = lm(nox ∼ bs(dis, df = i), data=boston)
-  bs.error[i] = sum(resid(bs.fit)^2)
+  bs.error[i] = sum((resid(bs.fit))^2)
 }
 
 as.matrix(bs.error)
@@ -241,55 +239,26 @@ I am going to try bootstrap to determine the best degrees of freedom for the reg
 library(tidymodels)
 library(boot)
 
-boot.fn = function (index, dfs){
-  boot_model = lm(nox~bs(dis, df = dfs)-1, data=data=boston[index, ])
-  return(boot_model)
-}
+bs.error = rep (0,13)
 
-set.seed(1976)
-boot(boot.fn, 1000, 4)
-```
-
-
-```{r q6c-1}
-
-set.seed(1976)
-boot(df.Default, boot.fn, 1000)
-```
-
-
-
-```{r q9f-1, eval=FALSE}
-n = nrow(boston)
-numBS = 100
-
-data_eval = boston
-YHAT = matrix(NA, nrow(boston), numBS)
-
-for (m in 1:numBS)
+for (dfs in 4:13)
 {
-  ind = sample(n, replace=TRUE)
-  boot_model = lm(nox ∼ bs(dis, df = 4)-1, data=boston[ind, ]) #removing the intercept
-  YHAT[,m] = predict(boot_model, newdata=data_eval)
-                  
+  boot.fn=function (data, index)
+    return (resid(glm(nox ∼ bs(dis, df = dfs)-1 ,data=data, subset = index)))
+  
+  set.seed(1976)
+  
+  bs.error[dfs] = sum(boot.fn(boston,sample(100,100,replace=T)))^2
 }
 
-#-- Convert to tibble and plot
-data_fit = as_tibble(YHAT) %>%
-bind_cols(data_eval) %>% # add the eval points
-gather(simulation, nox, -dis) # convert to long format
-
-
-ggplot(boston, aes(dis,nox)) +
-geom_smooth(method='lm',
-formula='nox~bs(dis, df=4)-1') +
-geom_line(data=data_fit, color="red", alpha=.10, aes(group=simulation)) +
-geom_point()
-
+as.matrix(bs.error)
 ```
-
 
 Describe your results.
+
+**Answer Q9f**
+
+***I do not understand this***
 
 
 # Question 10  
@@ -297,15 +266,95 @@ Describe your results.
 ## (a) Split the data into a training set and a test set. 
 Using out-of-state tuition as the response and the other variables as the predictors, perform forward stepwise selection on the training set in order to identify a satisfactory model that uses just a subset of the predictors.
 
+```{r q10a-1}
+library(ISLR)
+college = ISLR::College %>% as_tibble(rownames = "College")
+college = dplyr::select(college, -1)
+head(college)
+
+```
+
+Split into training and test
+
+```{r q10a-2}
+set.seed(1976)
+
+test = sample(nrow(college), 250) # set aside 250 records for testing
+training = college[-test,]
+```
+
+```{r q10a-3}
+library(leaps)
+
+forward_model <- regsubsets(Outstate~., data=training, nvmax=17, method="forward")
+#summary(regfit.fwd)
+forward_model %>% broom::tidy() %>% filter(BIC == min(BIC))
+
+forward_model.summary = forward_model %>% broom::tidy()
+
+#grid.arrange(adjR2s_plot(regfit.fwd.summary, "Stepwise Fwd: Number of Variables"), mallows_cps_plot(regfit.fwd.summary, "Stepwise Fwd: Number of Variables"), BICs_plot(regfit.fwd.summary, "Stepwise Fwd: Number of Variables"), nrow=2)
+```
+
+Based on best BIC we will use the model:
+
+$$Outstate = Intercept + I(Private == Yes) + Accept + Enroll + Room.Board + PhD + perc.alumni + Expend + Grad.Rate$$
 
 ## (b) Fit a GAM on the training data, ...
 using out-of-state tuition as the response and the features selected in the previous step as the predictors. 
 
 Plot the results, and explain your findings.
 
+```{r q10b-1}
+library(mgcv)
 
-##(c) Evaluate the model obtained on the test set, ...
+model_gam = mgcv::gam(Outstate ~ Private + s(Accept) + s(Enroll) + s(Room.Board) + s(PhD) + s(perc.alumni) + s(Expend) + s(Grad.Rate), data=training)
+plot(model_gam, se=T, col="blue")
+
+summary(model_gam)
+```
+**Answer q10b:**
+
+Reviewing the summary() output from the mgcv gam model, the Private predictor is categorical and fitted with a logistic/catgorical model function.
+
+The other predictors are fit with models with varied flexibility. From least to most flexible fit the predictors are:
+<ul>
+<li>**PhD** - based on the single degree of freedom, PhD is fit with a linear model. This is also clear by looking at the plot of the fit of Outstate~PhD|other predictors are held constant. </li>
+<li>**perc.alumni** - is fit with an almost linear model (df == 1.3). The plot of Outstate~perc.alumni|other predictors held constant appears to be nearly a straight line.</li>
+<li>**Grad.Rate** has 4.567 degree freedom and displays some wiggly-ness. From the plot one can infer there are a few "knots" or other features allowing flexibility in the slop of the relationship. The deviation from the fit of the se at the extreme ends makes me wonder if this was fit with a polynomial.</li>
+<li>**Room.Board** has 5.997 degrees of freedom and the plot is slightly more wiggly than Grad.Rate, but with less se variance at the extreme ends than Grad.Rate.</li>
+<li>**Accept** - has 6.348 degrees of freedom and has several "humps" in the plot. The fit of Outstate~Accept|other variables held constant has large se variance at the greater extreme end of Accept.</li>
+<li>**Expend** - has 6.494 degrees of freedom. There are distinct "humps" in the plot. The fit's se variance increases as Expend increases (after Expend > 10000).</li>
+<li>**Enroll** - required the greatest flexibility in fit and displays the greatest wiggly-ness and greatest se variance at the greater extreme end of Enroll.</li>
+</ul>
+
+## (c) Evaluate the model obtained on the test set, ...
 and explain the results obtained.
 
+**Reference: <https://rdrr.io/cran/mgcv/man/predict.gam.html>**
 
-## (d) For which variables, if any, is there evidence of a non-linear relationship with the response?
+```{r }
+head(college[test,])
+```
+
+Here I calculate the MSE for the gam model
+```{r q10c-1}
+preds = predict(model_gam, college[test,], type = "response", se = TRUE)
+
+mean((college[test,]$Outstate - preds$fit)^2)
+
+```
+
+## (d) For which variables, if any, is there evidence of a non-linear
+relationship with the response?
+
+**Answer Q10c:**
+
+Based on reviewing the output of the trained model the following predictors appear to be in a non-linear relationship with Outstate:
+
+<ul>
+<li>**Grad.Rate** has 4.567 degree freedom and displays some wiggly-ness. From the plot one can infer there are a few "knots" or other features allowing flexibility in the slop of the relationship. The deviation from the fit of the se at the extreme ends makes me wonder if this was fit with a polynomial.</li>
+<li>**Room.Board** has 5.997 degrees of freedom and the plot is slightly more wiggly than Grad.Rate, but with less se variance at the extreme ends than Grad.Rate.</li>
+<li>**Accept** - has 6.348 degrees of freedom and has several "humps" in the plot. The fit of Outstate~Accept|other variables held constant has large se variance at the greater extreme end of Accept.</li>
+<li>**Expend** - has 6.494 degrees of freedom. There are distinct "humps" in the plot. The fit's se variance increases as Expend increases (after Expend > 10000).</li>
+<li>**Enroll** - required the greatest flexibility in fit and displays the greatest wiggly-ness and greatest se variance at the greater extreme end of Enroll.</li>
+</ul>
