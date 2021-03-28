@@ -286,6 +286,62 @@ Using the **lasso** the model identified uses lambda of **8.1** and is defined:
 $$y = 7.78 + (8.78 * X^7)$$
 The lasso did not get as close to the true values as the subset selection methods did.
 
+# Good QUESTION 9
+
+In this exercise, we will predict the number of applications received using the other variables in the College data set.
+
+Load the College data.
+```{r}
+#-- Load data. Convert to tibble for better printing. Add rownames.
+College = ISLR::College %>% 
+  as_tibble(rownames = "College")
+
+#-- Load csv directly from web:
+# College = read_csv("https://www.statlearning.com/s/College.csv") %>%
+#   rename(College=X1)
+```
+
+(a). Split the data set into a training set and a test set.
+There are 777 observations which isn’t alot considering we have 19 predictors. **That is 40.9 observations per parameter** (if one parameter per predictor). I’ll reserve 50 (6.4%) observations for test and use the rest for training.
+
+```{r}
+#-- Settings
+n = nrow(College)
+n.test = 50
+n.train = n - n.test
+
+#-- select training/test data
+set.seed(61)
+train = sample(n, n.train)
+test = -train
+```
+
+(b). Linear Model
+Fit a linear model using least squares on the training set, and report the test error obtained.
+
+Note 1: There is an annoying feature with lm() and predict.lm(). An unused predictor, like College is still carried along in the model and converted to a factor. Thus the factor levels won’t match up when trying to predict and you will get a strange error message. Thus I am going to drop the College column to avoid this problem.
+
+```{r}
+College = College %>% dplyr::select(-College)
+```
+
+```{r}
+#-- Formula
+fmla = formula(Apps ~ .)  # everything, but College, used as predictors
+
+#-- Linear Model (unpenalized)
+fit.lm = lm(fmla,data=College[train, ])
+
+#-- Prediction on test set
+yhat.lm = predict(fit.lm, newdata=College[test,])
+
+#-- Test Error (using RMSE)
+yardstick::rmse_vec(College$Apps[test], yhat.lm)
+```
+
+
+# **Bad QUESTION 9**
+
 # Question 9
 In this exercise, we will predict the number of applications received using the other variables in the College data set.
 
@@ -294,18 +350,22 @@ Split the data set into a training set and a test set.
 ```{r q9a-1}
 library(ISLR)
 
-head(College)
+#head(College)
+
+college = ISLR::College %>% as_tibble(rownames = "College")
+college = dplyr::select(college, -1)
+head(college)
 #dim(College)
 ```
 ```{r q9a-2}
 library(caret)
 
 set.seed(1976)
-college = sample_n(College, nrow(College))
+college = sample_n(college, nrow(college))
 train_indices = sample(1:nrow(College), nrow(College) * .75)
 
-college_train = College[train_indices,]
-college_test = College[-train_indices,]
+college_train = college[train_indices,]
+college_test = college[-train_indices,]
 ```
 
 ## Q9 (b) 
@@ -320,7 +380,9 @@ broom::glance(model.lm)
 model.glm_predictions = broom::augment(model.lm, newdata=college_test) 
 
 #model.glm_predictions
-mean((model.glm_predictions$Apps-model.glm_predictions$.fitted)^2)
+#mean((model.glm_predictions$Apps-model.glm_predictions$.fitted)^2)
+
+
 
 ```
 **Answer Q9b:** The MLR model has an MSE of 879419.2 from the test data.
@@ -349,10 +411,16 @@ ridge.q9c$bestTune$lambda
 
 **Here is the test**
 ```{r q9c-2}
+
+library(yardstick)
+
 q9c.pred = predict(ridge.q9c, newdata=college_test)
 
+#-- Test Error (using RMSE)
+yardstick::rmse_vec(college_test$Apps, q9c.pred)
+
 # print the MSE for the predictions
-mean((college_test$Apps-q9c.pred)^2)
+#mean((college_test$Apps-q9c.pred)^2)
 
 # this would print the final model
 #ridge.q9c$finalModel %>% summary()

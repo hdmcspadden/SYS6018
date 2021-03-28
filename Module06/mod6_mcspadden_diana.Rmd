@@ -22,11 +22,12 @@ Use cross-validation to select the optimal degree d for the polynomial.
 
 **Which Cross-Validation**
 ```{r q6a-1}
-cv.error = rep (0,5)
+cv.error = rep (0,10)
 
-for (i in 1:5) {
+for (i in 1:10) {
+  set.seed(1976)
   glm.fit = glm(wage ∼ poly(age ,i), data=wage)
-  cv.error[i] = cv.glm (Wage ,glm.fit)$delta[1]
+  cv.error[i] = cv.glm(Wage ,glm.fit)$delta[1]
 }
 
 as.matrix(cv.error)
@@ -38,27 +39,35 @@ fit.2 = lm(wage∼poly(age ,2) ,data=Wage)
 fit.3 = lm(wage∼poly(age ,3) ,data=Wage)
 fit.4 = lm(wage∼poly(age ,4) ,data=Wage)
 fit.5 = lm(wage∼poly(age ,5) ,data=Wage)
+fit.6 = lm(wage∼poly(age ,6) ,data=Wage)
+fit.7 = lm(wage∼poly(age ,7) ,data=Wage)
+fit.8 = lm(wage∼poly(age ,8) ,data=Wage)
+fit.9 = lm(wage∼poly(age ,9) ,data=Wage)
+fit.10 = lm(wage∼poly(age ,10) ,data=Wage)
 
-anova(fit.1, fit.2, fit.3, fit.4, fit.5)
+anova(fit.1, fit.2, fit.3, fit.4, fit.5, fit.6, fit.7, fit.8, fit.9, fit.10)
 ```
 What degree was chosen, and how does this compare to the results of hypothesis testing using ANOVA? Make a plot of the resulting polynomial fit to the data.
 
-**Answer Q6a: Which Cross-Validation**: Cross-validation of poly models between 1 and 5 selected the degree-4 polynomial by error; however the cubic was nearly as good.
+**Answer Q6a: Which Cross-Validation**: Cross-validation of poly models between 1 and 10 selected the degree-9 polynomial by error; however the degree-4 may also be a rational choice if we need to minimize flexibility/variance.
 
-Using ANOVA either the cubic or degree-4 polynomial provide a good fit.
+Using ANOVA either the cubic or degree-9 polynomial provide a good fit.
 
 **Plot of resulting polynomial fit**:
 <br />
+I plotted both the degreee4 and degree 9.
 ```{r q6a-3}
 
 
-ggplot() + geom_jitter(wage, mapping=aes(x=age, y=wage),
-              shape='.', size=.1, color='green', height=2) +
-  #geom_ribbon(data=prediction_interval, fill = "black", alpha = 0.2, mapping=aes(x=age, ymin=lower, ymax=upper)) + 
-  stat_smooth(wage, mapping=aes(x=age, y=wage), method='lm', formula='y~poly(x,4)', se=TRUE, alpha=1) #+
-  #geom_line(prediction_interval, mapping=aes(x=age, y=pred))
-```
+ggplot() + geom_jitter(wage, mapping=aes(x=age, y=wage), size = 0.5, color='green') +
+  stat_smooth(wage, mapping=aes(x=age, y=wage), method='lm', formula='y~poly(x,4)', se=TRUE, alpha=1) + 
+  ggtitle("Degree 4 Polynomial")
 
+ggplot() + geom_jitter(wage, mapping=aes(x=age, y=wage), size = 0.5, color='blue') +
+  stat_smooth(wage, mapping=aes(x=age, y=wage), method='lm', formula='y~poly(x,9)', se=TRUE, alpha=1) + 
+  ggtitle("Degree 9 Polynomial")
+```
+The plot fits reasonably well, with a little extra variance at the greater extreme end of age, which is natural because it is the extreme end of a polynomial and because there is sparse data at the greater end of the age range.
 
 ## Q6b) Fit a step function to predict wage using age, and perform crossvalidation ...
 to choose the optimal number of cuts. 
@@ -66,16 +75,16 @@ to choose the optimal number of cuts.
 ``` {r q6battach, warning=FALSE, echo=FALSE}
 attach(Wage)
 ```
-
+Read <https://www.rdocumentation.org/packages/boot/versions/1.3-27/topics/cv.glm> to better understand what $delta is returning.
 ```{r q6b-1}
 library(stringr)
-
-set.seed(1976)
-
 out_step = tibble()
 
 
 for (i in 6:15){
+  
+  set.seed(1976)
+  
   cuts = levels(cut(age, i))
   #print(cuts)
   breaks = unique(c(as.numeric(sub("\\((.+),.*", "\\1", cuts)),
@@ -89,8 +98,7 @@ for (i in 6:15){
 out_step
 
 ```
-**Answer Q6b NUmber Cuts:** The optimal number of cuts, calculated by cross validation is **8**.
-
+**Answer Q6b NUmber Cuts:** The optimal number of cuts, calculated by cross validation is **11**, although **8** is also reasonable.
 
 Make a plot of the fit obtained.
 
@@ -98,10 +106,8 @@ Make a plot of the fit obtained.
 
 wage <- ISLR::Wage %>% as_tibble()
 
-ggplot() + geom_jitter(wage, mapping=aes(x=age, y=wage), shape='.', size=.1, color='green', height=2) +
-  #geom_ribbon(data=prediction_interval, fill = "black", alpha = 0.2, mapping=aes(x=age, ymin=lower, ymax=upper)) + 
-  stat_smooth(wage, mapping=aes(x=age, y=wage), method='lm', formula='y~cut(x,8)', se=TRUE, alpha=1) #+
-  #geom_line(prediction_interval, mapping=aes(x=age, y=pred))
+ggplot() + geom_jitter(wage, mapping=aes(x=age, y=wage), color='green', size=0.5) +
+  stat_smooth(wage, mapping=aes(x=age, y=wage), method='lm', formula='y~cut(x,11)', se=TRUE, alpha=1)
 ```
 # Question 9
 This question uses the variables dis (the weighted mean of distances to five Boston employment centers) and nox (nitrogen oxides concentration in parts per 10 million) from the Boston data. We will treat dis as the predictor and nox as the response.
@@ -125,17 +131,18 @@ summary(fit.q9.3)
 
 boston = MASS::Boston %>% as_tibble()
 
-ggplot() + geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=1, color='black', height=2) +
+ggplot() + geom_jitter(boston, mapping=aes(x=dis, y=nox), size = 0.5, color= 'black') +
   stat_smooth(boston, mapping=aes(x=dis, y=nox), method='lm', formula='y~poly(x,3)', se=TRUE, alpha=1)
 ```
 
+There is very sparse data at the greater extreme end of dis, and the cubic polynomial has significant variance when dis is > 8ish.
 
 ## (b) Plot the polynomial fits ...
 for a range of different polynomial degrees (say, from 1 to 10), and report the associated residual sum of squares.
 
 ```{r q9b-1, fig.height=30, fig.width=10}
 poly_plot = function(i) {
-  ggplot() + geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=2, color='black', height=2) +
+  ggplot() + geom_jitter(boston, mapping = aes(x=dis, y=nox), size = 0.5, color = 'black') +
   stat_smooth(boston, mapping=aes(x=dis, y=nox), method='lm', formula=(paste("y~poly(x,", i, ")")), se=TRUE, alpha=1) + 
   ggtitle(label = paste("nox ~ dis^", i))
 }
@@ -144,7 +151,7 @@ library(gridExtra)
 
 grid.arrange(poly_plot(1), poly_plot(2), poly_plot(3), poly_plot(4), poly_plot(5), poly_plot(6), poly_plot(7), poly_plot(8), poly_plot(9), poly_plot(10), nrow=5)
 ```
-**Q9b Plot Observations:** as the polynomial increases I can see the increase in instability (i.e. the 9%% confidence interval) in the extreme ends of the data.
+**Q9b Plot Observations:** as the polynomial increases I can see the increase in instability (i.e. the 95% confidence interval) in the extreme ends of the data.
 
 ```{r q9b-2}
 
@@ -168,6 +175,7 @@ to select the optimal degree for the polynomial, and explain your results.
 cv.9c.error = rep (0,10)
 
 for (i in 1:10) {
+  set.seed(1976)
   glm.fit = glm(nox ∼ poly(dis ,i), data=boston)
   cv.9c.error[i] = cv.glm(boston ,glm.fit)$delta[1]
 }
@@ -191,15 +199,15 @@ attr(bs(boston$dis , df=4), "knots")
 
 summary(fit.4df.spline)
 ```
-**Answer Knots For DF=4 bs() spline:** I did not choose the knots, but let the bs function select the knot for 4 degrees of freedom. THe knot was selected to be evenly distributed, so it is at the median value, 3.20745.
+**Answer Knots For DF=4 bs() spline:** I did not choose the knots, rather I let bs() select the knot for 4 degrees of freedom. THe knot was selected to be evenly distributed, so it is at the median value, 3.20745.
 
 
 ```{r q9d-2}
 # function for plotting regression spline with number of dfs
 bs_plot = function(dfs) {
-  ggplot() + geom_jitter(boston, mapping=aes(x=dis, y=nox), shape='.', size=1, color='black', height=1) +
-  stat_smooth(boston, mapping=aes(x=dis, y=nox), method='lm', formula=(paste("y~bs(x, df=", dfs, ")")), se=TRUE, alpha=1) + 
-  ggtitle(label = paste("nox ~ bs(dis, df=", dfs,")"))
+  ggplot() + geom_jitter(boston, mapping=aes(x=dis, y=nox), size = 0.5, color = 'black') +
+  stat_smooth(boston, mapping=aes(x=dis, y=nox), method='lm', formula=(paste("y~bs(x, df = ", dfs, ")")), se=TRUE, alpha=1) + 
+  ggtitle(label = paste("nox ~ bs(dis, df =", dfs,")"))
 }
 ```
 
@@ -219,14 +227,16 @@ grid.arrange(bs_plot(4), bs_plot(5), bs_plot(6), bs_plot(7), bs_plot(8), bs_plot
 
 bs.error = rep(0,13)
 
-for (i in 4:13) {
+for (i in 1:13) {
   bs.fit = lm(nox ∼ bs(dis, df = i), data=boston)
   bs.error[i] = sum((resid(bs.fit))^2)
 }
 
 as.matrix(bs.error)
 ```
-**Answer to "Describe the results obtained":**
+df's of 1,2, and 3 represent a linear model using B-splines (they are all df == 3), so their errors are all the same.
+
+df == 8 is one "trough" in the collection of errors, that then decrease again starting at df = 10. I would guess that extreme over-fitting (i.e. high variance) would be a problem for models fitted with large df values.
 
 
 ##(f) Perform cross-validation or another approach...
@@ -235,20 +245,26 @@ in order to select the best degrees of freedom for a regression spline on this d
 
 I am going to try bootstrap to determine the best degrees of freedom for the regression spline.
 
-```{r q9f-0}
+```{r q9f-0, warning=FALSE}
 library(tidymodels)
 library(boot)
 
 bs.error = rep (0,13)
 
-for (dfs in 4:13)
+
+
+for (dfs in 1:13)
 {
-  boot.fn=function (data, index)
-    return (resid(glm(nox ∼ bs(dis, df = dfs)-1 ,data=data, subset = index)))
   
+  boot.fn=function (data, index)
+  {
+    #print(dfs)
+    return (resid(glm(nox ∼ bs(dis, df = dfs)-1 ,data=data, subset = index)))
+  }
+  # set the seed in the loop so that each df loop uses the same splits
   set.seed(1976)
   
-  bs.error[dfs] = sum(boot.fn(boston,sample(100,100,replace=T)))^2
+  bs.error[dfs] = sum(boot.fn(boston,sample(100,100,replace=T))^2)
 }
 
 as.matrix(bs.error)
@@ -258,8 +274,10 @@ Describe your results.
 
 **Answer Q9f**
 
-***I do not understand this***
+df's of 1,2, and 3 represent a linear model using B-splines (they are all df == 3), so their errors are all the same. Using Bootstrap df == 10, or 13 are the best fit based on cross validation error; however **df == 6** is a trough in the error values, and may be the best choice to balance bias and variance.
 
+
+Df == 10 was selected both with the entire dataset and bootstrap validation.
 
 # Question 10  
 
@@ -269,7 +287,7 @@ Using out-of-state tuition as the response and the other variables as the predic
 ```{r q10a-1}
 library(ISLR)
 college = ISLR::College %>% as_tibble(rownames = "College")
-college = dplyr::select(college, -1)
+college = dplyr::select(college, -1) %>% mutate(Private = factor(Private))
 head(college)
 
 ```
@@ -279,14 +297,20 @@ Split into training and test
 ```{r q10a-2}
 set.seed(1976)
 
-test = sample(nrow(college), 250) # set aside 250 records for testing
+test = sample(nrow(college), 50) # set aside 50 records for testing
 training = college[-test,]
 ```
+
+```{r}
+head(training)
+```
+
+
 
 ```{r q10a-3}
 library(leaps)
 
-forward_model <- regsubsets(Outstate~., data=training, nvmax=17, method="forward")
+forward_model <- regsubsets(Outstate~., data=training, nvmax=17, method="forward") # allow a complete model to be used by setting nvmax to 17.
 #summary(regfit.fwd)
 forward_model %>% broom::tidy() %>% filter(BIC == min(BIC))
 
@@ -297,7 +321,7 @@ forward_model.summary = forward_model %>% broom::tidy()
 
 Based on best BIC we will use the model:
 
-$$Outstate = Intercept + I(Private == Yes) + Accept + Enroll + Room.Board + PhD + perc.alumni + Expend + Grad.Rate$$
+$$Outstate = Intercept + I(Private == Yes) + Apps + Accept + Top10perc + F.Undergrad + Room.Board + Personal + PhD + Terminal + S.F.Ratio + perc.alumni + Expend + Grad.Rate$$
 
 ## (b) Fit a GAM on the training data, ...
 using out-of-state tuition as the response and the features selected in the previous step as the predictors. 
@@ -307,7 +331,7 @@ Plot the results, and explain your findings.
 ```{r q10b-1}
 library(mgcv)
 
-model_gam = mgcv::gam(Outstate ~ Private + s(Accept) + s(Enroll) + s(Room.Board) + s(PhD) + s(perc.alumni) + s(Expend) + s(Grad.Rate), data=training)
+model_gam = mgcv::gam(Outstate ~ Private + s(Apps) + s(Accept) + s(Top10perc) + s(F.Undergrad) + s(Room.Board) + s(Personal) + s(PhD) + s(Terminal) + s(S.F.Ratio) + s(perc.alumni) + s(Expend) + s(Grad.Rate), data=training)
 plot(model_gam, se=T, col="blue")
 
 summary(model_gam)
@@ -316,15 +340,20 @@ summary(model_gam)
 
 Reviewing the summary() output from the mgcv gam model, the Private predictor is categorical and fitted with a logistic/catgorical model function.
 
-The other predictors are fit with models with varied flexibility. From least to most flexible fit the predictors are:
+The other predictors are fit with models with varied flexibility. From least to most flexible fit (based on degrees freedom assigned) the predictors are:
 <ul>
-<li>**PhD** - based on the single degree of freedom, PhD is fit with a linear model. This is also clear by looking at the plot of the fit of Outstate~PhD|other predictors are held constant. </li>
-<li>**perc.alumni** - is fit with an almost linear model (df == 1.3). The plot of Outstate~perc.alumni|other predictors held constant appears to be nearly a straight line.</li>
-<li>**Grad.Rate** has 4.567 degree freedom and displays some wiggly-ness. From the plot one can infer there are a few "knots" or other features allowing flexibility in the slop of the relationship. The deviation from the fit of the se at the extreme ends makes me wonder if this was fit with a polynomial.</li>
-<li>**Room.Board** has 5.997 degrees of freedom and the plot is slightly more wiggly than Grad.Rate, but with less se variance at the extreme ends than Grad.Rate.</li>
-<li>**Accept** - has 6.348 degrees of freedom and has several "humps" in the plot. The fit of Outstate~Accept|other variables held constant has large se variance at the greater extreme end of Accept.</li>
-<li>**Expend** - has 6.494 degrees of freedom. There are distinct "humps" in the plot. The fit's se variance increases as Expend increases (after Expend > 10000).</li>
-<li>**Enroll** - required the greatest flexibility in fit and displays the greatest wiggly-ness and greatest se variance at the greater extreme end of Enroll.</li>
+<li>**Terminal** - df == 1: This fit is determined to be linear by the gam model. And the plot appears linear.</li>
+<li>**Room.Board** - df == 1:  This fit is determined to be linear by the gam model. And the plot appears linear.</li>
+<li>**Top10perc** - df == 1:  This fit is determined to be linear by the gam model. And the plot appears linear.</li>
+<li>**perc.alumni** - df == 2.63:  This fit is determined to be between degree 2 and 3 by the gam model. The scale of the plot makes the relationship look near linear even with this flexibility.</li>
+<li>**Personal** - df == 3.3: The fit is determined to be near cubic. The scale of the plot makes the relationship look near linear (a bit of wiggle but not much) even with this flexibility. </li>
+<li>**PhD** - df == ~4: The near degree 4 fit shows a bit of wiggle in the plot. </li>
+<li>**Expend** - df == 4.6: Some variance at the extremes of the plot are starting to become apparent.</li>
+<li>**S.F.Ratio** - df == 5.2: Variance at the extreme ends (especially the greater end of S.F. Ratio) is becoming apparent as the flexibility of the fit is increasing.</li>
+<li>**Grad.Rate** - df == 5.8: From the plot the flexible fit appears pretty good except for the variance at the far extremes.</li>
+<li>**Accept** - df == 6: This has huge variance at the extremes, especially the greater end of the range of Accept.</li>
+<li>**Apps** - df == 7: This has huge variance at the extremes, especially the greater end of the range of Apps</li>
+<li>**F.Undergrad** - df == 8.6: Even with the high degree of flexibility (df == 8.6) the plot demonstrates a fairly decent fit, even at the extreme ends.</li>
 </ul>
 
 ## (c) Evaluate the model obtained on the test set, ...
@@ -332,29 +361,117 @@ and explain the results obtained.
 
 **Reference: <https://rdrr.io/cran/mgcv/man/predict.gam.html>**
 
-```{r }
+```{r include=FALSE}
 head(college[test,])
 ```
 
 Here I calculate the MSE for the gam model
+```{r q10-c-setup}
+library(yardstick)
+```
+
 ```{r q10c-1}
+
 preds = predict(model_gam, college[test,], type = "response", se = TRUE)
 
-mean((college[test,]$Outstate - preds$fit)^2)
+yardstick::rmse_vec(college[test,]$Apps, preds$fit)
 
 ```
+I would like to calculate the MSE of this model using a MLR to get some perspective on what I am seeing.
+
+```{r q10c-2}
+model_lm = lm(data=training, Outstate ~ Private + Apps + Accept + Top10perc + F.Undergrad + Room.Board + Personal + PhD + Terminal + S.F.Ratio + perc.alumni + Expend + Grad.Rate)
+
+lm_pred = predict(model_lm, college[test,], type = "response", se = TRUE)
+
+lm_mse = yardstick::rmse_vec(college[test,]$Apps, lm_pred$fit)
+
+lm_mse
+```
+**Answer Q10c:** I am wondering if RMSE would be less using test data if some of the predictors did not have the increased flexibility of the s() function in the gam model
+
+I would like to try the gam model again, with fewer s() fit predictors.
+<ul>
+<li>model_gam_2: keeps Apps, Accept, Room.Board, Terminal linear. I selected these because either they were identified as linear by s() in the gam model, or their high variance at extremes made me suspicious of over-fitting.</li>
+<li>model_gam_3: I also made perc.alumni linear because it had the next lowest needed degrees freedom.</li>
+<li>model_gam_4: I also made S.F.Ratio linear based on variance in plot at extreme ends.</li>
+</ul>
+
+
+```{r q10c-3}
+model_gam_2 = mgcv::gam(Outstate ~ Private + Apps + Accept + s(Top10perc) + s(F.Undergrad) + Room.Board + s(Personal) + s(PhD) + Terminal + s(S.F.Ratio) + s(perc.alumni) + s(Expend) + s(Grad.Rate), data=training)
+
+model_gam_3 = mgcv::gam(Outstate ~ Private + Apps + Accept + s(Top10perc) + s(F.Undergrad) + Room.Board + s(Personal) + s(PhD) + Terminal + s(S.F.Ratio) + perc.alumni + s(Expend) + s(Grad.Rate), data=training)
+
+model_gam_4 = mgcv::gam(Outstate ~ Private + Apps + Accept + s(Top10perc) + s(F.Undergrad) + Room.Board + s(Personal) + s(PhD) + Terminal + S.F.Ratio + perc.alumni + s(Expend) + s(Grad.Rate), data=training)
+
+
+# first gam model
+gam_pred = predict(model_gam, college[test,], type = "response", se = TRUE)
+mse_gam = yardstick::rmse_vec(college[test,]$Apps, gam_pred$fit)
+
+# gam_2 model
+gam_2_pred = predict(model_gam_2, college[test,], type = "response", se = TRUE)
+mse_gam_2 = yardstick::rmse_vec(college[test,]$Apps, gam_2_pred$fit)
+
+# gam_3 model
+gam_3_pred = predict(model_gam_3, college[test,], type = "response", se = TRUE)
+mse_gam_3 = yardstick::rmse_vec(college[test,]$Apps, gam_3_pred$fit)
+
+# gam_4 model
+gam_4_pred = predict(model_gam_4, college[test,], type = "response", se = TRUE)
+mse_gam_4 = yardstick::rmse_vec(college[test,]$Apps, gam_4_pred$fit)
+
+
+rMSE_out = tibble()
+
+rMSE_out = bind_rows(rMSE_out, 
+            tibble(modelname = "model_lm",
+                   rMSE = lm_mse, 
+                   smoothed_preds = ""))
+
+rMSE_out = bind_rows(rMSE_out, 
+            tibble(modelname = "model_gam",
+                   rMSE = mse_gam, 
+                   smoothed_preds = "Apps, Accept, Top10perc, F.Undergrad, Room.Board, Personal, PhD, Terminal, S.F.Ratio, perc.alumni, Expend, Grad.Rate"))
+            
+rMSE_out = bind_rows(rMSE_out, 
+            tibble(modelname = "model_gam_2",
+                  rMSE = mse_gam_2, 
+                   smoothed_preds = "Top10perc, F.Undergrad, Personal, PhD, S.F.Ratio, perc.alumni, Expend, Grad.Rate"))
+            
+rMSE_out = bind_rows(rMSE_out, 
+            tibble(modelname = "model_gam_3",
+                  rMSE = mse_gam_3, 
+                   smoothed_preds = "Top10perc, F.Undergrad, Personal, PhD, S.F.Ratio, Expend, Grad.Rate"))
+            
+rMSE_out = bind_rows(rMSE_out, 
+            tibble(modelname = "model_gam_4",
+                  rMSE = mse_gam_4, 
+                   smoothed_preds = "Top10perc, F.Undergrad, Personal, PhD, Expend, Grad.Rate"))
+
+
+rMSE_out
+```
+
+
 
 ## (d) For which variables, if any, is there evidence of a non-linear
 relationship with the response?
 
-**Answer Q10c:**
+```{r q10d-1}
+summary(model_gam_4)
+```
 
-Based on reviewing the output of the trained model the following predictors appear to be in a non-linear relationship with Outstate:
+
+**Answer Q10d:**
+You can see that for **model_gam_4** some of the predictors were made linear by the s() gam function (observed by degrees freedom in final gam model): Top10perc, Grad.Rate.
+
+I didn't run through all the combinations of s() on each of the 12 predictors, but when I used degrees freedom, and viewing the plots to decide which predictors to use a non-linear relationship with, the model with the least RMSE has non-linear relationships with these four predictors (when other selected predictors are in the model):
 
 <ul>
-<li>**Grad.Rate** has 4.567 degree freedom and displays some wiggly-ness. From the plot one can infer there are a few "knots" or other features allowing flexibility in the slop of the relationship. The deviation from the fit of the se at the extreme ends makes me wonder if this was fit with a polynomial.</li>
-<li>**Room.Board** has 5.997 degrees of freedom and the plot is slightly more wiggly than Grad.Rate, but with less se variance at the extreme ends than Grad.Rate.</li>
-<li>**Accept** - has 6.348 degrees of freedom and has several "humps" in the plot. The fit of Outstate~Accept|other variables held constant has large se variance at the greater extreme end of Accept.</li>
-<li>**Expend** - has 6.494 degrees of freedom. There are distinct "humps" in the plot. The fit's se variance increases as Expend increases (after Expend > 10000).</li>
-<li>**Enroll** - required the greatest flexibility in fit and displays the greatest wiggly-ness and greatest se variance at the greater extreme end of Enroll.</li>
+<li>F.Undergrad</li>
+<li>Personal</li>
+<li>PhD</li>
+<li>Expend</li>
 </ul>

@@ -273,7 +273,7 @@ To view the relationship between the Red, Green, and Blue values between the fiv
 
 
 #### Five-Class 3-D Scatterplot
-```{r 3D5Class, cache=TRUE}
+```{r 3D5Class, fig.width=6, fig.height=5, cache=TRUE}
 
 fiveCat3D = plot_ly(x=haiti$Red, y=haiti$Blue, z=haiti$Green, type="scatter3d", mode="markers", color=haiti$Class, colors = c('blue2','azure4','chocolate4','coral2','chartreuse4'),
 marker = list(symbol = 'circle', sizemode = 'diameter', opacity =0.35))
@@ -293,7 +293,7 @@ The 3D scatter plot is particularly useful because, by zooming in, one can see t
 
 ##### Two-Class 3-D Scatterplot
 
-```{r 3DBinary, cache=TRUE}
+```{r 3DBinary, , fig.width=6, fig.height=5, cache=TRUE}
 binary3D = plot_ly(x=haitiBinarySqrs$RBSqr, y=haitiBinarySqrs$Blue, z=haitiBinarySqrs$GBSqr, type="scatter3d", mode="markers", color=haitiBinary$ClassBinary, colors = c('red','blue2'),
 marker = list(symbol = 'circle', sizemode = 'diameter', opacity =0.35))
 
