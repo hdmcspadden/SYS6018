@@ -16,8 +16,8 @@ knitr::opts_chunk$set(error=TRUE,        # Keep compiling upon error
 We'll use `install.packages('rpart')` which has a more caret-like interface.
 
 ```{r setup}
-#library(tree)
-#library(ISLR)
+library(tree)
+library(ISLR)
 #attach(Carseats)
 carseats <- ISLR::Carseats
 
@@ -29,7 +29,35 @@ library(tidyverse)
 carseats <- tibble(carseats) %>% add_column(High)
 ```
 
+```{r}
+head(carseats)
+```
+
+
 ## Fitting Classification Trees
+
+```{r}
+library(partykit)
+```
+<https://www.gormanalysis.com/blog/decision-trees-in-r-using-rpart/>
+**minsplit** is “the minimum number of observations that must exist in a node in order for a split to be attempted” 
+
+**minbucket** is “the minimum number of observations in any terminal node”. 
+
+By default, rpart uses **gini** impurity to select splits when performing classification.
+
+Setting **cp to a negative amount** ensures that the tree will be fully grown.
+
+As a rule of thumb, it’s best to prune a decision tree using the cp of smallest tree that is within one standard deviation of the tree with the smallest xerror. In this example, the best xerror is 0.4 with standard deviation 0.25298. So, we want the smallest tree with xerror less than 0.65298. This is the tree with cp = 0.2, so we’ll want to prune our tree with a cp slightly greater than than 0.2.
+
+**rpart and Cross Validation**
+When rpart grows a tree it performs 10-fold cross validation on the data. Use printcp() to see the cross validation results.
+
+**Example R Code for Prune:**
+mytree <- prune(mytree, cp = 0.21)
+fancyRpartPlot(mytree)
+
+
 
 ```{r DT_1}
 
@@ -40,7 +68,7 @@ carseats <- tibble(carseats) %>% add_column(High)
 # more caret-like interface
 # more control than `tree::tree`
 # CV-driven auto-selection: "the automatic is strong with this one" -- Edward
-set.seed(1)
+set.seed(1) 
 tree.carseats <- rpart::rpart(High~.-Sales, data=carseats, 
                               method='class', parms=list(split='information'))
                               #control = rpart::rpart.control(maxdepth=1) 
@@ -49,13 +77,48 @@ tree.carseats.party <- partykit::as.party(tree.carseats)
 #summary(tree.carseats)
 tree.carseats.party
 ```
+```{r fig.width=12}
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+fancyRpartPlot(tree.carseats, caption = NULL)
+```
+
+See the importance of each predictor in from rpart
+```{r}
+tree.carseats$variable.importance
+```
+We see **price** and **self location** are most important.
+
+```{r}
+printcp(tree.carseats)
+```
+Above are the 10-fold cross-validation results for each level of splitting.
+
+The **rel error** of each iteration of the tree is the fraction of mislabeled elements in the iteration relative to the fraction of mislabeled elements in the root. In this example, 41% of training cases are fraudulent. so after the first split .41 * .71 % of the responses would be mislabled.
+
+As a rule of thumb, it’s best to prune a decision tree using the cp of smallest tree that is within one standard deviation of the tree with the smallest xerror. In this example, the best xerror is 0.61585 with standard deviation 0.052981. 
+
+```{r}
+0.61585 + 0.052981
+```
+
+So, we want the smallest tree with xerror less than 0.668831. This is the tree with cp = 0.030488, so we’ll want to prune our tree with a cp slightly greater than than 0.0304 == 0.031
+
+```{r}
+pruned.carseats.tree <- prune(tree.carseats, cp = 0.031)
+fancyRpartPlot(pruned.carseats.tree)
+```
+
 
 The `party` class in `install.packages('partykit')` extends ggplot to trees
 with `ggparty` `install.packages('ggparty')`
 
-```{r DT_2}
+```{r DT_2, fig.width=12}
 # https://cran.r-project.org/web/packages/ggparty/vignettes/ggparty-graphic-partying.html
 # https://cran.r-project.org/web/packages/partykit/vignettes/constparty.pdf
+
+library(ggparty)
 
 #plot(tree.carseats)
 #text(tree.carseats,pretty=0)
@@ -111,6 +174,7 @@ set.seed(3)
 # note above that `tuneLength=30` doesn't actually control what `rpart` does...
 # so here we instead just match what r part does
 tree.carseats.cp <- as_tibble(tree.carseats$cptable)$CP
+tree.carseats.cp
 carseats.tree_fits <- caret::train(High~.-Sales, data=carseats, 
                                    method='rpart', 
                                    tuneGrid=data.frame(cp=tree.carseats.cp),
@@ -181,7 +245,7 @@ ggparty::ggparty(best.logloss) +
 caret::confusionMatrix(carseats.tree_fits)
 ```
 
-```{r DT_7}
+```{r DT_7, fig.height=10}
 
 #prune.carseats=prune.misclass(tree.carseats,best=15)
 #plot(prune.carseats)
@@ -246,7 +310,7 @@ tree.boston.party <- partykit::as.party(tree.boston)
 tree.boston.party
 ```
 
-```{r RT_2}
+```{r RT_2, fig.height=10}
 #plot(tree.boston)
 #text(tree.boston,pretty=0)
 
@@ -287,7 +351,7 @@ as_tibble(tree.v2.boston$cptable) %>%
 
 ```
 
-```{r RT_4}
+```{r RT_4m, fig.height=10}
 #prune.boston=prune.tree(tree.boston,best=5)
 #plot(prune.boston)
 #text(prune.boston,pretty=0)
@@ -316,7 +380,7 @@ partykit::as.party(boston.caret_rpart$finalModel) %>%
 - you're probably gonna wanna just stick with what base R gives you as described
   in the book...
 
-```{r RT_5}
+```{r RT_5, fig.height=10}
 # https://stackoverflow.com/questions/50602385/how-to-plot-a-decision-tree-horizontally-in-r-markdown
 plot(boston.caret_rpart$finalModel, horiz=TRUE)
 text(boston.caret_rpart$finalModel, pretty=0)

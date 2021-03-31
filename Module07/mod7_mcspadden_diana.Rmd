@@ -15,6 +15,74 @@ Hint: Your result should look something like Figures 8.1 and 8.2.
 # Q7
 In the lab, we applied random forests to the Boston data using mtry=6 and using ntree=25 and ntree=500. Create a plot displaying the test error resulting from random forests on this data set for a more comprehensive range of values for mtry and ntree. You can model your plot after Figure 8.10. Describe the results obtained.
 
+```{r q7-setup}
+library(MASS)
+library(tree)
+library(tidyverse)
+library(partykit)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+library(randomForest)
+```
+
+
+
+Setup train and test observations
+```{r q7-1}
+
+boston <- MASS::Boston
+set.seed(1976)
+
+n = nrow(boston)
+
+
+train = sample(1: nrow(boston ), 406, replace = FALSE) # 406 training observations
+```
+
+The argument **mtry=13** indicates that all 13 predictors should be considered for each split of the tree. 
+
+I want to run for m = range(1:13).
+
+We change the number of trees grown by randomForest() using the **ntree** argument.
+
+I want to run with ntree in seq(from = 25, to = 500, by = 25)
+```{r q7-2}
+
+out_trees = tibble()
+
+for (m in c(1,2,3,4,5,6,7,8,9,10,11,12,13))
+{
+  for (nt in seq(from = 25, to = 500, by = 25))
+  {
+    set.seed(1976)
+    tree_model = randomForest(medv∼., data = boston, subset=train, mtry = m, ntree = nt)
+    preds = predict(tree_model, newdata = boston[-train,])
+    preds_err = mean((preds - boston[-train, ]$medv)^2)
+    
+    # save the tuning and errors
+    out_trees = bind_rows(out_trees, tibble(mtry = m, ntree = nt, err = preds_err))
+  }
+}
+```
+
+``` {r q7-3}
+out_trees %>% mutate(mtry = factor(mtry)) %>% filter(err == min(err))
+
+```
+
+**My minimum error randomForrest used mtry = 10 and ntree = 25.**
+
+
+Now I will create aplot:
+```{r q7-4}
+color_group = c("blue", "black", "yellow2", "red", "green", "purple", "red2", "blue3", "lightyellow3", "yellowgreen", "#00AFBB", "#E7B800", "#CC79A7")
+
+out_trees %>% ggplot(aes(x = ntree, y = err, group=mtry, color=mtry)) + geom_point(aes(colour = factor(mtry))) #geom_line()
+
+
+```
+**Answer Q7:** One can see that the mtry = 1 performed poorly no matter the number of trees, and an mtry of 2 or 3 also performed noticably worse that greater mtry values, no matter the number of trees grown in the random forest. One can see that 10 predictors was the best balance of bias and variance when using this cross validation.
 
 # Q9
 This problem involves the OJ data set which is part of the ISLR package.
@@ -22,21 +90,89 @@ This problem involves the OJ data set which is part of the ISLR package.
 ## (a) Create a training set containing a random sample of 800 observations,...
 and a test set containing the remaining observations.
 
+**About OJ Data Set**: The data contains 1070 purchases where the customer either purchased Citrus Hill or Minute Maid Orange Juice. A number of characteristics of the customer and product are recorded.
+
+A data frame with 1070 observations on the following 18 variables.
+
+```{r q9a-1}
+oj = ISLR::OJ
+
+oj = oj %>% mutate(Purchase = factor(Purchase), SpecialCH = factor(SpecialCH), SpecialMM = factor(SpecialMM), STORE = factor(STORE))
+
+set.seed(1976)
+
+train_oj = sample(1: nrow(oj ), 800, replace = FALSE) # 800 training observations
+
+training_oj = oj[train_oj,]
+
+head(training_oj)
+```
+
 
 ## (b) Fit a tree to the training data, ...
 with Purchase as the response and the other variables as predictors. Use the summary() function to produce summary statistics about the tree, and describe the results obtained. What is the training error rate? How many terminal nodes does the tree have?
 
+**Process Q9b:**
+I am going to try to use the rpart library for this question.
+
+Reference: <https://www.gormanalysis.com/blog/decision-trees-in-r-using-rpart/>
+**minsplit** is “the minimum number of observations that must exist in a node in order for a split to be attempted” 
+
+**minbucket** is “the minimum number of observations in any terminal node”. 
+
+By default, rpart uses **gini** impurity to select splits when performing classification.
+
+Setting **cp to a negative amount** ensures that the tree will be fully grown.
+
+As a rule of thumb, it’s best to prune a decision tree using the cp of smallest tree that is within one standard deviation of the tree with the smallest xerror. In this example, the best xerror is 0.4 with standard deviation 0.25298. So, we want the smallest tree with xerror less than 0.65298. This is the tree with cp = 0.2, so we’ll want to prune our tree with a cp slightly greater than than 0.2.
+
+**rpart and Cross Validation**
+When rpart grows a tree it performs **10-fold cross validation on the data**. 
+
+Use printcp() to see the cross validation results.
+
+```{r q9b-1}
+set.seed(1976) 
+tree.oj = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'))
+
+```
+
+```{r q9b-2}
+summary(tree.oj)
+```
+
+
+``` {r q9b-3}
+printcp(tree.oj)
+```
+ ***NEED TO WRITE UP***
+
 
 ## (c) Type in the name of the tree object ...
 in order to get a detailed text output. Pick one of the terminal nodes, and interpret the information displayed.
+```{r q9c-1}
+tree.oj
+```
 
+ ***NEED TO WRITE UP***
 
 ## (d) Create a plot of the tree, ...
 and interpret the results.
 
+```{r q9d-1}
+fancyRpartPlot(tree.oj, caption = NULL)
+```
+
+
+ ***NEED TO WRITE UP***
 
 ## (e) Predict the response on the test data, ...
 and produce a confusion matrix comparing the test labels to the predicted test labels. What is the test error rate?
+
+```{r q9e-1}
+
+```
+
 
 
 ## (f) Apply the cv.tree() function...
