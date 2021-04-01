@@ -11,11 +11,12 @@ Draw an example (of your own invention) of a partition of two-dimensional featur
 
 Hint: Your result should look something like Figures 8.1 and 8.2.
 
+![Question 1](chartAndtree.jpg)
 
 # Q7
 In the lab, we applied random forests to the Boston data using mtry=6 and using ntree=25 and ntree=500. Create a plot displaying the test error resulting from random forests on this data set for a more comprehensive range of values for mtry and ntree. You can model your plot after Figure 8.10. Describe the results obtained.
 
-```{r q7-setup}
+```{r q7-setup, warning=FALSE}
 library(MASS)
 library(tree)
 library(tidyverse)
@@ -47,7 +48,7 @@ I want to run for m = range(1:13).
 We change the number of trees grown by randomForest() using the **ntree** argument.
 
 I want to run with ntree in seq(from = 25, to = 500, by = 25)
-```{r q7-2}
+```{r q7-2, cache=TRUE}
 
 out_trees = tibble()
 
@@ -78,7 +79,7 @@ Now I will create aplot:
 ```{r q7-4}
 color_group = c("blue", "black", "yellow2", "red", "green", "purple", "red2", "blue3", "lightyellow3", "yellowgreen", "#00AFBB", "#E7B800", "#CC79A7")
 
-out_trees %>% ggplot(aes(x = ntree, y = err, group=mtry, color=mtry)) + geom_point(aes(colour = factor(mtry))) #geom_line()
+out_trees %>% ggplot(aes(x = ntree, y = err, group=mtry, color=mtry)) + geom_point(aes(colour = factor(mtry))) #+ geom_line()
 
 
 ```
@@ -124,6 +125,8 @@ By default, rpart uses **gini** impurity to select splits when performing classi
 
 Setting **cp to a negative amount** ensures that the tree will be fully grown.
 
+**cp** corresponds to the lambda in the tuning step.
+
 As a rule of thumb, it’s best to prune a decision tree using the cp of smallest tree that is within one standard deviation of the tree with the smallest xerror. In this example, the best xerror is 0.4 with standard deviation 0.25298. So, we want the smallest tree with xerror less than 0.65298. This is the tree with cp = 0.2, so we’ll want to prune our tree with a cp slightly greater than than 0.2.
 
 **rpart and Cross Validation**
@@ -131,9 +134,13 @@ When rpart grows a tree it performs **10-fold cross validation on the data**.
 
 Use printcp() to see the cross validation results.
 
+**xval = 0** makes this not do cross validation. (Later I will do xval = 10 for cross-validation.)
+
 ```{r q9b-1}
 set.seed(1976) 
-tree.oj = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'))
+
+
+tree.oj = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), xval=0)
 
 ```
 
@@ -141,11 +148,14 @@ tree.oj = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(
 summary(tree.oj)
 ```
 
-
 ``` {r q9b-3}
 printcp(tree.oj)
 ```
- ***NEED TO WRITE UP***
+**Q9b Observations:** The combination of the tree visual and the "importance" table are interesting. THe importance table shows "an overall measure of variable importance is the sum of the goodness of split measures for each split for which it was the primary variable…"  (rpart documentation <https://cran.r-project.org/web/packages/rpart/rpart.pdf>)
+
+The importance table says that LoyalCH (brand loyalty to Citrus Hill) is by far the most "important" predictor of whether the sale is Minute Maid or Citrus Hill. This is also clear by the first node of the tree being whether LoyalCH >= 0.48. The CP table describe a root node error of 0.385. This node lowers the error rate to 47.7% of 38.5% == 18% (a significant reduction).
+
+The additional three splits (LoyalCH >= 0.7, PriceDiff >= 0.015, and StoreID >= 2.5) lower the error rate to 42% or 18% == **8%**. We have 800 training observations, so 64 of them are misclassified after cross-validation on the training data produces this decision tree.
 
 
 ## (c) Type in the name of the tree object ...
@@ -153,8 +163,7 @@ in order to get a detailed text output. Pick one of the terminal nodes, and inte
 ```{r q9c-1}
 tree.oj
 ```
-
- ***NEED TO WRITE UP***
+**Answer Q9c:** The node labeled "3" LoyalCH < 0.48285: 24% of the observations for this node are CH, 76% are MM. Predictions meeting the LoyalCH < 0.48285 criteria will be labeled MM using this tree.</li>
 
 ## (d) Create a plot of the tree, ...
 and interpret the results.
@@ -162,24 +171,32 @@ and interpret the results.
 ```{r q9d-1}
 fancyRpartPlot(tree.oj, caption = NULL)
 ```
-
-
- ***NEED TO WRITE UP***
+**Answer Q9d:** Based on the tree diagram, 62% of the observations are LoyalCH >= 0.48 (85% of those CH, 15% MM), and 38% are LoyalCH < 0.48 (24% of those CH, and 76% MM). Then, 75% of the (LoyalCH >=0.48) are LoyalCH >= 0.7 and 95% of those observations are CH (5% are MM). The interpretation of the tree continues in this way. At the leaf nodes we have the followign breakdown from left to right:
+<ul>
+<li>Leaf 1: LoyalCH >= 0.48, LoyalCH >= 0.7: 95% CH, 5% MM</li>
+<li>Leaf 2: LoyalCH >= 0.48, LoyalCH < 0.7, PriceDiff >= 0.015: 82% CH, 18% MM</li>
+<li>Leaf 3: LoyalCH >= 0.48, LoyalCH < 0.7, PriceDiff < 0.015, StoreID >= 2.5 (i.e. StoreID = 3,4,5,6,...): 60% CH, 40% MM</li>
+<li>Leaf 4: LoyalCH >= 0.48, LoyalCH < 0.7, PriceDiff < 0.015, StoreID < 2.5 (i.e. StoreID = 1 or 2): 21% CH, 79% MM</li>
+<li>Leaf 5: LoyalCH < 0.48: 24% CH, 76% MM</li>
+</ul>
 
 ## (e) Predict the response on the test data, ...
 and produce a confusion matrix comparing the test labels to the predicted test labels. What is the test error rate?
 
 ```{r q9e-1}
-
+preds_oj = predict(tree.oj, newdata = oj[-train_oj,], type = "class")
+preds_oj = data.frame(Pred = factor(preds_oj))
+library(caret)
+caret::confusionMatrix(preds_oj$Pred, oj[-train_oj,]$Purchase)
 ```
-
+**Answer Qe:** The test error rate, or 1 - Accuracy, is **0.20.**
 
 
 ## (f) Apply the cv.tree() function...
 to the training set in order to determine the optimal tree size.
 
 ## (g) Produce a plot with tree size ...
-on the x-axis and cross-validatedclassification error rate on the y-axis.
+on the x-axis and cross-validated classification error rate on the y-axis.
 
 
 ## (h) Which tree size...
