@@ -136,11 +136,14 @@ Use printcp() to see the cross validation results.
 
 **xval = 0** makes this not do cross validation. (Later I will do xval = 10 for cross-validation.)
 
+**cp = -1** ensures the tree wuth be fully grown, regardless of improvements to Rsquared with each split. I use this later in Question 9.
+
 ```{r q9b-1}
 set.seed(1976) 
 
+#tree.oj = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), control = rpart.control(xval=0, cp=-1))
 
-tree.oj = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), xval=0)
+tree.oj = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), control = rpart.control(xval=0))
 
 ```
 
@@ -195,20 +198,90 @@ caret::confusionMatrix(preds_oj$Pred, oj[-train_oj,]$Purchase)
 ## (f) Apply the cv.tree() function...
 to the training set in order to determine the optimal tree size.
 
+```{r}
+tree.oj.10 = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), control = rpart.control(xval=10))
+fancyRpartPlot(tree.oj.10, caption = NULL)
+```
+**Q9f Observations:** THis is the same tree produced without cross-validation; which concerns me. I did try running the rpart with a control that set cp =-1, which ensures a fully-grown tree, and I got a **much** different result.
+
 ## (g) Produce a plot with tree size ...
 on the x-axis and cross-validated classification error rate on the y-axis.
 
+```{r q9g-1}
+tree.oj.cv = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), control = rpart.control(xval=10))
+tree.oj.cv.cp = printcp(tree.oj.cv)
+df.cv.cp = data.frame(tree.oj.cv.cp)
+df.cv.cp
+```
+
+```{r q9g-2}
+tree.oj.full = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), control = rpart.control(xval=10, cp=-1))
+tree.oj.full.cp = printcp(tree.oj.full)
+df.cp = data.frame(tree.oj.full.cp)
+df.cp
+```
+**Q9g Observations:** I create data frames for both the cross-validation that stops as soon as improvements to R2 are not greater than the CP  value, and also with cp = -1 which produced a fully grown tree. For my plot I use the data from the fully grown tree.
+
+The x-axis, **nsplit**, is how many splits are in the tree. The y-axis is the cross-validation error, **xerror**.
+
+```{r q9g-3}
+ggplot(data=df.cp, aes(x=nsplit, y=xerror)) + geom_line() + geom_point()
+```
 
 ## (h) Which tree size...
 corresponds to the lowest cross-validated classification error rate?
 
+**Answer Q9h:** The tree with 14 splits is the tree with the lowest cross-validation error rate.
+
+To visualize this tree I set the cp to slightly larger than the cp for that tree in the cp table produced by the fully grown tree.
+```{r fig.width=12}
+tree.oj.14 = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), control = rpart.control(xval=10, cp=0.0036))
+
+fancyRpartPlot(tree.oj.14, caption = NULL)
+```
 
 ## (i) Produce a pruned tree ...
 corresponding to the optimal tree size obtained using cross-validation. If cross-validation does not lead to selection of a pruned tree, then create a pruned tree with five terminal nodes.
 
+**Answer Q9i:** Cross-validation did produce a prunted tree with 5 terminal nodes.
+
+```{r q9i-1}
+fancyRpartPlot(tree.oj.10, caption = NULL)
+```
+
+
 ## (j) Compare the training error rates between the pruned and unpruned trees. 
 Which is higher?
 
+```{r q9j-1}
+printcp(tree.oj.full)
+```
+
+
+**Answer Q9i:** The training error rate was calculated to be **8% for the pruned tree** as shown in Q9b.
+
+For the full tree, the root has an error rate of 0.385, then the error decreases as followed using the rel error column from the printcp(...) function:
+
+<ul>
+<li>1 split: 0.385 * 0.477 = 0.18</li>
+<li>4 splits: 0.18 * 0.425 = 0.0765</li>
+<li>6 splits: 0.0765 * 0.4 = 0.03</li>
+<li>14 splits: 0.03 * 0.33 = 0.0099</li>
+<li>17 splits: 0.0099 * 0.32 = 0.0032</li>
+<li>46 splits: 0.0032 * 0.32 = **0.001**</li>
+</ul>
+
+The training error is **much** smaller in the full tree.
 
 ## (k) Compare the test error rates between the pruned and unpruned trees. 
 Which is higher?
+
+```{r q9k-1}
+preds_oj_full = predict(tree.oj.full, newdata = oj[-train_oj,], type = "class")
+preds_oj_full = data.frame(Pred = factor(preds_oj_full))
+caret::confusionMatrix(preds_oj_full$Pred, oj[-train_oj,]$Purchase)
+```
+**Answer Q9i:**
+
+Accuracy for the pruned tree on test data is 0.8 (error rate 0.2), while accuracy for the fully-grown tree on test data is 0.7963 (error rate 0.2037). While the accuracy isn't significantly greater, the tree is much simplier, easily explainable, and visualized.
+
