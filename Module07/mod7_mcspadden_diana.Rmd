@@ -13,9 +13,6 @@ Hint: Your result should look something like Figures 8.1 and 8.2.
 
 ![Question 1](chartAndtree.jpg)
 
-# Q7
-In the lab, we applied random forests to the Boston data using mtry=6 and using ntree=25 and ntree=500. Create a plot displaying the test error resulting from random forests on this data set for a more comprehensive range of values for mtry and ntree. You can model your plot after Figure 8.10. Describe the results obtained.
-
 ```{r q7-setup, warning=FALSE}
 library(MASS)
 library(tree)
@@ -27,63 +24,6 @@ library(RColorBrewer)
 library(randomForest)
 ```
 
-
-
-Setup train and test observations
-```{r q7-1}
-
-boston <- MASS::Boston
-set.seed(1976)
-
-n = nrow(boston)
-
-
-train = sample(1: nrow(boston ), 406, replace = FALSE) # 406 training observations
-```
-
-The argument **mtry=13** indicates that all 13 predictors should be considered for each split of the tree. 
-
-I want to run for m = range(1:13).
-
-We change the number of trees grown by randomForest() using the **ntree** argument.
-
-I want to run with ntree in seq(from = 25, to = 500, by = 25)
-```{r q7-2, cache=TRUE}
-
-out_trees = tibble()
-
-for (m in c(1,2,3,4,5,6,7,8,9,10,11,12,13))
-{
-  for (nt in seq(from = 25, to = 500, by = 25))
-  {
-    set.seed(1976)
-    tree_model = randomForest(medv∼., data = boston, subset=train, mtry = m, ntree = nt)
-    preds = predict(tree_model, newdata = boston[-train,])
-    preds_err = mean((preds - boston[-train, ]$medv)^2)
-    
-    # save the tuning and errors
-    out_trees = bind_rows(out_trees, tibble(mtry = m, ntree = nt, err = preds_err))
-  }
-}
-```
-
-``` {r q7-3}
-out_trees %>% mutate(mtry = factor(mtry)) %>% filter(err == min(err))
-
-```
-
-**My minimum error randomForrest used mtry = 10 and ntree = 25.**
-
-
-Now I will create aplot:
-```{r q7-4}
-color_group = c("blue", "black", "yellow2", "red", "green", "purple", "red2", "blue3", "lightyellow3", "yellowgreen", "#00AFBB", "#E7B800", "#CC79A7")
-
-out_trees %>% ggplot(aes(x = ntree, y = err, group=mtry, color=mtry)) + geom_point(aes(colour = factor(mtry))) #+ geom_line()
-
-
-```
-**Answer Q7:** One can see that the mtry = 1 performed poorly no matter the number of trees, and an mtry of 2 or 3 also performed noticably worse that greater mtry values, no matter the number of trees grown in the random forest. One can see that 10 predictors was the best balance of bias and variance when using this cross validation.
 
 # Q9
 This problem involves the OJ data set which is part of the ISLR package.
@@ -114,7 +54,7 @@ head(training_oj)
 with Purchase as the response and the other variables as predictors. Use the summary() function to produce summary statistics about the tree, and describe the results obtained. What is the training error rate? How many terminal nodes does the tree have?
 
 **Process Q9b:**
-I am going to try to use the rpart library for this question.
+I am going to use the rpart library for this question because I am interested in learning how to use the library. Below are my notes from reading about the library, and I document how this library differs slightly from the tree exampled from the textbook.
 
 Reference: <https://www.gormanalysis.com/blog/decision-trees-in-r-using-rpart/>
 **minsplit** is “the minimum number of observations that must exist in a node in order for a split to be attempted” 
@@ -127,10 +67,8 @@ Setting **cp to a negative amount** ensures that the tree will be fully grown.
 
 **cp** corresponds to the lambda in the tuning step.
 
-As a rule of thumb, it’s best to prune a decision tree using the cp of smallest tree that is within one standard deviation of the tree with the smallest xerror. In this example, the best xerror is 0.4 with standard deviation 0.25298. So, we want the smallest tree with xerror less than 0.65298. This is the tree with cp = 0.2, so we’ll want to prune our tree with a cp slightly greater than than 0.2.
-
 **rpart and Cross Validation**
-When rpart grows a tree it performs **10-fold cross validation on the data**. 
+When rpart grows a tree it performs **10-fold cross validation on the data** by default. 
 
 Use printcp() to see the cross validation results.
 
@@ -143,7 +81,7 @@ set.seed(1976)
 
 #tree.oj = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), control = rpart.control(xval=0, cp=-1))
 
-tree.oj = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), control = rpart.control(xval=0))
+tree.oj = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), xval=0)
 
 ```
 
@@ -154,11 +92,15 @@ summary(tree.oj)
 ``` {r q9b-3}
 printcp(tree.oj)
 ```
-**Q9b Observations:** The combination of the tree visual and the "importance" table are interesting. THe importance table shows "an overall measure of variable importance is the sum of the goodness of split measures for each split for which it was the primary variable…"  (rpart documentation <https://cran.r-project.org/web/packages/rpart/rpart.pdf>)
+**Q9b Observations:** 
+
+rpart does not produce the fully the grown tree unless the cp parameter is set to -1. I create and examine fuller trees in Q9 part **g**.
+
+The combination of the tree visual (see part d of question 9) and the "importance" table are interesting. The importance table shows "an overall measure of variable importance is the sum of the goodness of split measures for each split for which it was the primary variable…"  (rpart documentation <https://cran.r-project.org/web/packages/rpart/rpart.pdf>)
 
 The importance table says that LoyalCH (brand loyalty to Citrus Hill) is by far the most "important" predictor of whether the sale is Minute Maid or Citrus Hill. This is also clear by the first node of the tree being whether LoyalCH >= 0.48. The CP table describe a root node error of 0.385. This node lowers the error rate to 47.7% of 38.5% == 18% (a significant reduction).
 
-The additional three splits (LoyalCH >= 0.7, PriceDiff >= 0.015, and StoreID >= 2.5) lower the error rate to 42% or 18% == **8%**. We have 800 training observations, so 64 of them are misclassified after cross-validation on the training data produces this decision tree.
+The additional three splits (LoyalCH >= 0.7, PriceDiff >= 0.015, and StoreID >= 2.5) lower the error rate to 42% of 38.5% == **16.4%**. We have 800 training observations, so 131 of them are incorrectly classified after cross-validation on the training data produces this decision tree.
 
 
 ## (c) Type in the name of the tree object ...
@@ -214,6 +156,7 @@ df.cv.cp = data.frame(tree.oj.cv.cp)
 df.cv.cp
 ```
 
+**This is the fully grown tree:**
 ```{r q9g-2}
 tree.oj.full = rpart::rpart(Purchase~., data=training_oj, method='class', parms=list(split='information'), control = rpart.control(xval=10, cp=-1))
 tree.oj.full.cp = printcp(tree.oj.full)
@@ -258,20 +201,21 @@ printcp(tree.oj.full)
 ```
 
 
-**Answer Q9i:** The training error rate was calculated to be **8% for the pruned tree** as shown in Q9b.
+**Answer Q9i:** The training error rate was calculated to be **16.4% for the pruned tree** as shown in Q9b.
 
 For the full tree, the root has an error rate of 0.385, then the error decreases as followed using the rel error column from the printcp(...) function:
 
+**TODO: Need to REDO**
 <ul>
 <li>1 split: 0.385 * 0.477 = 0.18</li>
-<li>4 splits: 0.18 * 0.425 = 0.0765</li>
-<li>6 splits: 0.0765 * 0.4 = 0.03</li>
-<li>14 splits: 0.03 * 0.33 = 0.0099</li>
-<li>17 splits: 0.0099 * 0.32 = 0.0032</li>
-<li>46 splits: 0.0032 * 0.32 = **0.001**</li>
+<li>4 splits: 0.385 * 0.425 = 0.164</li>
+<li>6 splits: 0.385 * 0.4 = 0.154</li>
+<li>14 splits: 0.385 * 0.33 = 0.127</li>
+<li>17 splits: 0.385 * 0.32 = 0.123</li>
+<li>46 splits: 0.385 * 0.32 = **0.123**</li>
 </ul>
 
-The training error is **much** smaller in the full tree.
+The training error is smaller in the fully grown tree.
 
 ## (k) Compare the test error rates between the pruned and unpruned trees. 
 Which is higher?
@@ -283,5 +227,5 @@ caret::confusionMatrix(preds_oj_full$Pred, oj[-train_oj,]$Purchase)
 ```
 **Answer Q9i:**
 
-Accuracy for the pruned tree on test data is 0.8 (error rate 0.2), while accuracy for the fully-grown tree on test data is 0.7963 (error rate 0.2037). While the accuracy isn't significantly greater, the tree is much simplier, easily explainable, and visualized.
+Accuracy for the pruned tree on test data is 0.8 (error rate 0.2), while accuracy for the fully-grown tree on test data is 0.7963 (error rate 0.2037). While the accuracy isn't significantly different between the pruned and fully-grown tree, the pruned tree is much simpler, easily explainable, and clearly visualized.
 

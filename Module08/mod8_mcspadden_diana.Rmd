@@ -1,0 +1,82 @@
+---
+title: "Module 8 HW McSpadden_Diana"
+author: "Diana McSpadden"
+date: "4/1/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Q7
+In the lab, we applied random forests to the Boston data using mtry=6 and using ntree=25 and ntree=500. Create a plot displaying the test error resulting from random forests on this data set for a more comprehensive range of values for mtry and ntree. You can model your plot after Figure 8.10. Describe the results obtained.
+
+```{r q7-setup, warning=FALSE}
+library(MASS)
+library(tree)
+library(tidyverse)
+library(partykit)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+library(randomForest)
+```
+
+Setup train and test observations
+```{r q7-1}
+
+boston <- MASS::Boston
+set.seed(1976)
+
+n = nrow(boston)
+
+
+train = sample(1: nrow(boston ), 406, replace = FALSE) # 406 training observations
+```
+
+The argument **mtry=13** indicates that all 13 predictors should be considered for each split of the tree. 
+
+I want to run for m = range(1:13).
+
+We change the number of trees grown by randomForest() using the **ntree** argument.
+
+I want to run with ntree in seq(from = 25, to = 500, by = 25)
+```{r q7-2, cache=TRUE}
+
+out_trees = tibble()
+
+for (m in c(1,2,3,4,5,6,7,8,9,10,11,12,13))
+{
+  for (nt in seq(from = 25, to = 500, by = 25))
+  {
+    set.seed(1976)
+    tree_model = randomForest(medv∼., data = boston, subset=train, mtry = m, ntree = nt)
+    preds = predict(tree_model, newdata = boston[-train,])
+    preds_err = mean((preds - boston[-train, ]$medv)^2)
+    
+    # save the tuning and errors
+    out_trees = bind_rows(out_trees, tibble(mtry = m, ntree = nt, err = preds_err))
+  }
+}
+```
+
+``` {r q7-3}
+# can save mtry as a factor and then the plot will color correctly
+out_trees %>% mutate(mtry = factor(mtry)) %>% filter(err == min(err))
+
+```
+
+**My minimum error randomForrest used mtry = 10 and ntree = 25.**
+
+
+Now I will create a plot:
+```{r q7-4}
+color_group = c("blue", "black", "yellow2", "red", "green", "purple", "red2", "blue3", "lightyellow3", "yellowgreen", "#00AFBB", "#E7B800", "#CC79A7")
+
+# add scale color arg that can change the label.
+out_trees %>% ggplot(aes(x = ntree, y = err, color=factor(mtry))) + geom_line() #+ geom_point(aes(colour = factor(mtry))) #
+
+
+```
+**Answer Q7:** One can see that the mtry = 1 performed poorly no matter the number of trees, and an mtry of 2 or 3 also performed noticably worse that greater mtry values, no matter the number of trees grown in the random forest. One can see that 10 predictors was the best balance of bias and variance when using this cross validation.
