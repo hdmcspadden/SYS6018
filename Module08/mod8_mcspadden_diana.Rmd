@@ -46,11 +46,11 @@ I want to run with ntree in seq(from = 25, to = 500, by = 25)
 
 out_trees = tibble()
 
-for (m in c(1,2,3,4,5,6,7,8,9,10,11,12,13))
+for (m in c(1,4,7,10,13))
 {
-  for (nt in seq(from = 25, to = 500, by = 25))
+  for (nt in seq(from = 1, to = 1000, by = 25))
   {
-    set.seed(1976)
+    set.seed(200)
     tree_model = randomForest(medv∼., data = boston, subset=train, mtry = m, ntree = nt)
     preds = predict(tree_model, newdata = boston[-train,])
     preds_err = mean((preds - boston[-train, ]$medv)^2)
@@ -67,16 +67,14 @@ out_trees %>% mutate(mtry = factor(mtry)) %>% filter(err == min(err))
 
 ```
 
-**My minimum error randomForrest used mtry = 10 and ntree = 25.**
+**My minimum error randomForrest used mtry = 10 and ntree = 26.**
 
 
 Now I will create a plot:
 ```{r q7-4}
-color_group = c("blue", "black", "yellow2", "red", "green", "purple", "red2", "blue3", "lightyellow3", "yellowgreen", "#00AFBB", "#E7B800", "#CC79A7")
 
-# add scale color arg that can change the label.
 out_trees %>% ggplot(aes(x = ntree, y = err, color=factor(mtry))) + geom_line() #+ geom_point(aes(colour = factor(mtry))) #
 
 
 ```
-**Answer Q7:** One can see that the mtry = 1 performed poorly no matter the number of trees, and an mtry of 2 or 3 also performed noticably worse that greater mtry values, no matter the number of trees grown in the random forest. One can see that 10 predictors was the best balance of bias and variance when using this cross validation.
+**Answer Q7:** One can see that the mtry = 1 performed poorly no matter the number of trees; it is expected that using/comparing single predictor at each split would not perform well. One can see that 10 predictors was the best balance of bias and variance when using random forests, and that 26 trees was adequate to produce the lowest error rate.
