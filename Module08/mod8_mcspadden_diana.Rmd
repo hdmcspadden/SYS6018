@@ -84,17 +84,173 @@ In the lab, a classification tree was applied to the Carseats data set after con
 
 ## (a) Split the data set into a training set and a test set.
 
+carseats has 400 observations. There are 10 predictor variables. This gives 40 observations per predictor without splitting.
+
+I belive this is a small number of observations per predictor, so I am going to set aside only 50 observations for testing.
+```{r q8a-1}
+library(ISLR)
+
+carseats = Carseats
+# make the right fields factors because it helps with plots and other functions down the road.
+carseats = carseats %>% mutate(ShelveLoc = factor(ShelveLoc), Urban = factor(Urban), US = factor(US))
+#head(carseats)
+```
+
+```{r q8a-2}
+# create training and test partitions
+set.seed(1980)
+train_inds = sample(1: nrow(carseats), 350, replace = FALSE) # 350 training observations
+training_carseats = carseats[train_inds,]
+testing_carseats = carseats[-train_inds,]
+
+```
+
 ## (b) Fit a regression tree to the training set. 
 Plot the tree, and interpret the results. What test MSE do you obtain?
+
+**Question Q8b Process:**<br />
+Here I will use the tree library for the initial regression tree:
+
+```{r q8b-1}
+library(tree)
+q8b_tree = tree(Sales~.,training_carseats)
+
+summary(q8b_tree)
+
+plot(q8b_tree)
+text(q8b_tree,pretty=0)
+```
+**Answer Q8b:** The tree created uses 7 predictors in the regression tree to predict Sales (in thousands), resulting in 16 terminal nodes. The 7 predictors are:
+<ol>
+<li>ShelveLoc</li>
+<li>Price</li>
+<li>CompPrice</li>
+<li>Income</li>
+<li>Advertising</li>
+<li>Age</li>
+<li>US</li>
+</ol>
+
+<br />
+The Residual mean deviance is **2.578** for this tree.
+
+<br />
+**With rpart:**<br />
+I will also try create the tree with teh rpart library, with input parameter cp=-1 which creates a fully-grown tree. I am also requesting no corss-validation (but I have had mixed results as to whether the xval=0 parameter works as described in documentation).
+```{r q8b-2}
+q8b_tree_full = rpart::rpart(Sales~., data=training_carseats, method='anova', parms=list(split='information'), xval=0)
+q8b_tree_full_cp = printcp(q8b_tree_full)
+df.cp = data.frame(q8b_tree_full_cp)
+df.cp
+```
+As you can see, the resulting tree is overly complex:
+
+```{r q8b-3m, fig-width=10, fig.height=8}
+#summary(q8b_tree_full)
+fancyRpartPlot(q8b_tree_full, caption = NULL)
+```
+
+
+
 
 ## (c) Use cross-validation ...
 in order to determine the optimal level of tree complexity. Does pruning the tree improve the test MSE?
 
+**First cross validation with base R**
+```{r q8c-1}
+cv.tree.carseats = cv.tree(q8b_tree)
+plot(cv.tree.carseats$size, cv.tree.carseats$dev, type='b')
+```
+ **Answer q8c:** Cross-validation results in 15 terminal nodes instead of 16 terminal nodes.
+
+```{r q8c-2}
+q8c_tree = rpart::rpart(Sales~., data=training_carseats, method='anova', xval=10)
+q8c_tree_cp = printcp(q8c_tree)
+df.cp.xval = data.frame(q8c_tree_cp)
+df.cp.xval
+
+fancyRpartPlot(q8c_tree, caption = NULL)
+```
+**Answer q8c:** The residual mean deviance is 7.75 * 0.32 = **2.48** which is less than 2.578 from the not cross-validated tree.
+
 ## (d) Use the bagging approach ...
 in order to analyze this data. What test MSE do you obtain? Use the importance() function to determine which variables are most important.
 
+**Q8d Process:** Bagging creates an essemble model with bagged observations, and testing a tree on it's out-of-bag observations. I will use the caret package for bagging.
+
+Bagging can be done where randomforest is set to the total number of predictors.
+In the carseats case, this is **10**.
+
+```{r q8d-1}
+set.seed(1976)
+
+bagging.carseats = caret::train(Sales~., data=carseats, method='rf', #because we are using caret, we aren't splitting into training and test
+                              importance=FALSE, ntree=500, 
+                              tuneGrid=data.frame(mtry=10), #set mtry to 10
+                 trControl=caret::trainControl("cv", number=5, savePredictions=TRUE, returnResamp='all'))
+
+# print the final model
+bagging.carseats$finalModel
+```
+**Using the importance function*:*
+```{r q8d-2}
+importance(bagging.carseats$finalModel)
+```
+**Answer Q8:** Bagging descreased the MSE even more to **2.28**.
+
+The three most important nodes are Price, ShelveLocGood, and CompPrice.
+
 ## (e) Use random forests to analyze this data. 
-What test MSE do you obtain? Use the importance() function to determine which variables aremost important. Describe the effect of m, the number of variables considered at each split, on the error rate obtained.
+What test MSE do you obtain? Use the importance() function to determine which variables are most important. Describe the effect of m, the number of variables considered at each split, on the error rate obtained.
+
+```{r q8e-1}
+out_trees_q8 = tibble()
+
+for (m in c(1, 4, 7, 9, 10))
+{
+  for (nt in seq(from = 1, to = 1000, by = 50))
+  {
+    set.seed(1976)
+    tree_model_q8 = randomForest(Sales∼., data = training_carseats, mtry = m, ntree = nt)
+    preds_q8 = predict(tree_model_q8, newdata = testing_carseats)
+    preds_err_q8 = mean((preds_q8 - testing_carseats$Sales)^2)
+    
+    # save the tuning and errors
+    out_trees_q8 = bind_rows(out_trees_q8, tibble(mtry = m, ntree = nt, err = preds_err_q8))
+  }
+}
+
+out_trees_q8 %>% mutate(mtry = factor(mtry)) %>% filter(err == min(err))
+
+out_trees_q8 %>% ggplot(aes(x = ntree, y = err, color=factor(mtry))) + geom_line()
+```
+**Viewing Importance**
+
+First, create the specific tree with the correct mtry and cp.
+
+```{r q8e-2}
+tree.carseats.e = randomForest(Sales∼., data = training_carseats, mtry = 9, ntree = 51)
+
+importance(tree.carseats.e)
+```
+
+
+
+By testing random forests with mtry = 1,4,7,9, and 10, the best performing model by MSE used mtry == **9** (9 of the 10 available predictors are used), where the best 9 predictors were: 
+
+<ol>
+<li>ShelveLoc</li>
+<li>Price</li>
+<li>CompPrice</li>
+<li>Age</li>
+<li>Advertising</li>
+<li>Income </li>
+<li>Education</li>
+<li>Population</li>
+<li>US</li>
+</ol>
+
+Urban is the predictor that is not used by the best random forest model.
 
 # Question 11
 This question uses the Caravan data set.
@@ -102,10 +258,183 @@ This question uses the Caravan data set.
 ## (a) Create a training set consisting of the first 1,000 observations,
 and a test set consisting of the remaining observations.
 
+**Q11 a Process:** I did as requested, but it seems odd to only train on the first 1000 observations when we have 5822 observations to use. I would have expected the training set to be the larger portion of the observations.
+
+```{r q11a-1}
+caravan = ISLR::Caravan
+
+caravan = caravan %>% mutate(Purchase = ifelse(Purchase == "Yes",1,0)) #%>% mutate(Purchase = factor(Purchase))
+#head(caravan)
+
+caravan_training = caravan[1:1000,]
+caravan_testing= caravan[1001:nrow(caravan),]
+
+#head(caravan_training)
+
+```
+
+
 ## (b) Fit a boosting model to the training set...
 with Purchase as the response and the other variables as predictors. Use 1,000 trees, and a shrinkage value of 0.01. Which predictors appear to be the most important?
 
+**Q11 b Process:** I am going to attempt to follow the eXtreme Gradient Boosting example video. It uses xgboost library.
+
+I don't know enough about the caravan dataset, and the R documentation isn't clear, about which predictors are factors with levels, which are one hot encoded, etc. I am going to leave the datast as is with numeric data types, except for Purchase which is a factor.
+```{r q11b-1}
+library(xgboost)
+library(magrittr)
+library(dplyr)
+library(Matrix)
+
+#str(caravan_training)
+```
+
+
 ## (c) Use the boosting model to predict the response on the test data.
-Predict that a person will make a purchase if the estimated probability of purchase is greater than 20 %. Form a confusion matrix. What fraction of the people predicted to make a purchase do in fact make one? How does this compare with the results
+Predict that a person will make a purchase if the estimated probability of purchase is greater than 20%. Form a confusion matrix. What fraction of the people predicted to make a purchase do in fact make one? How does this compare with the results
 obtained from applying KNN or logistic regression to this data set?
 
+**Fit KNN - need to find a good K for KNN:** Fit on training data, and test on the hold out data.
+```{r q11c-1, cache=TRUE}
+library(class)
+
+# prep the data for KNN
+# standardize the Caravan dataset
+standardized.X = scale(ISLR::Caravan[,-86]) # remove Purchase from the scaling.
+
+#create the KNN train and test data sets
+test = 1001:nrow(ISLR::Caravan) #first 1000 observations
+KNN.train.X = standardized.X[-test ,]
+KNN.test.X = standardized.X[test ,]
+KNN.train.Y = ISLR::Caravan$Purchase[-test]
+KNN.test.Y = ISLR::Caravan$Purchase[test]
+
+out_knn_q11 = tibble()
+
+# I tried a few values of knn, and 5 was the best balance of bias and variance (and matches the textbook's findings)
+for (knn in c(5))
+{
+  set.seed (1976)
+  knn_preds = knn(KNN.train.X, KNN.test.X, KNN.train.Y, k=knn)
+  knn_err = mean(KNN.test.Y != knn_preds)
+  
+  # save the mean mis-classified
+  out_knn_q11 = bind_rows(out_knn_q11, tibble(knn = knn, err = knn_err))
+  
+}
+
+out_knn_q11 = out_knn_q11 %>% mutate(knn = factor(knn)) 
+
+out_knn_q11 %>% filter(err == min(err))
+
+table(knn_preds, KNN.test.Y)
+
+```
+The TPR For KNN | k == 5 is 10 / 36 == **0.278**
+
+
+**Fit logistic Regression:** Fit on training data, and test on the hold out data. Per the textbook
+```{r q11c-2, warning=FALSE}
+
+# make the glm model
+q11.glm.model = glm(Purchase~., data=ISLR::Caravan, family="binomial", subset = -test)
+
+# make the predictions
+q11.glm.preds = predict(q11.glm.model, ISLR::Caravan[test,], type="response")
+
+# per the textbook a probability of 0.25 makes better predictions
+q11.gl.predictions = rep("No", 1000)
+q11.gl.predictions[q11.glm.preds > 0.25] = "Yes"
+# print the confusion matrix
+table(q11.gl.predictions, KNN.test.Y)
+
+```
+
+The glm model with p = 0.25 has a True Positive Rate of 45 / 298 == **0.15**
+
+**Now to try the xgboost method:** with 1,000 iterations/trees , and a shrinkage value of 0.01.
+```{r q11c-3}
+# create one-hot encoding for factor variables
+#caravan_testing = caravan[1:1000,]
+#caravan_training = caravan[1001:nrow(caravan),]
+
+trainm = sparse.model.matrix(Purchase~.-Purchase, data = caravan_training) # remove the 86th variable which is Purchase
+#head(trainm)
+train_label = caravan_training[,"Purchase"]
+train_matrix = xgb.DMatrix(data = as.matrix(trainm), label = train_label)
+
+
+testm = sparse.model.matrix(Purchase~.-Purchase, data = caravan_testing) # remove the 86th variable which is Purchase
+#head(trainm)
+test_label = caravan_testing[,"Purchase"]
+test_matrix = xgb.DMatrix(data = as.matrix(testm), label = test_label)
+
+# Parameters
+# number of classes
+nc = length(unique(train_label))
+
+#eta = the learning rate, set to 0.01, which is low ==  more robust to overfitting, slower to compute
+xgb_params = list("objective" = "multi:softprob", "eval_metric" = "mlogloss", "num_class" = nc, eta = 0.01) 
+
+# create a watchlist, so we evaluate the model (how much error at each iteration)
+watchlist = list(train = train_matrix, test = test_matrix)
+
+# try with eXtreme Gradient Boosting Model
+boost_model = xgb.train(params = xgb_params, data = train_matrix, nrounds = 1000, watchlist = watchlist, print_every_n = 25)
+```
+
+Here is the plot with training and test error. The model does over fit a little at iterations over 334 iterations for eta == 0.1.
+```{r q11c-4}
+e = data.frame(boost_model$evaluation_log)
+plot(e$iter, e$train_mlogloss)
+lines(e$iter, e$test_mlogloss, col='red')
+
+min(e$test_mlogloss)
+e[e$test_mlogloss == 0.222185,]
+
+```
+
+Now to check feature importance:
+```{r q11c-5, fig.height=8, fig.width=10}
+
+importance = xgb.importance(colnames(train_matrix), model = boost_model)
+importance
+
+xgb.plot.importance(importance)
+
+```
+By **Gain** PPERSAUT is the most important, followed by MOSTYPE, MBERMIDO, MGOGDE, and MINK3045.
+
+**Create Predictions And A Confusion Matrix**
+
+Below, p is the probability that the customer Purchased the insurance or didn't purchase the insurance.
+First Value == Didn't, Second Value == Did, etc etc.
+
+```{r q11c-6}
+p = predict(boost_model, newdata = test_matrix)
+#head(p)
+
+prod = matrix(p, nrow = nc, ncol = length(p)/nc) %>%
+  t() %>%
+  data.frame() %>%
+  mutate(label = test_label, max_prob = max.col(., "last")-1)
+
+head(prod)
+```
+
+And, the confusion matrix
+```{r q11c-7}
+table(Prediction = prod$max_prob, Actual = prod$label)
+```
+True Positive Rate for Test Data Using Boosting With p == 0.5  == 12 / 80 == **0.15**
+
+I tested a few different values for p and 0.65 worked the best of what I tested with the boosted model.
+
+```{r q11c-8}
+prod = prod %>% mutate(prob25 = ifelse(X2 >= 0.65,1,0))
+
+#caravan = caravan %>% mutate(Purchase = ifelse(Purchase == "Yes",1,0)) #%>% mutate(Purchase = factor(Purchase))
+
+table(Prediction = prod$prob25, Actual = prod$label)
+```
+True Positive Rate For Boosted Model with p = 0.65, learning rate == 0.1, and iterations == 1000 is : 10 / 49 == **0.2**
