@@ -145,7 +145,7 @@ df.cp
 ```
 As you can see, the resulting tree is overly complex:
 
-```{r q8b-3m, fig-width=10, fig.height=8}
+```{r q8b-3m, fig.width=10, fig.height=8}
 #summary(q8b_tree_full)
 fancyRpartPlot(q8b_tree_full, caption = NULL)
 ```
@@ -194,16 +194,29 @@ bagging.carseats$finalModel
 ```
 **Using the importance function*:*
 ```{r q8d-2}
-importance(bagging.carseats$finalModel)
+as.data.frame(randomForest::importance(bagging.carseats$finalModel)) %>% arrange(IncNodePurity)
 ```
 **Answer Q8:** Bagging descreased the MSE even more to **2.28**.
 
-The three most important nodes are Price, ShelveLocGood, and CompPrice.
+The predictors listed from most to least importance are:
+<ol>
+<li>Price</li>
+<li>ShelveLoc Is Good</li>
+<li>CompPrice</li>
+<li>Age</li>
+<li>Advertising</li>
+<li>Income </li>
+<li>ShelveLoc Is Medium</li>
+<li>Population</li>
+<li>Education</li>
+<li>US Is Yes</li>
+<li>Urban Is Yes</li>
+</ol>
 
 ## (e) Use random forests to analyze this data. 
 What test MSE do you obtain? Use the importance() function to determine which variables are most important. Describe the effect of m, the number of variables considered at each split, on the error rate obtained.
 
-```{r q8e-1}
+```{r q8e-1, cache=TRUE}
 out_trees_q8 = tibble()
 
 for (m in c(1, 4, 7, 9, 10))
@@ -228,10 +241,10 @@ out_trees_q8 %>% ggplot(aes(x = ntree, y = err, color=factor(mtry))) + geom_line
 
 First, create the specific tree with the correct mtry and cp.
 
-```{r q8e-2}
+```{r q8e-2, cache=TRUE}
 tree.carseats.e = randomForest(Sales∼., data = training_carseats, mtry = 9, ntree = 51)
 
-importance(tree.carseats.e)
+as.data.frame(randomForest::importance(tree.carseats.e)) %>% arrange(IncNodePurity)
 ```
 
 
@@ -241,16 +254,17 @@ By testing random forests with mtry = 1,4,7,9, and 10, the best performing model
 <ol>
 <li>ShelveLoc</li>
 <li>Price</li>
-<li>CompPrice</li>
 <li>Age</li>
+<li>CompPrice</li>
 <li>Advertising</li>
 <li>Income </li>
-<li>Education</li>
 <li>Population</li>
+<li>Education</li>
+<li>Urban</li>
 <li>US</li>
 </ol>
 
-Urban is the predictor that is not used by the best random forest model.
+US is the predictor that will not used by the selected random forest model.
 
 # Question 11
 This question uses the Caravan data set.
@@ -333,7 +347,7 @@ table(knn_preds, KNN.test.Y)
 The TPR For KNN | k == 5 is 10 / 36 == **0.278**
 
 
-**Fit logistic Regression:** Fit on training data, and test on the hold out data. Per the textbook
+**Fit logistic Regression:** Fit on training data, and test on the hold out data. Per the textbook a p of 0.25 is the threshold to use:
 ```{r q11c-2, warning=FALSE}
 
 # make the glm model
@@ -426,15 +440,31 @@ And, the confusion matrix
 ```{r q11c-7}
 table(Prediction = prod$max_prob, Actual = prod$label)
 ```
-True Positive Rate for Test Data Using Boosting With p == 0.5  == 12 / 80 == **0.15**
+True Positive Rate for Test Data Using Boosting With a threshold of 0.5  is 12 / 80 == **0.15** (the same as the glm model with threshold of 0.25).
 
-I tested a few different values for p and 0.65 worked the best of what I tested with the boosted model.
+But what happens when we use the threshold requested by the textbook, p == 0.2, on the boosted model.
+
 
 ```{r q11c-8}
-prod = prod %>% mutate(prob25 = ifelse(X2 >= 0.65,1,0))
+prod = prod %>% mutate(prob25 = ifelse(X2 >= 0.2,1,0))
 
 #caravan = caravan %>% mutate(Purchase = ifelse(Purchase == "Yes",1,0)) #%>% mutate(Purchase = factor(Purchase))
 
 table(Prediction = prod$prob25, Actual = prod$label)
 ```
-True Positive Rate For Boosted Model with p = 0.65, learning rate == 0.1, and iterations == 1000 is : 10 / 49 == **0.2**
+True Positive Rate For Boosted Model with p = 0.2, learning rate == 0.1, and iterations == 1000 is : 24 / 193 == **0.124**, the TPR is not better than the glm model; however, 24 true purchasers were identified.
+
+However, I tested several threshold values and the best was:
+
+```{r}
+for (thres in c(.1,.2,.3,.4,.6,.8,.9))
+{
+  prod = prod %>% mutate(prob25 = ifelse(X2 >= thres,1,0))
+  df.prod = as.data.frame(table(Prediction = prod$prob25, Actual = prod$label))
+  truepositive = df.prod[4,3]
+  falsepositive = df.prod[2,3]
+  tpr = truepositive / (truepositive + falsepositive)
+  print(paste('For threshold = ', thres, ' TPR = ', tpr, '(TP: ', truepositive, 'FP: ', falsepositive,')'))
+}
+```
+A threshold of 0.9 provides a better TPR, BUT only identifies 2 true positives, and 4 false positives which is not all that useful. The threshold where the most purchasers were identified is a p of 0.1, with a TPR of 0.12.

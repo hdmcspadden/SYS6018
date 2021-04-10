@@ -818,8 +818,8 @@ set.seed(1976)
 knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid = expand.grid(k = 17:35))
 knn.cv.model
 ```
-
-```{r knnTry27-51, warning=FALSE, cache=TRUE}
+I order to speed up this Rmd file I am no longer evaluating the following code chunk that evaluated k = 27 - 51. When this chunk is run, the best k was still 27.
+```{r knnTry27-51, warning=FALSE, cache=TRUE, eval=FALSE}
 set.seed(1976)
 
 knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid   = expand.grid(k = 27:51))
@@ -1176,7 +1176,83 @@ Using logistic regression with a threshold = 0.2 and the model selected by lasso
 
 It was interesting that this model performed slightly better on Precision, and FPR, but not as well based on other measures as the logistic regression model Red + Green + Blue + RBSqr + GBSqr.
 
-<!--**NOTE: PART II same as above plus add Random Forest and SVM to Model Training.**-->
+## Random Forest
+
+For the Random Forrest I want to include several new predictors using combinations of Red, Blue, and Green:
+<ul>
+<li>**Red**</li>
+<li>**Blue**</li>
+<li>**Green**</li>
+<li>**RBSqr** = (Red + Blue)^2</li>
+<li>**GBSqr** = (Green + Blue)^2</li>
+<li>**RGSqr** = (Red + Green)^2</li>
+<li>**RGBSqr** = (Red + Blue + Green)^2</li>
+<li>**RG** = (Red * Green)</li>
+<li>**RB** = (Red * Blue)</li>
+<li>**GB** = (Green * Blue)</li>
+</ul>
+
+```{r rf-setup}
+haitiBinaryRF = haitiBinarySqrs %>%
+  mutate(RGSqr = I(((Red + Green)^2)),  RGBSqr = I(((Red + Green + Blue)^2)), RG = (Red * Green), RB = (Red * Blue), GB = (Green * Blue)) 
+
+head(haitiBinaryRF)
+```
+
+The first random forest tuning parameter I will test for is number of trees and mtry. I will test ntree values by cross validation.
+
+```{r rf-numtrees, cache=TRUE}
+control = trainControl(method = 'repeatedcv', number = 10, repeats = 3, search = 'grid')
+
+# possible mtry values
+tunegrid = expand.grid(.mtry = c(3,4,5,6,7,8,9,10))
+modellist = list()
+
+#train with different ntree parameters
+for (ntree in c(250,500,1000)){
+  set.seed(123)
+  rf.fit = train(ClassBinary~Red+Blue+Green+GBSqr+RBSqr+RGSqr+RGBSqr+RG+RB+GB,
+               data = haitiBinaryRF,
+               method = 'rf',
+               metric = 'Accuracy',
+               tuneGrid = tunegrid,
+               trControl = control,
+               ntree = ntree)
+
+  modellist[[toString(ntree)]] = rf.fit
+}
+
+# look at the results of the cross validation with different ntree and mtry values
+results = resamples(modellist)
+summary(results)
+```
+```{r}
+rf.fit$bestTune
+```
+```{r}
+summary(rf.fit$finalModel$ntree)
+```
+
+```{r}
+as.data.frame(rf.fit$finalModel$importance) %>% arrange(MeanDecreaseGini)
+```
+
+Random forest cross validation selected 1000 trees, with 4 predictors: 
+<ol>
+<li>Blue</li>
+<li>Read</li>
+<li>GB = (Green * Blue)</li>
+<li>RG = (Red * Blue)</li>
+</ol>
+
+Next, I need to test for the best probability threshold using the tuned tree:
+
+```{r rf-checkThreshold}
+
+```
+
+
+## SVM
 
 # Results (Cross-Validation)
 

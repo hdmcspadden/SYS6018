@@ -134,6 +134,9 @@ ggparty::ggparty(tree.carseats.party) +
 ```
 
 ```{r DT_3}
+
+library(randomForest)
+
 set.seed(2)
 #train=sample(1:nrow(Carseats), 200)
 #Carseats.test=Carseats[-train,]
@@ -145,7 +148,7 @@ set.seed(2)
 
 carseats.tree_fits <- caret::train(High~.-Sales, data=carseats, 
                                    method='rpart', tuneLength=30,
-                      trControl=caret::trainControl("cv", number=5,
+                      trControl=caret::trainControl("repeatedcv", number=5,
                                                     returnResamp='all',
                                                     savePredictions=TRUE,
                                                     classProbs=TRUE))
