@@ -952,7 +952,7 @@ y.haitiFull.train = (haitiBinaryFull %>% mutate(ClassBinary = ifelse(ClassBinary
 
 Using penalized logistic regression (PLR), I evaluated three different PLR methods: ridge, lasso, and elasticnet (a combination of ridge and lasso). I tuned both lambda and the probability threshold (p). Based on best testing of the threshold tuning parameter, I considered p values of .5, .6, .7, .75, .8, .85, .9, and .95.
 
-```{r glmnetCrossVal}
+```{r glmnetCrossVal, cache=TRUE}
 library(glmnet)
 
 set.seed(1976)
@@ -1038,7 +1038,7 @@ ggplot(perf, aes(log(lambda), mean_acc)) +
 From the manual cross-validation testing of accuracy the PLR lasso method with lambda of 5.630136e-05 and a threshold of 0.2 produced the greatest mean accuracy: 0.996.
 
 
-```{r}
+```{r lassoBest}
 
 out_confusion = tibble()
 
@@ -1094,10 +1094,7 @@ out_confusion %>%
 ```
 
 ```{r glmnetAUC}
-
-
 assess.glmnet(pred, newy = y.haitiFull.train[ind.test], family="binomial")
-
 ```
 **AUC** for the lasso PLR model with a lambda of 0.00005630136 is 0.9996.
 
@@ -1148,7 +1145,7 @@ for(i in 1:10) {
 caret::confusionMatrix(out_lr.full$prediction, out_lr.full$truth)
 
 ##produce the numbers associated with classification table
-rates.full = prediction(out_lr.full$fitted, out_lr.full$truth)
+rates.full = ROCR::prediction(out_lr.full$fitted, out_lr.full$truth)
 
 ##store the true positive and false postive rates
 roc_result.full = performance(rates.full, measure="tpr", x.measure="fpr")
@@ -1201,7 +1198,7 @@ head(haitiBinaryRF)
 
 The first random forest tuning parameter I will test for is number of trees and mtry. I will test ntree values by cross validation.
 
-```{r rf-numtrees, cache=TRUE}
+```{r rf-numtrees, cache=TRUE, eval=FALSE}
 control = trainControl(method = 'repeatedcv', number = 10, repeats = 3, search = 'grid')
 
 # possible mtry values
@@ -1226,16 +1223,25 @@ for (ntree in c(250,500,1000)){
 results = resamples(modellist)
 summary(results)
 ```
-```{r}
+```{r eval=FALSE}
 rf.fit$bestTune
 ```
-```{r}
+```{r eval=FALSE}
 summary(rf.fit$finalModel$ntree)
 ```
 
-```{r}
+```{r, eval=FALSE}
 as.data.frame(rf.fit$finalModel$importance) %>% arrange(MeanDecreaseGini)
 ```
+
+**The above code took such a long time to run, I am not longer evaluating in my Rmd. Here are screen shots of the output to support my further evaluation of the selected random forest model:**
+
+![RF Tuning Reuslts](RFTuning.JPG)
+
+![RF MTRY Reuslts](RF_MTRY_RESULT.JPG)
+
+![RF Importance Results](RF_ImportanceResult.JPG)
+
 
 Random forest cross validation selected 1000 trees, with 4 predictors: 
 <ol>
@@ -1245,10 +1251,145 @@ Random forest cross validation selected 1000 trees, with 4 predictors:
 <li>RG = (Red * Blue)</li>
 </ol>
 
-Next, I need to test for the best probability threshold using the tuned tree:
 
-```{r rf-checkThreshold}
+Next, I need to test for the best probability threshold using the tuned tree with number of predictors considered at each split == 4, and number of trees =  1000. I will use accuracy for selecting the best p value.
 
+```{r rf-checkThreshold-setup, cache=TRUE}
+# need to write own cross validation and use randomforest library
+library(randomForest)
+
+set.seed(123)
+#Randomly shuffle the data
+haitiRFShuffled = haitiBinaryRF[sample(nrow(haitiBinarySqrs)),]
+
+#Create 10 equally size folds
+folds <- cut(seq(1,nrow(haitiRFShuffled)),breaks=10,labels=FALSE)
+
+head(haitiRFShuffled)
+```
+
+```{r rf-checkThreshold, cache=TRUE}
+
+# create storage variables for the p value, Accuracy, ROC, Specificity, and Sensitivity
+all_out_yhat_ytrue = tibble()
+out_yhat_ytrue = tibble()
+out_rf = tibble()
+
+
+for (j in c(.2,.3,.4,.5,.6,.7,.8,.9))
+{ 
+  
+  # reset the fold accumulator tibble
+  out_yhat_ytrue = tibble()
+
+  #Perform 10 fold cross validation
+  for(i in 1:10) {
+    
+      #Segment data by fold using the which() function 
+      testIndexes = which(folds==i,arr.ind=TRUE)
+      testData = haitiRFShuffled[testIndexes, ]
+      trainingData = haitiRFShuffled[-testIndexes, ]
+      
+      #small training and test sets
+      # comment this out to get real values
+      #testData = testData[1:100,]
+      #trainingData= head(trainingData, 500)
+      #end of small training and test sets
+
+      # training
+      rf.haiti = randomForest(ClassBinary~Red+Blue+Green+GBSqr+RBSqr+RGSqr+RGBSqr+RG+RB+GB, data = trainingData, mtry=4, ntree=1000)
+      # test
+      rf.preds = predict(rf.haiti, newdata = testData, type="prob")
+      
+      #- evaluate fold
+      y_true = testData %>% mutate(ClassBinary = (ClassBinary == "Yes"), Class0or1 = ifelse(ClassBinary == FALSE,0,1))
+      y_true_val = y_true$ClassBinary
+      
+      #y_true
+      
+      # set the threshold to p
+      y_hat = rf.preds[,2] > j
+      #y_hat
+      
+      #- output
+      out_yhat_ytrue = bind_rows(out_yhat_ytrue, 
+                tibble(thres = j, true = y_true_val, hat = y_hat, truth0or1 = y_true$Class0or1, X0 = rf.preds[,1], X1 = rf.preds[,2]))
+      
+      all_out_yhat_ytrue = bind_rows(all_out_yhat_ytrue,
+                tibble(thres = j, true = y_true_val, hat = y_hat))
+      
+  }
+  
+  acc = sum(out_yhat_ytrue$hat == out_yhat_ytrue$true) / nrow(out_yhat_ytrue)
+  
+  out_rf = bind_rows(out_rf, 
+          tibble(accuracy = acc, thres = j))
+}
+```
+
+```{r rfThresholdResults}
+out_rf
+
+```
+Random forest cross validation with:
+<ul>
+<li>ntree = 1000</li>
+<li>mtry = 4</li>
+<li>threshold = 0.6</li>
+</ul>
+
+These tuning parameters produced the best accuracy.
+
+Next, I produce the confusion matrix and ROC curve
+```{r rfConfMatrix, cache=TRUE}
+# filter only the true and hat values where thres == 0.3
+best_rf_df = all_out_yhat_ytrue %>% 
+  mutate(factortrue = factor(true), factorhat = factor(hat)) %>% 
+  filter(thres == 0.6)
+head(best_rf_df)
+
+caret::confusionMatrix(best_rf_df$factorhat, best_rf_df$factortrue)
+
+```
+
+#### TO DO: STILL NEED RF AUC
+```{r}
+demo(ROCR)
+help(package=ROCR)
+```
+
+
+```{r}
+pred <- ROCR::prediction(predictions, labels)
+perf <- ROCR::performance(pred, measure = "tpr", x.measure = "fpr")
+plot(perf, col=rainbow(10))
+```
+
+
+
+```{r rfROC, cache=TRUE}
+#?ROCR::prediction
+par(mfrow=c(1,2))
+
+roc_pred = ROCR::prediction(out_yhat_ytrue$X1, out_yhat_ytrue$truth0or1)
+roc_perf = ROCR::performance(roc_pred, "tpr", "fpr")
+plot(roc_perf, max = "threshold", colorize=TRUE, lwd= 3)
+
+plot(roc_perf, avg= "vertical", spread.estimate="boxplot", lwd=2,col='blue',
+      show.spread.at= seq(0.1, 0.9, by=0.1),
+      main= "Accuracy across cutoffs")
+
+auc = ROCR::performance(roc_pred, measure = "auc")
+auc = auc@y.values[[1]]
+auc
+
+#plot(performance(pred, "cal", window.size= 10),
+#      avg="vertical",
+#      main= "How well are the probability predictions calibrated?")
+
+#plot(0,0,type="n", xlim= c(0,1), ylim=c(0,7),
+#      xlab="Cutoff", ylab="Density",
+#      main="How well do the predictions separate the classes?")
 ```
 
 
@@ -1325,13 +1466,13 @@ Next, I need to test for the best probability threshold using the tuned tree:
 
 <tr>
   <td>Random Forest</td>
-  <td><!-- Random Forest Tuning --> </td>
-  <td><!-- Random Forest AUROC --></td>
-  <td><!-- Random Forest Threshold --></td>
-  <td><!-- Random Forest Accuracy --></td>
-  <td><!-- Random Forest TPR --></td>
-  <td><!-- Random Forest FPR --></td>
-  <td><!-- Random Forest Precision --></td>
+  <td><!-- Random Forest Tuning -->mtry = 4, ntree = 1000</td>
+  <td><!-- Random Forest AUROC -->0.994</td>
+  <td><!-- Random Forest Threshold -->0.6</td>
+  <td><!-- Random Forest Accuracy -->0.997</td>
+  <td><!-- Random Forest TPR -->0.932</td>
+  <td><!-- Random Forest FPR -->0.0009</td>
+  <td><!-- Random Forest Precision -->0.9706</td>
 </tr>
 
 <tr>
@@ -1417,18 +1558,7 @@ The penalty ($\lambda$) that performed the best using elasticnet penalized regre
 
 I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to calculate locations where the most blue tarps will be found to able to help the most people; however, there may not be a 1:1 relationship between number of tarps and number of people, so resource allocation becomes even trickier. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. And, demographic information regarding population density, and members-per-household would be of priceless value. Additionally, GIS information for pre-earthquake roads, and other geographic features would be useful.
 
-# References
-<ul>
-<li>3D Scatter Plots in Python: <https://plotly.com/python/3d-scatter-plots/></li>
-<li>Axes Labels in R: <https://plotly.com/r/figure-labels/></li>
-<li>caret::trainControl: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/trainControl></li>
-<li>Predictive Modeling with R and the caret Package: <http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf></li>
-<li>caret::train: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/train></li>
-<li>MLeval::evalm: <https://www.rdocumentation.org/packages/MLeval/versions/0.3/topics/evalm></li>
-<li>MLeval: <https://cran.r-project.org/web/packages/MLeval/vignettes/introduction.pdf></li>
-<li>Caret Model Training and Tuning: <https://topepo.github.io/caret/model-training-and-tuning.html></li>
-<li>Random Hyperparameter Search: <https://topepo.github.io/caret/random-hyperparameter-search.html></li>
-</ul>
+
 ```{r, echo=FALSE}
 knitr::knit_exit()    # ignore everything after this
 ## Uncomment this line for Part I
@@ -1550,3 +1680,16 @@ Load data, explore data, etc.
 
 ### Conclusion \#6
 
+# References
+<ul>
+<li>3D Scatter Plots in Python: <https://plotly.com/python/3d-scatter-plots/></li>
+<li>Axes Labels in R: <https://plotly.com/r/figure-labels/></li>
+<li>caret::trainControl: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/trainControl></li>
+<li>Predictive Modeling with R and the caret Package: <http://www.edii.uclm.es/~useR-2013/Tutorials/kuhn/user_caret_2up.pdf></li>
+<li>caret::train: <https://www.rdocumentation.org/packages/caret/versions/6.0-86/topics/train></li>
+<li>MLeval::evalm: <https://www.rdocumentation.org/packages/MLeval/versions/0.3/topics/evalm></li>
+<li>MLeval: <https://cran.r-project.org/web/packages/MLeval/vignettes/introduction.pdf></li>
+<li>Caret Model Training and Tuning: <https://topepo.github.io/caret/model-training-and-tuning.html></li>
+<li>Random Hyperparameter Search: <https://topepo.github.io/caret/random-hyperparameter-search.html></li
+<li>randomforest cross validation: <https://www.rdocumentation.org/packages/rfUtilities/versions/2.1-5/topics/rf.crossValidation></li>
+</ul>
