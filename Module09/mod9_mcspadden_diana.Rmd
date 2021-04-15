@@ -1,0 +1,220 @@
+---
+title: "mod9_mcspadden_diana"
+author: "Diana McSpadden"
+date: "4/13/2021"
+output: html_document
+---
+
+# Module 9 Homework
+## H. Diana McSpadden (hdm5s)
+
+# Question 7 
+In this problem, you will use support vector approaches in order to predict whether a given car gets high or low gas mileage based on the Auto data set.
+
+```{r q7-setup}
+library(ISLR)
+library(tidyverse)
+```
+
+```{r q7-setup2}
+auto = ISLR::Auto
+
+head(auto)
+```
+
+
+## (a) Create a binary variable ...
+that takes on a 1 for cars with gas mileage above the median, and a 0 for cars with gas mileage below the median.
+
+**First:** I remove the name and the mpg columns.
+```{r q7a-1}
+#print(median(auto$mpg))
+auto = auto %>% mutate(aboveMedian = ifelse(mpg > median(mpg), 1, 0) %>% factor()) %>% select(-name) %>% select(-mpg)
+
+head(auto)
+```
+
+
+## (b) Fit a support vector classifier to the data ...
+with various values of cost, in order to predict whether a car gets high or low gas mileage. Report the cross-validation errors associated with different values of this parameter. Comment on your results.
+
+```{r q7b-setup}
+library(e1071)
+```
+
+A linear kernel == a support vector classifier.
+
+```{r q7b-1, cache=TRUE}
+set.seed(1976)
+
+svm_tuned = tune(svm, aboveMedian~., data=auto, kernel="linear", ranges=list(cost=c(0.001, 0.01, 0.1, 1)))
+
+summary(svm_tuned)
+```
+
+**Answer Q7b**: The best cost was 1, with an error rate of ~0.087.
+
+## (c) Now repeat (b), this time using SVMs with radial and polynomial basis kernels, 
+with different values of gamma and degree and cost. Comment on your results.
+
+First, I will try the radial models with different combinations of cost and gamma:
+```{r q7c-1, cache=TRUE}
+set.seed(1976)
+
+svm_multi_tuned = tune(svm, aboveMedian~., data=auto, kernel="radial", ranges=list(cost=c(0.1,1,10,100),gamma=c(0.1,0.5,1,2)))
+
+summary(svm_multi_tuned)
+
+
+```
+The best performing radial model had cost == 1, and gamma == 1, with an error rate of ~0.077.
+
+```{r q7c-2, warning=FALSE, cache=TRUE}
+set.seed(1976)
+
+svm_poly_tuned = tune(svm, aboveMedian~., data=auto, kernel="polynomial", ranges=list(cost=c(0.1,1,10),gamma=c(0.5,1), degree=c(3,4)))
+
+summary(svm_poly_tuned)
+```
+The best performing polynomial model had cost == 0.1, gamma == 1, degree of 3, with an error rate of ~0.082.
+
+**Comments Q7c:** The radial model performed better than the polynomial model, leading me to believe that the relationship of the training data is NOT best represented with a linear or polynomial model, but needs the bell shaped curve of a radial model.
+
+## (d) Make some plots to back up your assertions in (b) and (c).
+Hint: In the lab, we used the plot() function for svm objects only in cases with p = 2. When p > 2, you can use the plot() function to create plots displaying pairs of variables at a time. Essentially, instead of typing
+
+plot(svmfit , dat)
+
+where svmfit contains your fitted model and dat is a data frame containing your data, you can type
+
+plot(svmfit , dat , x1∼x4)
+
+in order to plot just the first and fourth variables. However, you must replace x1 and x4 with the correct variable names. To find out more, type ?plot.svm.
+
+
+```{r q7d-1}
+?plot.svm
+
+head(auto)
+
+best_svm_model = svm(aboveMedian~., data=auto, type="C-classification", kernel="radial", cost=1, gamma=1)
+
+par(mfrow=c(1,1))
+#detach(auto)
+plot(best_svm_model, auto, weight ~ horsepower, 
+     slice = list(cylinders = median(auto$cylinders), displacement = median(auto$displacement), acceleration = median(auto$acceleration), year = mode(auto$year), origin = mode(auto$origin)))
+
+
+```
+```{r}
+## more than two variables: fix 2 dimensions
+data(iris)
+head(iris)
+m2 <- svm(Species~., data = iris)
+plot(m2, iris, Petal.Width ~ Petal.Length,
+     slice = list(Sepal.Width = 3, Sepal.Length = 4))
+
+
+```
+
+
+# QUestion 8
+This problem involves the OJ data set which is part of the ISLR package.
+
+## (a) Create a training set containing a random sample ...
+of 800 observations, and a test set containing the remaining observations.
+
+```{r q8a-1}
+
+oj = ISLR::OJ
+
+oj = oj %>% mutate(Purchase = factor(Purchase), StoreID = factor(StoreID), SpecialCH = factor(SpecialCH), SpecialMM = factor(SpecialMM), Store7 = factor(Store7), STORE = factor(STORE))
+
+head(oj)
+
+dim(oj)
+```
+```{r q8a-2}
+set.seed(1976)
+train = sample(nrow(oj), 870)
+
+oj_train = oj[train,]
+oj_test = oj[-train,]
+
+```
+
+
+## (b) Fit a support vector classifier ...
+to the training data using cost=0.01, with Purchase as the response and the other variables as predictors. Use the summary() function to produce summary statistics, and describe the results obtained.
+```{r q8b-1}
+set.seed(1976)
+
+q8b_svm = svm(Purchase~., data=oj_train, kernel="linear", cost=c(0.01))
+
+summary(q8b_svm)
+
+```
+
+With what seems a relatively small cost (0.01), with a linear kernel, 468 observations of the 870 observations are support vectors. This seems high. 
+
+
+## (c) What are the training and test error rates?
+
+```{r q8c-1}
+q8b_tuned_svm = tune(svm, Purchase~., data=oj_train, kernel="linear", ranges=list(cost=c(0.01)))
+
+summary(q8b_tuned_svm)
+
+pred = predict(q8b_tuned_svm$best.model, newdata = oj_test)
+
+length(pred)
+
+table(true = oj_test$Purchase, pred)
+```
+The cross validation error on the training data is **0.175**.
+
+The error rate of the test data is: ((24 + 11) / 200) == **0.175**
+
+
+## (d) Use the tune() function ...
+to select an optimal cost. Consider values in the range 0.01 to 10.
+
+```{r q8d-1}
+
+q8d_tuned_svm = tune(svm, Purchase~., data=oj_train, kernel="linear", ranges=list(cost=c(0.01,0.1,1,10)))
+
+summary(q8d_tuned_svm)
+
+```
+
+**Answer Q8d:** The optimal cost with cross validation is **10**.
+
+## (e) Compute the training and test error rates using this new value for cost.
+
+```{r}
+q8e_tuned_svm = tune(svm, Purchase~., data=oj_train, kernel="linear", ranges=list(cost=c(0.01,0.1,1,10)))
+
+summary(q8e_tuned_svm)
+
+pred = predict(q8e_tuned_svm$best.model, newdata = oj_test)
+
+length(pred)
+
+table(true = oj_test$Purchase, pred)
+```
+**Answer Q8 e:** 
+
+The best cost **training** error rate is **0.171**.
+
+The test error rate using Cost = 10 is (23 + 12) / 200 == **0.175** - the same as the test error rate with cost == 0.01.
+
+## (f) Repeat parts (b) through (e) using a support vector machine with a radial kernel. Use the default value for gamma.
+
+
+## (g) Repeat parts (b) through (e) using a support vector machine ...
+with a polynomial kernel. Set degree=2.
+
+
+## (h) Overall, which approach ...
+seems to give the best results on this data?
+

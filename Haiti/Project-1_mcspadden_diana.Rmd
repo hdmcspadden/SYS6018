@@ -1238,9 +1238,12 @@ as.data.frame(rf.fit$finalModel$importance) %>% arrange(MeanDecreaseGini)
 
 ![RF Tuning Reuslts](RFTuning.JPG)
 
+
 ![RF MTRY Reuslts](RF_MTRY_RESULT.JPG)
 
+
 ![RF Importance Results](RF_ImportanceResult.JPG)
+
 
 
 Random forest cross validation selected 1000 trees, with 4 predictors: 
@@ -1352,13 +1355,6 @@ caret::confusionMatrix(best_rf_df$factorhat, best_rf_df$factortrue)
 
 ```
 
-#### TO DO: STILL NEED RF AUC
-```{r}
-demo(ROCR)
-help(package=ROCR)
-```
-
-
 ```{r}
 pred <- ROCR::prediction(predictions, labels)
 perf <- ROCR::performance(pred, measure = "tpr", x.measure = "fpr")
@@ -1367,7 +1363,7 @@ plot(perf, col=rainbow(10))
 
 
 
-```{r rfROC, cache=TRUE}
+```{r rfROC, cache=TRUE, fig.width=10}
 #?ROCR::prediction
 par(mfrow=c(1,2))
 
@@ -1391,7 +1387,6 @@ auc
 #      xlab="Cutoff", ylab="Density",
 #      main="How well do the predictions separate the classes?")
 ```
-
 
 ## SVM
 
@@ -1446,7 +1441,7 @@ auc
   <td>KNN</td>
   <td><!-- KNN Tuning --> k = 27</td>
   <td><!-- KNN AUROC -->1.0</td>
-  <td><!-- KNN Threshold -->N/A</td>
+  <td><!-- KNN Threshold -->0.5</td>
   <td><!-- KNN Accuracy -->0.997</td>
   <td><!-- KNN TPR -->0.998</td>
   <td><!-- KNN FPR -->0.0313</td>
