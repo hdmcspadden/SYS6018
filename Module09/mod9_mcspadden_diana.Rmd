@@ -161,6 +161,8 @@ With what seems a relatively small cost (0.01), with a linear kernel, 468 observ
 ## (c) What are the training and test error rates?
 
 ```{r q8c-1}
+set.seed(1976)
+
 q8b_tuned_svm = tune(svm, Purchase~., data=oj_train, kernel="linear", ranges=list(cost=c(0.01)))
 
 summary(q8b_tuned_svm)
@@ -171,7 +173,7 @@ length(pred)
 
 table(true = oj_test$Purchase, pred)
 ```
-The cross validation error on the training data is **0.175**.
+The cross validation error on the training data is **0.1747**.
 
 The error rate of the test data is: ((24 + 11) / 200) == **0.175**
 
@@ -181,6 +183,7 @@ to select an optimal cost. Consider values in the range 0.01 to 10.
 
 ```{r q8d-1}
 
+set.seed(1976)
 q8d_tuned_svm = tune(svm, Purchase~., data=oj_train, kernel="linear", ranges=list(cost=c(0.01,0.1,1,10)))
 
 summary(q8d_tuned_svm)
@@ -192,6 +195,7 @@ summary(q8d_tuned_svm)
 ## (e) Compute the training and test error rates using this new value for cost.
 
 ```{r}
+set.seed(1976)
 q8e_tuned_svm = tune(svm, Purchase~., data=oj_train, kernel="linear", ranges=list(cost=c(0.01,0.1,1,10)))
 
 summary(q8e_tuned_svm)
@@ -204,17 +208,80 @@ table(true = oj_test$Purchase, pred)
 ```
 **Answer Q8 e:** 
 
-The best cost **training** error rate is **0.171**.
+The best cost **training** error rate is **0.168**.
 
-The test error rate using Cost = 10 is (23 + 12) / 200 == **0.175** - the same as the test error rate with cost == 0.01.
+The **test** error rate using Cost = 10 is (23 + 12) / 200 == **0.175** - the same as the test error rate with cost == 0.01.
 
 ## (f) Repeat parts (b) through (e) using a support vector machine with a radial kernel. Use the default value for gamma.
 
+```{r q8f-1}
+print("Cost == 0.01")
+set.seed(1976)
+q8f_tuned_svm_01 = tune(svm, Purchase~., data=oj_train, kernel="radial", ranges=list(cost=c(0.01)))
+summary(q8f_tuned_svm_01)
+pred = predict(q8f_tuned_svm_01$best.model, newdata = oj_test)
+length(pred)
+table(true = oj_test$Purchase, pred)
+
+print("Tuning COsts")
+set.seed(1976)
+q8f_tuned_svm_costs = tune(svm, Purchase~., data=oj_train, kernel="radial", ranges=list(cost=c(0.01,0.1,1,10)))
+summary(q8f_tuned_svm_costs)
+pred = predict(q8f_tuned_svm_costs$best.model, newdata = oj_test)
+length(pred)
+table(true = oj_test$Purchase, pred)
+
+
+```
+**Answer Q8f:**
+
+**Using A Radial Kernel**
+
+When using cost == **0.01**, the cross validation error rate on the training data is **0.39**, and the test error rate is 78 / 200 == **0.39**.
+
+
+When tuning for cost, the best cost is **1**, and the training error rate is **0.168**, and the test error rate is (27 + 12) / 200 == **0.22**.
 
 ## (g) Repeat parts (b) through (e) using a support vector machine ...
 with a polynomial kernel. Set degree=2.
 
+```{r q8g-1}
+#set.seed(1976)
+
+#svm_poly_tuned = tune(svm, aboveMedian~., data=auto, kernel="polynomial", ranges=list(cost=c(0.1,1,10),gamma=c(0.5,1), degree=c(3,4)))
+
+
+print("Cost == 0.01")
+set.seed(1976)
+q8g_tuned_svm_01 = tune(svm, Purchase~., data=oj_train, kernel="polynomial", ranges=list(cost=c(0.01), degree=c(2)))
+summary(q8g_tuned_svm_01)
+pred = predict(q8g_tuned_svm_01$best.model, newdata = oj_test)
+length(pred)
+table(true = oj_test$Purchase, pred)
+
+print("Tuning COsts")
+set.seed(1976)
+q8g_tuned_svm_costs = tune(svm, Purchase~., data=oj_train, kernel="polynomial", ranges=list(cost=c(0.01,0.1,1,10), degree=c(2)))
+summary(q8g_tuned_svm_costs)
+pred = predict(q8g_tuned_svm_costs$best.model, newdata = oj_test)
+length(pred)
+table(true = oj_test$Purchase, pred)
+
+
+```
+**Answer Q8g:**
+
+**Using A Polynomial Kernel of Degree 2**
+
+When using cost == **0.01**, the cross validation error rate on the training data is **0.39**, and the test error rate is 78 / 200 == **0.39**.
+
+
+When tuning for cost, the best cost is **10**, and the training error rate is **0.18**, and the test error rate is (29 + 12) / 200 == **0.205**.
+
 
 ## (h) Overall, which approach ...
 seems to give the best results on this data?
+
+**Answer Q8h:**
+The linear, support vector classifier with a Cost == 1 provides the best performance on the test data set. The true relationship is linearly separable at the higher SV dimension.
 
