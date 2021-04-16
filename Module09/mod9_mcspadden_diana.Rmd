@@ -29,7 +29,7 @@ that takes on a 1 for cars with gas mileage above the median, and a 0 for cars w
 **First:** I remove the name and the mpg columns.
 ```{r q7a-1}
 #print(median(auto$mpg))
-auto = auto %>% mutate(aboveMedian = ifelse(mpg > median(mpg), 1, 0) %>% factor()) %>% select(-name) %>% select(-mpg)
+auto = auto %>% mutate(aboveMedian = ifelse(mpg > median(mpg), 1, 0) %>% factor(), origin = factor(origin)) %>% select(-name) %>% select(-mpg)
 
 head(auto)
 ```
@@ -52,7 +52,7 @@ svm_tuned = tune(svm, aboveMedian~., data=auto, kernel="linear", ranges=list(cos
 summary(svm_tuned)
 ```
 
-**Answer Q7b**: The best cost was 1, with an error rate of ~0.087.
+**Answer Q7b**: The best cost was 1, with an error rate of ~0.084.
 
 ## (c) Now repeat (b), this time using SVMs with radial and polynomial basis kernels, 
 with different values of gamma and degree and cost. Comment on your results.
@@ -69,6 +69,8 @@ summary(svm_multi_tuned)
 ```
 The best performing radial model had cost == 1, and gamma == 1, with an error rate of ~0.077.
 
+The gamma == 1, makes me wonder what the error rate of a polynomial with degree 2 would produce.
+
 ```{r q7c-2, warning=FALSE, cache=TRUE}
 set.seed(1976)
 
@@ -76,37 +78,86 @@ svm_poly_tuned = tune(svm, aboveMedian~., data=auto, kernel="polynomial", ranges
 
 summary(svm_poly_tuned)
 ```
-The best performing polynomial model had cost == 0.1, gamma == 1, degree of 3, with an error rate of ~0.082.
+The best performing polynomial model had cost == 0.1, gamma == 0.5, degree of 3, with an error rate of ~0.079.
 
-**Comments Q7c:** The radial model performed better than the polynomial model, leading me to believe that the relationship of the training data is NOT best represented with a linear or polynomial model, but needs the bell shaped curve of a radial model.
+**Comments Q7c:** The radial model performed better than the polynomial model, leading me to believe that the relationship of the training data is NOT best represented with a linear or polynomial model, but needs the flexibility of a radial model.
 
 ## (d) Make some plots to back up your assertions in (b) and (c).
-Hint: In the lab, we used the plot() function for svm objects only in cases with p = 2. When p > 2, you can use the plot() function to create plots displaying pairs of variables at a time. Essentially, instead of typing
-
-plot(svmfit , dat)
-
-where svmfit contains your fitted model and dat is a data frame containing your data, you can type
-
-plot(svmfit , dat , x1∼x4)
-
-in order to plot just the first and fourth variables. However, you must replace x1 and x4 with the correct variable names. To find out more, type ?plot.svm.
-
 
 ```{r q7d-1}
-?plot.svm
+#?plot.svm
 
 head(auto)
 
 best_svm_model = svm(aboveMedian~., data=auto, type="C-classification", kernel="radial", cost=1, gamma=1)
 
-par(mfrow=c(1,1))
-#detach(auto)
-plot(best_svm_model, auto, weight ~ horsepower, 
-     slice = list(cylinders = median(auto$cylinders), displacement = median(auto$displacement), acceleration = median(auto$acceleration), year = mode(auto$year), origin = mode(auto$origin)))
 
+plot(best_svm_model, auto, weight ~ horsepower, 
+     slice = list(cylinders = median(auto$cylinders), 
+                  displacement = median(auto$displacement), 
+                  acceleration = median(auto$acceleration), 
+                  year = median(auto$year), 
+                  origin = 1))
+
+plot(best_svm_model, auto, acceleration ~ horsepower, 
+     slice = list(weight = median(auto$weight), 
+                  displacement = median(auto$displacement), 
+                  cylinders = median(auto$cylinders), 
+                  year = median(auto$year), 
+                  origin = 1))
+
+plot(best_svm_model, auto, acceleration ~ weight, 
+     slice = list(horsepower = median(auto$horsepower), 
+                  displacement = median(auto$displacement), 
+                  cylinders = median(auto$cylinders), 
+                  year = median(auto$year), 
+                  origin = 1))
+
+plot(best_svm_model, auto, year ~ weight, 
+     slice = list(horsepower = median(auto$horsepower), 
+                  displacement = median(auto$displacement), 
+                  cylinders = median(auto$cylinders), 
+                  acceleration = median(auto$acceleration), 
+                  origin = 1))
+
+
+plot(best_svm_model, auto, year ~ horsepower, 
+     slice = list(weight = median(auto$weight), 
+                  displacement = median(auto$displacement), 
+                  cylinders = median(auto$cylinders), 
+                  acceleration = median(auto$acceleration), 
+                  origin = 1))
+
+plot(best_svm_model, auto, displacement ~ horsepower, 
+     slice = list(cylinders = median(auto$cylinders), 
+                  weight = median(auto$weight), 
+                  acceleration = median(auto$acceleration), 
+                  year = median(auto$year), 
+                  origin = 1))
 
 ```
-```{r}
+
+I plotted the SVM boundary by:
+<ul>
+<li>weight ~ horsepower</li>
+<li>acceleration ~ horsepower</li>
+<li>acceleration ~ weight</li>
+<li>year ~ weigh</li>
+<li>year ~ horsepower</li>
+<li>displacement ~ horsepower</li>
+</ul>
+
+
+There are a large number of support vectors in each plot.
+
+In the plots:
+<ul>
+<li>X == support vector == wrong side of margin</li>
+<li>0 == doesn't affect the divider (you can't drop these and get the same value, but they are on correct side of margin), these points have loss of zero.</li>
+<li>color of X, 0 == true label</li>
+</ul>
+
+```{r include=FALSE, eval=FALSE, include=FALSE}
 ## more than two variables: fix 2 dimensions
 data(iris)
 head(iris)

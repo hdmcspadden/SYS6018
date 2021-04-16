@@ -1,0 +1,225 @@
+---
+title: 'Haiti: Load Hold-out Data'
+author: "Diana McSpadden"
+date: "4/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+```
+
+
+```{r}
+# directory
+holdout_dir = "HoldOut"
+
+# unzip
+unzip(file.path(holdout_dir,"Hold+Out+Data.zip"), exdir = holdout_dir)
+```
+
+### Not Blue Tarps
+
+File 1
+<ul>
+<li>Name: orthovnir057_ROI_NON_Blue_Tarps.txt</li>
+<li>**NOT** Blue Tarp</li>
+</ul>
+
+```{r notBlueFile1-1}
+
+read_lines(file.path(holdout_dir, "orthovnir057_ROI_NON_Blue_Tarps.txt"), n_max=12)
+
+```
+<ul>
+<li>8th row is header</li>
+<li>B1 == Red</li>
+<li>B2 == Blue</li>
+<li>B3 == Green</li>
+</ul>
+
+```{r notBlueFile1-2}
+
+df_NotBlue_057 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir057_ROI_NON_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '0') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_NotBlue_057)
+
+dim(df_NotBlue_057)
+```
+
+
+File 2
+<ul>
+<li>Name: orthovnir067_ROI_NOT_Blue_Tarps.txt</li>
+<li>**NOT** Blue Tarp</li>
+</ul>
+
+```{r notBlueFile2-1}
+
+read_lines(file.path(holdout_dir, "orthovnir067_ROI_NOT_Blue_Tarps.txt"), n_max=12)
+
+```
+
+```{r notBlueFile2-2}
+
+df_NotBlue_067 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir067_ROI_NOT_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '0') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_NotBlue_067)
+
+dim(df_NotBlue_067)
+```
+
+File 3
+<ul>
+<li>Name: orthovnir069_ROI_NOT_Blue_Tarps.txt</li>
+<li>**NOT** Blue Tarp</li>
+</ul>
+
+
+```{r notBlueFile3-1}
+
+read_lines(file.path(holdout_dir, "orthovnir069_ROI_NOT_Blue_Tarps.txt"), n_max=12)
+
+```
+```{r notBlueFile3-2}
+
+df_NotBlue_069 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir069_ROI_NOT_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '0') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_NotBlue_069)
+
+dim(df_NotBlue_069)
+```
+
+
+File 4
+<ul>
+<li>Name: orthovnir078_ROI_NON_Blue_Tarps.txt</li>
+<li>**NOT** Blue Tarp</li>
+</ul>
+
+```{r notBlueFile4-1}
+
+read_lines(file.path(holdout_dir, "orthovnir078_ROI_NON_Blue_Tarps.txt"), n_max=12)
+
+```
+
+```{r notBlueFile4-2}
+
+df_NotBlue_078 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir078_ROI_NON_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '0') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_NotBlue_078)
+
+dim(df_NotBlue_078)
+```
+
+### Blue Tarps
+
+File 1
+<ul>
+<li>Name: orthovnir067_ROI_Blue_Tarps.txt</li>
+<li>**Blue Tarp**</li>
+</ul>
+
+```{r BlueFile1-1}
+
+read_lines(file.path(holdout_dir, "orthovnir067_ROI_Blue_Tarps.txt"), n_max=12)
+
+```
+```{r BlueFile1-2}
+
+df_Blue_067 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir067_ROI_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '1') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_Blue_067)
+
+dim(df_Blue_067)
+```
+
+File 2
+<ul>
+<li>Name: orthovnir069_ROI_Blue_Tarps.txt</li>
+<li>**Blue Tarp**</li>
+</ul>
+
+```{r BlueFile2-1}
+
+read_lines(file.path(holdout_dir, "orthovnir069_ROI_Blue_Tarps.txt"), n_max=12)
+
+```
+
+
+```{r BlueFile2-2}
+
+df_Blue_069 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir069_ROI_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '1') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_Blue_069)
+
+dim(df_Blue_069)
+```
+
+File 3
+<ul>
+<li>Name: orthovnir078_ROI_Blue_Tarps.txt</li>
+<li>**Blue Tarp**</li>
+</ul>
+
+```{r BlueFile3-1}
+
+read_lines(file.path(holdout_dir, "orthovnir078_ROI_Blue_Tarps.txt"), n_max=12)
+
+```
+
+```{r BlueFile3-2}
+df_Blue_078 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir078_ROI_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '1') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_Blue_078)
+
+dim(df_Blue_078)
+```
+
+
+```{r JoinDFs}
+# join the 7 dataframes of hold out data
+df_HoldOut = dplyr::bind_rows(df_NotBlue_057, df_NotBlue_067, df_NotBlue_069, df_NotBlue_078, df_Blue_067, df_Blue_069, df_Blue_078)
+
+dim(df_HoldOut)
+head(df_HoldOut)
+
+```
+
+```{r saveDF}
+library(readr)
+
+write_csv(df_HoldOut, "holdout.csv")
+
+```
+
+
+

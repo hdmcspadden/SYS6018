@@ -692,7 +692,6 @@ result.lda$roq
 
 From the curves provided in the MLeval library one can see that precision (positive preditive value) drops off faster with an increase in sensitivity/recall, 
 
-
 ```{r ldaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
 #lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>% 
 #  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
@@ -841,7 +840,9 @@ From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificit
 
 ### Tune the probability threshold, p, for KNN | k = 27
 
-Running manual KNN cross validation to tune for p took significant time for my laptop to process. I ran with smaller lists of p just to get a feel for the results. I had previously ran with p = 0.5 and received accuracy of 0.996
+Running manual KNN cross validation to tune for p took significant time for my laptop to process. I ran with smaller lists of p just to get a feel for the results. I had previously ran with p = 0.5 and received accuracy of 0.996.
+
+For processing speed time, I commented out the extending loop of threshold values, and limited the list of 0.4 and 0.5 for illustrative purposes.
 
 ```{r tunePKNN, cache=TRUE}
 library(class)
@@ -852,7 +853,8 @@ haitiBinarySqrsShuffled = haitiBinarySqrsShuffled %>% mutate(ClassBinaryTF = fac
 
 
 #for (p in c(.1,.2,.3,.7,.8,.9)) 
-for (p in c(.2,.3,.4,.5,.6,.7,.8)) 
+#for (p in c(.2,.3,.4,.5,.6,.7,.8)) 
+for (p in c(.4,.5)) 
 {
     for (j in 1:10)
     {
@@ -896,7 +898,7 @@ perf_knn_p %>% arrange(-mean_acc)
 After testing the following values of p: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, **p == 0.5** is the value that produced the highest mean accuracy. This is convenient because caret's cross-validation for KNN models default to a 0.5 threshold.
 
 
-```{r knnTrainConfusionMatrix}
+```{r knnTrainConfusionMatrix, cache=TRUE}
 caret::confusionMatrix(knn.cv.model)
 ```
 ### KNN k=27 Training ROC Curve:
@@ -950,7 +952,9 @@ y.haitiFull.train = (haitiBinaryFull %>% mutate(ClassBinary = ifelse(ClassBinary
 ```
 
 
-Using penalized logistic regression (PLR), I evaluated three different PLR methods: ridge, lasso, and elasticnet (a combination of ridge and lasso). I tuned both lambda and the probability threshold (p). Based on best testing of the threshold tuning parameter, I considered p values of .5, .6, .7, .75, .8, .85, .9, and .95.
+Using penalized logistic regression (PLR), I evaluated three different PLR methods: ridge, lasso, and elasticnet (a combination of ridge and lasso). I tuned both lambda and the probability threshold (p). Based on best testing of the threshold tuning parameter, I considered p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95.
+
+For the sake of processing speed I commented out the loop for the extended p values (0.2 was the best threshold when I considered the extended list), and kept 0.1, 0.2, 0.3 for illustrative purposes.
 
 ```{r glmnetCrossVal, cache=TRUE}
 library(glmnet)
@@ -970,8 +974,9 @@ for (a in c(0, .5, 1)){
   #-- Get lambda sequence so consistent over all folds
   lam_seq = glmnet(x.haitiFull.train, y.haitiFull.train, family="binomial", alpha=a)$lambda
 
-  # TO DO: ADD LOOP OVER p values of .5, .6, .7, .75 .8, .85 .9, .95
-  for (p in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95)){
+  # TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
+  #for (p in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95)){
+  for (p in c(.1, .2, .3)){
 
     #-- Loop over K folds
     for(k in unique(folds)){
@@ -1198,6 +1203,10 @@ head(haitiBinaryRF)
 
 The first random forest tuning parameter I will test for is number of trees and mtry. I will test ntree values by cross validation.
 
+I did run the ntree loop for 250, 500, and 1000 trees. The best performing number of trees was 1000.
+
+I tuned with a list of mtry values of 3,4,5,6,7,8,9 and 10. **4** was the best performing. In order to lessen the amount of timed needed to knit this Rmd I am not evaluating the following code block.
+
 ```{r rf-numtrees, cache=TRUE, eval=FALSE}
 control = trainControl(method = 'repeatedcv', number = 10, repeats = 3, search = 'grid')
 
@@ -1206,7 +1215,8 @@ tunegrid = expand.grid(.mtry = c(3,4,5,6,7,8,9,10))
 modellist = list()
 
 #train with different ntree parameters
-for (ntree in c(250,500,1000)){
+#for (ntree in c(250,500,1000)){
+for (ntree in c(1000)){
   set.seed(123)
   rf.fit = train(ClassBinary~Red+Blue+Green+GBSqr+RBSqr+RGSqr+RGBSqr+RG+RB+GB,
                data = haitiBinaryRF,
@@ -1271,6 +1281,9 @@ folds <- cut(seq(1,nrow(haitiRFShuffled)),breaks=10,labels=FALSE)
 head(haitiRFShuffled)
 ```
 
+I did run this loop with threshold 0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 and **0.6** performed the best.
+
+For the sake of faster compilation time, I am limited the threshold loop to 0.5,0.6, and 0.7 to illustrate the process.
 ```{r rf-checkThreshold, cache=TRUE}
 
 # create storage variables for the p value, Accuracy, ROC, Specificity, and Sensitivity
@@ -1279,7 +1292,8 @@ out_yhat_ytrue = tibble()
 out_rf = tibble()
 
 
-for (j in c(.2,.3,.4,.5,.6,.7,.8,.9))
+#for (j in c(.2,.3,.4,.5,.6,.7,.8,.9))
+for (j in c(.6,.7))
 { 
   
   # reset the fold accumulator tibble
@@ -1354,13 +1368,6 @@ head(best_rf_df)
 caret::confusionMatrix(best_rf_df$factorhat, best_rf_df$factortrue)
 
 ```
-
-```{r}
-pred <- ROCR::prediction(predictions, labels)
-perf <- ROCR::performance(pred, measure = "tpr", x.measure = "fpr")
-plot(perf, col=rainbow(10))
-```
-
 
 
 ```{r rfROC, cache=TRUE, fig.width=10}
@@ -1553,20 +1560,331 @@ The penalty ($\lambda$) that performed the best using elasticnet penalized regre
 
 I am interested in how to use limited resources to reach the greatest number of vulnerable people. Without the GIS information for each pixel I am unable to calculate locations where the most blue tarps will be found to able to help the most people; however, there may not be a 1:1 relationship between number of tarps and number of people, so resource allocation becomes even trickier. My conclusion is that without the added GIS information for the observations I cannot provide information to help an efficient distribution of aid to those affected by the earthquake. And, demographic information regarding population density, and members-per-household would be of priceless value. Additionally, GIS information for pre-earthquake roads, and other geographic features would be useful.
 
+# Hold-out Data / EDA
 
-```{r, echo=FALSE}
-knitr::knit_exit()    # ignore everything after this
-## Uncomment this line for Part I
-## You can remove the entire code chunk for Part II
+## Load the Hold-out Data
+The following code is not evaluated in the knitted document, but is included here for completeness.
+```{r loadHoldOut, eval=FALSE}
+# directory
+holdout_dir = "HoldOut"
+
+# unzip
+unzip(file.path(holdout_dir,"Hold+Out+Data.zip"), exdir = holdout_dir)
+```
+
+### Not Blue Tarps
+
+File 1
+<ul>
+<li>Name: orthovnir057_ROI_NON_Blue_Tarps.txt</li>
+<li>**NOT** Blue Tarp</li>
+</ul>
+
+```{r notBlueFile1-1, eval=FALSE}
+
+read_lines(file.path(holdout_dir, "orthovnir057_ROI_NON_Blue_Tarps.txt"), n_max=12)
+
+```
+<ul>
+<li>8th row is header</li>
+<li>B1 == Red</li>
+<li>B2 == Blue</li>
+<li>B3 == Green</li>
+</ul>
+
+```{r notBlueFile1-2, eval=FALSE}
+
+df_NotBlue_057 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir057_ROI_NON_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '0') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_NotBlue_057)
+
+dim(df_NotBlue_057)
 ```
 
 
-# Hold-out Data / EDA
+File 2
+<ul>
+<li>Name: orthovnir067_ROI_NOT_Blue_Tarps.txt</li>
+<li>**NOT** Blue Tarp</li>
+</ul>
 
-Load data, explore data, etc. 
+```{r notBlueFile2-1, eval=FALSE}
 
+read_lines(file.path(holdout_dir, "orthovnir067_ROI_NOT_Blue_Tarps.txt"), n_max=12)
+
+```
+
+```{r notBlueFile2-2, eval=FALSE}
+
+df_NotBlue_067 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir067_ROI_NOT_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '0') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_NotBlue_067)
+
+dim(df_NotBlue_067)
+```
+
+File 3
+<ul>
+<li>Name: orthovnir069_ROI_NOT_Blue_Tarps.txt</li>
+<li>**NOT** Blue Tarp</li>
+</ul>
+
+
+```{r notBlueFile3-1, eval=FALSE}
+
+read_lines(file.path(holdout_dir, "orthovnir069_ROI_NOT_Blue_Tarps.txt"), n_max=12)
+
+```
+
+```{r notBlueFile3-2, eval=FALSE}
+
+df_NotBlue_069 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir069_ROI_NOT_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '0') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_NotBlue_069)
+
+dim(df_NotBlue_069)
+```
+
+
+File 4
+<ul>
+<li>Name: orthovnir078_ROI_NON_Blue_Tarps.txt</li>
+<li>**NOT** Blue Tarp</li>
+</ul>
+
+```{r notBlueFile4-1, eval=FALSE}
+
+read_lines(file.path(holdout_dir, "orthovnir078_ROI_NON_Blue_Tarps.txt"), n_max=12)
+
+```
+
+```{r notBlueFile4-2, eval=FALSE}
+
+df_NotBlue_078 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir078_ROI_NON_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '0') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_NotBlue_078)
+
+dim(df_NotBlue_078)
+```
+
+### Blue Tarps
+
+File 1
+<ul>
+<li>Name: orthovnir067_ROI_Blue_Tarps.txt</li>
+<li>**Blue Tarp**</li>
+</ul>
+
+```{r BlueFile1-1, eval=FALSE}
+
+read_lines(file.path(holdout_dir, "orthovnir067_ROI_Blue_Tarps.txt"), n_max=12)
+
+```
+```{r BlueFile1-2}
+
+df_Blue_067 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir067_ROI_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '1') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_Blue_067)
+
+dim(df_Blue_067)
+```
+
+File 2
+<ul>
+<li>Name: orthovnir069_ROI_Blue_Tarps.txt</li>
+<li>**Blue Tarp**</li>
+</ul>
+
+```{r BlueFile2-1, eval=FALSE}
+
+read_lines(file.path(holdout_dir, "orthovnir069_ROI_Blue_Tarps.txt"), n_max=12)
+
+```
+
+
+```{r BlueFile2-2, eval=FALSE}
+
+df_Blue_069 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir069_ROI_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '1') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_Blue_069)
+
+dim(df_Blue_069)
+```
+
+File 3
+<ul>
+<li>Name: orthovnir078_ROI_Blue_Tarps.txt</li>
+<li>**Blue Tarp**</li>
+</ul>
+
+```{r BlueFile3-1, eval=FALSE}
+
+read_lines(file.path(holdout_dir, "orthovnir078_ROI_Blue_Tarps.txt"), n_max=12)
+
+```
+
+```{r BlueFile3-2, eval=FALSE}
+df_Blue_078 = as.data.frame(read_table(file.path(holdout_dir, "orthovnir078_ROI_Blue_Tarps.txt"), 
+                               skip=7, col_types = cols(';'="-", ID = "c"))) %>%
+                              rename(Red = B1, Green = B2, Blue = B3) %>%
+                              mutate(ClassBinary = '1') %>%
+                              select(Lat, Lon, Red, Green, Blue, ClassBinary)
+
+head(df_Blue_078)
+
+dim(df_Blue_078)
+```
+
+
+```{r JoinDFs, eval=FALSE}
+# join the 7 dataframes of hold out data
+df_HoldOut = dplyr::bind_rows(df_NotBlue_057, df_NotBlue_067, df_NotBlue_069, df_NotBlue_078, df_Blue_067, df_Blue_069, df_Blue_078)
+
+dim(df_HoldOut)
+head(df_HoldOut)
+
+```
+
+```{r saveDF, eval=FALSE}
+library(readr)
+
+write_csv(df_HoldOut, "holdout.csv")
+
+```
+
+### Load holdout.csv into a dataframe
+
+```{r loadholdoutcsv}
+filename_ho = 'holdout.csv'
+haiti_ho <- read_csv(filename_ho)
+dim(haiti_ho)
+```
+Next, I apply the transformations used on the testing data:
+
+```{r applyHoldOutTransformations}
+haiti_ho_full = haiti_ho %>%
+  mutate(GBSqr = I(((Green + Blue)^2) * .001), RBSqr = I(((Red + Blue)^2) * .001), ClassBinary = factor(ClassBinary)) %>%
+  mutate(RGSqr = I(((Red + Green)^2)),  RGBSqr = I(((Red + Green + Blue)^2)), RG = (Red * Green), RB = (Red * Blue), GB = (Green * Blue)) 
+
+head(haiti_ho_full)  
+```
+
+```{r summarizeHoldOutBinaryByCategory}
+
+haiti_ho_full %>%
+  group_by(ClassBinary) %>%
+  summarize(N = n()) %>%
+  mutate(Perc = round(N / sum(N), 2) * 100)
+
+```
+
+Our test data is only **1%** Blue Tarps, which is a differente distribution from our training data.
 
 # Results (Hold-Out)
+
+## Hold-out Results Logistic Regression
+
+```{r holdout-fitLogisticREgression}
+# train the selected logistic regression model with the complete training data set
+glm.all.train = glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = haitiBinarySqrs)
+```
+
+
+
+``` {r holdout-testLogisticRegression, cache=TRUE}
+glm.preds = glm.all.train %>%  augment(newdata=haiti_ho_full) %>% 
+      mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < .1, "0", "1")) %>%
+      mutate(.prediction = factor(.prediction))
+
+
+
+caret::confusionMatrix(glm.preds$.prediction, haiti_ho_full$ClassBinary)
+```
+For Logistic Regression, the hold-out test results with the tuned threshold of 0.1 are:
+
+<ul>
+<li>Accuracy: 0.9882</li>
+<li>TPR: 14391 / (14480) = 0.994</li>
+<li>FPR: 23642 / (1989697) = 0.012</li>
+<li>Precision: 14391 / (38033) = 0.38</li>
+</ul>
+
+```{r holdout-testLogisticRegression-ROC}
+##produce the numbers associated with classification table
+rates = prediction(glm.preds$.fitted, glm.preds$ClassBinary)
+
+##store the true positive and false postive rates
+roc_result = performance(rates, measure="tpr", x.measure="fpr")
+
+##plot ROC curve and overlay the diagonal line for random guessing
+plot(roc_result, main="ROC Curve Hold-out Logistic Regression")
+lines(x = c(0,1), y = c(0,1), col="red")
+
+##compute the AUC
+auc = performance(rates, measure = "auc")
+auc@y.values[[1]]
+```
+The **AUC** for hold-out the test data using a logistic regression model is **0.9997**.
+
+## Hold-out Results LDA
+
+```{r ldaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
+#lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>% 
+#  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
+```  
+  
+```{r include=FALSE, echo=FALSE, eval=FALSE}
+#lda.test = lda.test %>% 
+#  mutate(ClassBinary = factor(ClassBinary)) 
+```
+
+```{r include=FALSE, echo=FALSE, eval=FALSE}  
+#caret::confusionMatrix(lda.test$ClassBinary, test.YesNo$ClassBinary)
+```
+
+```{r ldaROCTest, include=FALSE, echo=FALSE, eval=FALSE}
+#test.lda.result = evalm(lda.test)
+```
+
+
+## Hold-out Results QDA
+
+
+## Hold-out Results KNN
+
+
+## Hold-out Results Lasso
+
+
+## Hold-out Results Random Forest
+
+
+## Hold-out Results Support Vector Machine
+
 
 # Results (Test/Validate Data)
 
@@ -1585,12 +1903,12 @@ Load data, explore data, etc.
 <tr>
   <td>Log Reg</td>
   <td><!-- Log Reg Tuning --> N/A</td>
-  <td><!-- Log Reg AUROC -->TBD</td>
-  <td><!-- Log Reg Threshold -->TBD</td>
-  <td><!-- Log Reg Accuracy -->TBD</td>
-  <td><!-- Log Reg TPR -->TBD</td>
-  <td><!-- Log Reg FPR -->TBD</td>
-  <td><!-- Log Reg Precision -->TBD</td>
+  <td><!-- Log Reg AUROC -->0.9998</td>
+  <td><!-- Log Reg Threshold -->0.1 (calculated from training data)</td>
+  <td><!-- Log Reg Accuracy -->0.9882</td>
+  <td><!-- Log Reg TPR -->0.994</td>
+  <td><!-- Log Reg FPR -->0.012</td>
+  <td><!-- Log Reg Precision -->0.38</td>
 </tr>
 
 <tr>
