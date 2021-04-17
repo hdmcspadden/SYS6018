@@ -617,98 +617,129 @@ The Logistic Regression ROC-AUC for the 10-fold cross-validated training data wi
 
 I trained the LDA model using 10-fold cross validation. 
 
-10-fold cross validation was used for p-values from 0.05 to 1 at 0.05 intervals. Tuning was performed using ROC.
+10-fold cross validation was used for p-values from 0.1 to .95. Tuning was performed using ROC.
 
-```{r ldaCrossValidation, cache=TRUE, warning=FALSE}
+I tested with thresholds in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95). The best performing threshold on accuracy was 0.3. For illustrative purposes I run with 0.2, 0.3, and 0.4.
+
+```{r ldaCrossValidationAccuracy, cache=TRUE, warning=FALSE}
+#y_true
+
 set.seed(1976)
+# number of folds
+haitiBinarySqrsShuffled = haitiBinarySqrs[sample(nrow(haitiBinarySqrs)),]
 
-# create storage variables for the p value, ROC, Specificity, and Sensitivity
-k_start = 1
-k_end = 20
-out_nvar = k_end - k_start + 1
+#Create 10 equally size folds
+folds <- cut(seq(1,nrow(haitiBinarySqrsShuffled)),breaks=10,labels=FALSE)
 
-p_i = rep(NA, out_nvar)
-sensitivity_i = rep(NA, out_nvar)
-specificity_i = rep(NA, out_nvar)
-ROC_i = rep(NA, out_nvar)
+trctrl <- trainControl(method = "cv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T)
 
-for (i in 1:20) 
-{ 
-  p_i[i] = i/20
+out_lda_p = tibble()
+# TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
+for (p in c(.2, .3, .4)){
+#for (p in c(.2, .8)){
+
+   #Perform 10 fold cross validation
+  for(i in 1:10) {
   
-  trctrl <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = i/20)
-  
-  lda.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "lda", trControl=trctrl, tuneLength = 10)
-  
-  sensitivity_i[i] = lda.cv.model$results[['Sens']]
-  specificity_i[i] = lda.cv.model$results[['Spec']]
-  ROC_i[i] = lda.cv.model$results[['ROC']]
+    #Segement your data by fold using the which() function 
+    testIndexes = which(folds==i,arr.ind=TRUE)
+    testData = haitiBinarySqrsShuffled[testIndexes, ]
+    trainData = haitiBinarySqrsShuffled[-testIndexes, ]
+    
+    train_lda <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = trainData, method = "lda", trControl = trctrl, tuneLength=10)
+    
+    # test with the fold's test data
+    preds = predict(train_lda, newdata = testData, type="prob")
+    
+    #- evaluate fold k
+    y_true = testData$ClassBinary
+    # check the threshold
+    #y_hat = tibble(hat_pred = preds$Yes > p) %>% mutate(hat_value = ifelse(preds$Yes > p))
+    y_hat = preds %>% mutate(hat_value = ifelse(Yes > p, "Yes", "No")) %>% select(hat_value)
+    acc = apply(y_hat, 2, function(y) mean(y == y_true))
+    
+      #- output
+    out_lda_p = bind_rows(out_lda_p, tibble(threshold = p, accuracy = acc))
+  }
 }
 
-outcome = data.frame(p_i,sensitivity_i, specificity_i, ROC_i)
-```
-
-
-``` {r}
-outcome %>% filter(sensitivity_i == max(sensitivity_i))
-
-outcome %>% filter(specificity_i == max(specificity_i))
-
-outcome %>% filter(ROC_i == max(ROC_i))
+#out_lda_p
 
 ```
-For LDA, p-values of 0.55, 0.8, and 1.0 are interesting.
-<ul>
-<li>p = 0.55 provides the greatest Sensitivity, or True Positive Rate of 0.992813</li>
-<li>p = 0.8 demonstrates the greatest ROC of 0.9945253</li>
-<li>p = 1.0, unsurprisingly, provides the greatest True Negative Rate. Unsurprisingly because it required the highest posterior probability for an observation to be classified as a blue tarp.</li>
-</ul>
+```{r getMeanLDAAccuracy}
+#-- Get mean accuracy
+perf_lda_p = out_lda_p %>% 
+  group_by(threshold) %>% 
+  summarize(mean_acc = mean(accuracy)) 
 
-All the values are similar, and any of these three could be a valid choice based on considerations of the risk of missing a true blue tarp, which could result in the loss of human life by not identifying the location of survivors, or the risk of wasted time of aid workers by sending them to an incorrectly predicted location of a blue tarp.
+perf_lda_p %>% arrange(-mean_acc)
+```
 
-I am selecting the value with the greatest ROC, **p == 0.80.**.
+The threshold with the greatest accuracy using a LDA model uses a probability threshold of **0.3**.
+
+```{r trainLDAWithBestAccuracy, cache=TRUE, warning=FALSE}
+
+# tibble to save all predictions at the best threshold
+out_best_lda = tibble()
+out_all_preds = tibble()
+
+ #Perform 10 fold cross validation
+for(i in 1:10) {
+
+  #Segement your data by fold using the which() function 
+  testIndexes = which(folds==i,arr.ind=TRUE)
+  testData = haitiBinarySqrsShuffled[testIndexes, ]
+  trainData = haitiBinarySqrsShuffled[-testIndexes, ]
+  
+  train_lda <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = trainData, method = "lda", trControl = trctrl, tuneLength=10)
+  
+  # test with the fold's test data
+  preds = predict(train_lda, newdata = testData, type="prob")
+  
+  #- evaluate fold k
+  y_true = testData$ClassBinary
+  y_hat = preds %>% mutate(hat_value = ifelse(Yes > 0.3, "Yes", "No")) %>% select(hat_value)
+
+  #- output
+  out_best_lda = bind_rows(out_best_lda, tibble(pred = y_hat$hat_value, truth = testData$ClassBinary))
+  out_all_preds = bind_rows(out_all_preds, tibble(Yes = preds$Yes))
+}
+```
 
 ```{r ldaTrainConfusionMatrix, cache=TRUE}
-trctrl.lda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.8)
-  
-#trctrl.lda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 1.0)
-lda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "lda", trControl=trctrl.lda.selected, tuneLength = 10)
 
-caret::confusionMatrix(lda.cv.model.selected)
+out_best_lda = out_best_lda %>% mutate(pred = factor(pred), truth = factor(truth))
+
+caret::confusionMatrix(out_best_lda$pred, out_best_lda$truth)
 ```
 For LDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
 <ul>
-<li>TPR: 2.7 / 3.2 = 0.844</li>
-<li>FPR: .1 / 96.8 = 0.001</li>
-<li>Precision: 2.7 / 2.8 = 0.964</li>
+<li>Accuracy: 0.9945</li>
+<li>TPR: 1738 / (1738 + 284): 0.859</li>
+<li>FPR: 66 / (61153 + 66): 0.001</li>
+<li>Precision: 0.9954</li>
 </ul>
 
 ### LDA Training ROC Curve:
 ```{r ldaTrainingROC, cache=TRUE}
-result.lda = evalm(lda.cv.model.selected)
-result.lda$roq
+par(mfrow=c(1,2))
+
+roc_pred = ROCR::prediction(out_all_preds$Yes, out_best_lda$truth)
+roc_perf = ROCR::performance(roc_pred, "tpr", "fpr")
+plot(roc_perf, max = "threshold", colorize=TRUE, lwd= 3)
+
+plot(roc_perf, avg= "vertical", spread.estimate="boxplot", lwd=2,col='blue',
+      show.spread.at= seq(0.1, 0.9, by=0.1),
+      main= "Accuracy across cutoffs")
+
+auc = ROCR::performance(roc_pred, measure = "auc")
+auc = auc@y.values[[1]]
+auc
 ```
 **The LDA ROC-AUC for the 10-fold cross-validated training data with p=0.8 is: 0.99.**
 
 From the curves provided in the MLeval library one can see that precision (positive preditive value) drops off faster with an increase in sensitivity/recall, 
 
-```{r ldaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
-#lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>% 
-#  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
-```  
-  
-```{r include=FALSE, echo=FALSE, eval=FALSE}
-#lda.test = lda.test %>% 
-#  mutate(ClassBinary = factor(ClassBinary)) 
-```
-
-```{r include=FALSE, echo=FALSE, eval=FALSE}  
-#caret::confusionMatrix(lda.test$ClassBinary, test.YesNo$ClassBinary)
-```
-
-```{r ldaROCTest, include=FALSE, echo=FALSE, eval=FALSE}
-#test.lda.result = evalm(lda.test)
-```
 
 ## QDA
 
@@ -1422,15 +1453,16 @@ auc
   <td><!-- LDA Precision -->0.896</td>
 </tr>
 
+
 <tr>
   <td>LDA</td>
   <td><!-- LDA Tuning --> N/A</td>
-  <td><!-- LDA AUROC -->0.99</td>
-  <td><!-- LDA Threshold -->0.8</td>
-  <td><!-- LDA Accuracy -->0.994</td>
-  <td><!-- LDA TPR -->0.844</td>
+  <td><!-- LDA AUROC --> 0.9945<td>
+  <td><!-- LDA Threshold -->0.3</td>
+  <td><!-- LDA Accuracy -->0.9945</td>
+  <td><!-- LDA TPR -->0.859</td>
   <td><!-- LDA FPR -->0.001</td>
-  <td><!-- LDA Precision -->0.964</td>
+  <td><!-- LDA Precision -->0.9954</td>
 </tr>
 
 <tr>
@@ -1776,6 +1808,18 @@ write_csv(df_HoldOut, "holdout.csv")
 
 ```
 
+### Entire training data set
+Confirm we have the entire training data set for training each model with the tuned parameters
+```{r allTraining}
+haitiAllTraining = haitiBinaryRF %>%
+  mutate(ClassBinary01 = ifelse(ClassBinary == "No","0","1"))
+
+head(haitiAllTraining)
+
+```
+
+
+
 ### Load holdout.csv into a dataframe
 
 ```{r loadholdoutcsv}
@@ -1810,7 +1854,7 @@ Our test data is only **1%** Blue Tarps, which is a differente distribution from
 
 ```{r holdout-fitLogisticREgression}
 # train the selected logistic regression model with the complete training data set
-glm.all.train = glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = haitiBinarySqrs)
+glm.all.train = glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = haitiAllTraining)
 ```
 
 
@@ -1852,9 +1896,20 @@ The **AUC** for hold-out the test data using a logistic regression model is **0.
 
 ## Hold-out Results LDA
 
-```{r ldaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
-#lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>% 
-#  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
+```{r ldtTrainAll}
+# non fits the model on the entire training set
+trctrl.lda.selected <- trainControl(method = "none", summaryFunction=twoClassSummary, classProbs=T)
+  
+#trctrl.lda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 1.0)
+lda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "lda", trControl=trctrl.lda.selected, tuneLength = 10)
+
+caret::confusionMatrix(lda.cv.model.selected)
+```
+
+
+```{r ldaTestResults}
+lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>% 
+  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
 ```  
   
 ```{r include=FALSE, echo=FALSE, eval=FALSE}
