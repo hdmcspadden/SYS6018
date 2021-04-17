@@ -595,23 +595,35 @@ The following cross-validation measures were calculated with a threshold, p, of 
 ```{r LogROCCurve, warning=FALSE, cache=TRUE}
 library(ROCR)
 
-##produce the numbers associated with classification table
-rates = prediction(out_lr.complex$fitted, out_lr.complex$truth)
+# create a function so I can use repeatedly
+function_ROC_AUC = function(fitted, truth, title)
+{
+  ##produce the numbers associated with classification table
+  rates = prediction(fitted, truth)
+  
+  ##store the true positive and false postive rates
+  roc_result = performance(rates, measure = "tpr", x.measure = "fpr")
+  
+  par(mfrow=c(1,2))
 
-##store the true positive and false postive rates
-roc_result = performance(rates, measure="tpr", x.measure="fpr")
+  ##plot ROC curve and overlay the diagonal line for random guessing
+  plot(roc_result, main = title)
+  lines(x = c(0,1), y = c(0,1), col="red")
+  
+  plot(roc_result, avg= "vertical", spread.estimate="boxplot", lwd=2,col='blue',
+      show.spread.at= seq(0.1, 0.9, by=0.1),
+      main= "Accuracy across cutoffs", xlab="Threshold cutoff")
+  
+  ##compute the AUC
+  auc = performance(rates, measure = "auc")
+  print(auc@y.values[[1]])
+}
 
-##plot ROC curve and overlay the diagonal line for random guessing
-plot(roc_result, main="ROC Curve for Haiti Complex Logisitic Regression")
-lines(x = c(0,1), y = c(0,1), col="red")
-
-##compute the AUC
-auc = performance(rates, measure = "auc")
-auc@y.values[[1]]
+function_ROC_AUC(out_lr.complex$fitted, out_lr.complex$truth, "ROC For Tuned Complex Logisitic Regressions Model")
 
 ```
 
-The Logistic Regression ROC-AUC for the 10-fold cross-validated training data with p=0.1 is: 0.9996.**
+The Logistic Regression ROC-AUC for the 10-fold cross-validated training data with p=0.1 is: **0.9996**. 
 
 ## LDA
 
@@ -619,7 +631,7 @@ I trained the LDA model using 10-fold cross validation.
 
 10-fold cross validation was used for p-values from 0.1 to .95. Tuning was performed using ROC.
 
-I tested with thresholds in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95). The best performing threshold on accuracy was 0.3. For illustrative purposes I run with 0.2, 0.3, and 0.4.
+I tested with thresholds in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95). The best performing threshold on accuracy was 0.3. For illustrative purposes I run with 0.3, and 0.4.
 
 ```{r ldaCrossValidationAccuracy, cache=TRUE, warning=FALSE}
 #y_true
@@ -635,7 +647,7 @@ trctrl <- trainControl(method = "cv", summaryFunction=twoClassSummary, classProb
 
 out_lda_p = tibble()
 # TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
-for (p in c(.2, .3, .4)){
+for (p in c(.3, .4)){
 #for (p in c(.2, .8)){
 
    #Perform 10 fold cross validation
@@ -722,24 +734,10 @@ For LDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it 
 
 ### LDA Training ROC Curve:
 ```{r ldaTrainingROC, cache=TRUE}
-par(mfrow=c(1,2))
-
-roc_pred = ROCR::prediction(out_all_preds$Yes, out_best_lda$truth)
-roc_perf = ROCR::performance(roc_pred, "tpr", "fpr")
-plot(roc_perf, max = "threshold", colorize=TRUE, lwd= 3)
-
-plot(roc_perf, avg= "vertical", spread.estimate="boxplot", lwd=2,col='blue',
-      show.spread.at= seq(0.1, 0.9, by=0.1),
-      main= "Accuracy across cutoffs")
-
-auc = ROCR::performance(roc_pred, measure = "auc")
-auc = auc@y.values[[1]]
-auc
+function_ROC_AUC(out_all_preds$Yes, out_best_lda$truth, "ROC For Tuned LDA Model")
 ```
-**The LDA ROC-AUC for the 10-fold cross-validated training data with p=0.8 is: 0.99.**
 
-From the curves provided in the MLeval library one can see that precision (positive preditive value) drops off faster with an increase in sensitivity/recall, 
-
+The **LDA AUC** based on 10-fold cross-validated training data with a threshold of 0.3 is: **0.99**.
 
 ## QDA
 
@@ -749,66 +747,104 @@ I trained the QDA model using 10-fold cross validation.
 ```{r qdaCrossValidation, warning=FALSE, cache=TRUE}
 set.seed(1976)
 
-# create storage variables for the p value, ROC, Specificity, and Sensitivity
-k_start = 1
-k_end = 20
-out_nvar = k_end - k_start + 1
+# I will use the same folds calculated in the LDA code# 
 
-p_i = rep(NA, out_nvar)
-sensitivity_i = rep(NA, out_nvar)
-specificity_i = rep(NA, out_nvar)
-ROC_i = rep(NA, out_nvar)
+trctrl <- trainControl(method = "cv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T)
 
-for (i in 1:20) 
-{ 
-  p_i[i] = i/20
+out_qda_p = tibble()
+# TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
+#for (p in c(.3, .4)){
+for (p in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95)){
+
+   #Perform 10 fold cross validation
+  for(i in 1:10) {
   
-  trctrl <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = i/20)
-  
-  qda.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "qda", trControl=trctrl, tuneLength = 10)
-  
-  sensitivity_i[i] = qda.cv.model$results[['Sens']]
-  specificity_i[i] = qda.cv.model$results[['Spec']]
-  ROC_i[i] = qda.cv.model$results[['ROC']]
+    #Segement your data by fold using the which() function 
+    testIndexes = which(folds==i,arr.ind=TRUE)
+    testData = haitiBinarySqrsShuffled[testIndexes, ]
+    trainData = haitiBinarySqrsShuffled[-testIndexes, ]
+    
+    train_qda <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = trainData, method = "qda", trControl = trctrl, tuneLength=10)
+    
+    # test with the fold's test data
+    preds = predict(train_qda, newdata = testData, type="prob")
+    
+    #- evaluate fold k
+    y_true = testData$ClassBinary
+    # check the threshold
+    y_hat = preds %>% mutate(hat_value = ifelse(Yes > p, "Yes", "No")) %>% select(hat_value)
+    acc = apply(y_hat, 2, function(y) mean(y == y_true))
+    
+      #- output
+    out_qda_p = bind_rows(out_qda_p, tibble(threshold = p, accuracy = acc))
+  }
 }
 
-outcome = data.frame(p_i,sensitivity_i, specificity_i, ROC_i)
 
-outcome
+
 ```
-For QDA, the following p-values are interesting
-<ul>
-<li>p = 0.8, 0.9, and 1.0 all provide the highest sensitivity of 0.9978</li>
-<li>p = 0.65, 0.70, 0.85. and 0.95 all provide similar, high ROCs' ~0.9974</li>
-<li>p = 0.85 provides the greatest specificity.</li>
-</ul>
 
-I will select p = 0.85 for the QDA model as it has near the greatest ROC and greatest specificity.
+```{r getMeanQDAAccuracy}
+#-- Get mean accuracy
+perf_qda_p = out_qda_p %>% 
+  group_by(threshold) %>% 
+  summarize(mean_acc = mean(accuracy)) 
 
-```{r qdaTrainConfusionMatrix, cache=TRUE}
-trctrl.qda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.85)
+perf_qda_p %>% arrange(-mean_acc)
+```
+Based on the highest **Mean Accuracy** of cross validation of the training data, I am selecting a threshold of **0.8** for the QDA model.
+
+```{r trainQDAWithBestAccuracy, cache=TRUE, warning=FALSE}
+
+# tibble to save all predictions at the best threshold
+out_best_qda = tibble()
+out_all_preds_qda = tibble()
+
+ #Perform 10 fold cross validation
+for(i in 1:10) {
+
+  #Segement your data by fold using the which() function 
+  testIndexes = which(folds==i,arr.ind=TRUE)
+  testData = haitiBinarySqrsShuffled[testIndexes, ]
+  trainData = haitiBinarySqrsShuffled[-testIndexes, ]
   
-qda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "qda", trControl=trctrl.lda.selected, tuneLength = 10)
+  train_qda <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = trainData, method = "qda", trControl = trctrl, tuneLength=10)
+  
+  # test with the fold's test data
+  preds = predict(train_qda, newdata = testData, type="prob")
+  
+  #- evaluate fold k
+  y_true = testData$ClassBinary
+  y_hat = preds %>% mutate(hat_value = ifelse(Yes > 0.8, "Yes", "No")) %>% select(hat_value)
 
-caret::confusionMatrix(qda.cv.model.selected)
+  #- output
+  out_best_qda = bind_rows(out_best_qda, tibble(pred = y_hat$hat_value, truth = testData$ClassBinary))
+  out_all_preds_qda = bind_rows(out_all_preds_qda, tibble(Yes = preds$Yes))
+}
 ```
+
+```{r ldaTrainConfusionMatrix, cache=TRUE}
+
+out_best_qda = out_best_qda %>% mutate(pred = factor(pred), truth = factor(truth))
+
+caret::confusionMatrix(out_best_qda$pred, out_best_qda$truth)
+```
+
 For QDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
 <ul>
-<li>TPR: 2.9 / 3.2 = 0.906</li>
-<li>FPR: .2 / 96.8 = 0.002</li>
-<li>Precision: 2.9 / 3.0 = 0.97</li>
+<li>Accuracy: 0.9949</li>
+<li>TPR: 1768 / (1768 + 254): 0.874</li>
+<li>FPR: 70 / (61149 + 70): 0.001</li>
+<li>Precision: 0.9959</li>
 </ul>
-
-
 
 
 ### QDA Training ROC Curve:
-```{r qdaTrainingROC, cache=TRUE}
-result.qda = evalm(qda.cv.model.selected)
-result.qda$roc
+```{r ldaTrainingROC, cache=TRUE}
+function_ROC_AUC(out_all_preds_qda$Yes, out_best_qda$truth, "ROC For Tuned QDA Model")
 ```
 
-**The QDA ROC-AUC for the 10-fold cross-validated training data with p=0.85 is: 1.0.**
+The **QDA AUC** based on 10-fold cross-validated training data with a threshold of 0.8 is: **0.997**.
 
 ```{r qdaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
 #qda.test = predict(qda.cv.model, newdata = test.YesNo, type="prob") %>% 
@@ -1075,9 +1111,7 @@ From the manual cross-validation testing of accuracy the PLR lasso method with l
 
 
 ```{r lassoBest}
-
 out_confusion = tibble()
-
 
  #-- Loop over K folds
 for(k in unique(folds)){
@@ -1093,7 +1127,7 @@ for(k in unique(folds)){
                              lambda = lam_seq)   
   
   #- make predictions on test set fold k
-  pred = predict(fit.model, x.haitiFull.train[ind.test, ], s=0.00005630136, type = "response")
+  pred = predict(cv.glmnet.model, x.haitiFull.train[ind.test, ], s=0.00005630136, type = "response")
   
   #- evaluate fold k
   y_true = y.haitiFull.train[ind.test]
@@ -1136,10 +1170,10 @@ assess.glmnet(pred, newy = y.haitiFull.train[ind.test], family="binomial")
 
 Using lasso penalized logistic regression with a threshold = 0.2, lambda = 0.00005630136: 
 <ul>
-<li>Accuracy: (1940 + 61045) / 63241: 0.996</li>
-<li>TPR: 1940 / 2022 = 0.959</li>
-<li>FPR: 174 / 61219 = 0.0028</li>
-<li>Precision: 1940 / 2114 = 0.918</li>
+<li>Accuracy: (1941 + 61046) / 63241: 0.996</li>
+<li>TPR: 1941 / 2022 = 0.96</li>
+<li>FPR: 173 / 61219 = 0.0028</li>
+<li>Precision: 1941 / 2114 = 0.918</li>
 </ul>
 
 I was curious to examine the performance of the model selected by lasso in a logistic regression model with a threshold also selected by lasso (0.2). This is the selected PLR model without the lambda penalty term.
@@ -1465,15 +1499,16 @@ auc
   <td><!-- LDA Precision -->0.9954</td>
 </tr>
 
+
 <tr>
   <td>QDA</td>
   <td><!-- QDA Tuning --> N/A</td>
-  <td><!-- QDA AUROC -->1.0</td>
-  <td><!-- QDA Threshold -->0.85</td>
-  <td><!-- QDA Accuracy -->0.995</td>
-  <td><!-- QDA TPR -->0.906</td>
-  <td><!-- QDA FPR -->0.002</td>
-  <td><!-- QDA Precision -->0.97</td>
+  <td><!-- QDA AUROC -->0.997</td>
+  <td><!-- QDA Threshold -->0.8</td>
+  <td><!-- QDA Accuracy -->0.9949</td>
+  <td><!-- QDA TPR -->0.874</td>
+  <td><!-- QDA FPR -->0.001</td>
+  <td><!-- QDA Precision -->0.9959</td>
 </tr>
 
 <tr>
@@ -1818,8 +1853,6 @@ head(haitiAllTraining)
 
 ```
 
-
-
 ### Load holdout.csv into a dataframe
 
 ```{r loadholdoutcsv}
@@ -1857,8 +1890,6 @@ Our test data is only **1%** Blue Tarps, which is a differente distribution from
 glm.all.train = glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = haitiAllTraining)
 ```
 
-
-
 ``` {r holdout-testLogisticRegression, cache=TRUE}
 glm.preds = glm.all.train %>%  augment(newdata=haiti_ho_full) %>% 
       mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < .1, "0", "1")) %>%
@@ -1874,66 +1905,192 @@ For Logistic Regression, the hold-out test results with the tuned threshold of 0
 <li>Accuracy: 0.9882</li>
 <li>TPR: 14391 / (14480) = 0.994</li>
 <li>FPR: 23642 / (1989697) = 0.012</li>
-<li>Precision: 14391 / (38033) = 0.38</li>
+<li>Precision: 14391 / (38033) = 0.378</li>
 </ul>
 
 ```{r holdout-testLogisticRegression-ROC}
-##produce the numbers associated with classification table
-rates = prediction(glm.preds$.fitted, glm.preds$ClassBinary)
 
-##store the true positive and false postive rates
-roc_result = performance(rates, measure="tpr", x.measure="fpr")
+function_ROC_AUC(glm.preds$.fitted, glm.preds$ClassBinary, "ROC Hold-out Logistic Regression")
 
-##plot ROC curve and overlay the diagonal line for random guessing
-plot(roc_result, main="ROC Curve Hold-out Logistic Regression")
-lines(x = c(0,1), y = c(0,1), col="red")
-
-##compute the AUC
-auc = performance(rates, measure = "auc")
-auc@y.values[[1]]
 ```
 The **AUC** for hold-out the test data using a logistic regression model is **0.9997**.
 
 ## Hold-out Results LDA
 
-```{r ldtTrainAll}
+```{r ldtTrainAll, cache=TRUE}
 # non fits the model on the entire training set
-trctrl.lda.selected <- trainControl(method = "none", summaryFunction=twoClassSummary, classProbs=T)
+trctrl.lda.selected = trainControl(method = "none", summaryFunction=twoClassSummary, classProbs=T)
   
-#trctrl.lda.selected <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 1.0)
-lda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "lda", trControl=trctrl.lda.selected, tuneLength = 10)
+lda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiAllTraining, method = "lda", trControl=trctrl.lda.selected, tuneLength = 10)
 
-caret::confusionMatrix(lda.cv.model.selected)
 ```
 
 
-```{r ldaTestResults}
-lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>% 
-  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
+```{r ldaTestResults, cache=TRUE}
+lda.test = predict(lda.cv.model.selected, newdata = haiti_ho_full, type="prob")
 ```  
   
-```{r include=FALSE, echo=FALSE, eval=FALSE}
-#lda.test = lda.test %>% 
-#  mutate(ClassBinary = factor(ClassBinary)) 
+
+```{r ldaTestCOnfMatrix}  
+lda.preds = lda.test %>%
+      mutate(.prediction=ifelse(Yes < .8, "0", "1")) %>%
+      mutate(.prediction = factor(.prediction))
+
+caret::confusionMatrix(lda.preds$.prediction, haiti_ho_full$ClassBinary)
 ```
 
-```{r include=FALSE, echo=FALSE, eval=FALSE}  
-#caret::confusionMatrix(lda.test$ClassBinary, test.YesNo$ClassBinary)
-```
+For LDA, the hold-out test results with the tuned threshold of 0.8 are:
 
-```{r ldaROCTest, include=FALSE, echo=FALSE, eval=FALSE}
-#test.lda.result = evalm(lda.test)
-```
+<ul>
+<li>Accuracy: 0.9976</li>
+<li>TPR: 12399 / (14480) = 0.856</li>
+<li>FPR: 2727 / (1989697) = 0.001</li>
+<li>Precision: 14391 / (38033) = 0.8197</li>
+</ul>
 
+```{r ldaROCTest, cache=TRUE}
+
+function_ROC_AUC(lda.test$Yes, haiti_ho_full$ClassBinary, "ROC Hold-out LDA")
+
+```
+The **AUC** for hold-out the test data using an LDA is **0.997**.
 
 ## Hold-out Results QDA
 
+```{r qdaTrainAll, cache=TRUE}
+# fit the model on the entire training set
+trctrl.qda.selected = trainControl(method = "none", summaryFunction=twoClassSummary, classProbs=T)
+  
+qda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiAllTraining, method = "qda", trControl=trctrl.qda.selected, tuneLength = 10)
+
+```
+
+
+```{r qdaTestResults, cache=TRUE}
+# test with holdout data
+qda.test = predict(qda.cv.model.selected, newdata = haiti_ho_full, type="prob")
+```  
+  
+
+```{r qdaTestCOnfMatrix}  
+qda.preds = qda.test %>%
+      mutate(.prediction=ifelse(Yes < .8, "0", "1")) %>%
+      mutate(.prediction = factor(.prediction))
+
+caret::confusionMatrix(qda.preds$.prediction, haiti_ho_full$ClassBinary)
+```
+
+For QDA, the hold-out test results with the tuned threshold of 0.8 are:
+
+<ul>
+<li>Accuracy: 0.9906</li>
+<li>TPR: 5753 / (14480) = 0.397</li>
+<li>FPR: 10088 / (1989697) = 0.005</li>
+<li>Precision: 14391 / (38033) = 0.3632</li>
+</ul>
+
+```{r qdaROCTest, cache=TRUE}
+
+function_ROC_AUC(qda.test$Yes, haiti_ho_full$ClassBinary, "ROC Hold-out QDA")
+
+```
+
+The **AUC** for hold-out the test data using an QDA and a threshold of 0.8 is **0.635**.
 
 ## Hold-out Results KNN
 
+```{r knnTrainAll, cache=TRUE}
+# fit the model on the entire training set
+train_knn <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiAllTraining, method = "knn", tuneGrid = data.frame(k=27))
+
+# test with the hold out data
+knn.test = predict(train_knn, newdata = haiti_ho_full, type="prob")
+
+```  
+  
+
+```{r knnTestCOnfMatrix}  
+knn.preds = knn.test %>%
+      mutate(.prediction=ifelse(Yes < .5, "0", "1")) %>%
+      mutate(.prediction = factor(.prediction))
+
+caret::confusionMatrix(knn.preds$.prediction, haiti_ho_full$ClassBinary)
+```
+For QDA, the hold-out test results with the tuned threshold of 0.8 are:
+
+<ul>
+<li>Accuracy: 0.9921</li>
+<li>TPR: 12622 / (14480) = 0.872</li>
+<li>FPR: 14010 / (1989697) = 0.007</li>
+<li>Precision: 12622 / (26632) = 0.4739</li>
+</ul>
+
+```{r knnROCTest, cache=TRUE}
+
+function_ROC_AUC(knn.test$Yes, haiti_ho_full$ClassBinary, "ROC Hold-out KNN")
+
+```
+The **AUC** for hold-out the test data using an KNN | k = 27 is **0.954**.
 
 ## Hold-out Results Lasso
 
+I already have the matrix for the training data to retrain the model with the complete data set. However, I do need to create the testing matrix.
+
+I tried using the lambda from the tuning, and it did not produce convergence on the test data.
+```{r lassosetup, cache=TRUE}
+x.haitiHoldout.test = model.matrix(frmla, data = haiti_ho_full)[,-1] # removing the intercept term from the formula
+
+# switch ClassBinary to TRUE FALSE to facilitate the next bit of code
+y.haitiHoldout.test = (haiti_ho_full %>% mutate(ClassBinary = ifelse(ClassBinary == '0', FALSE, TRUE)))$ClassBinary
+
+#-- Get lambda sequence so consistent over all folds
+lam_seq = glmnet(x.haitiFull.train, y.haitiFull.train, family="binomial", alpha=a)$lambda
+```
+
+Training on entire training data set, and predict with the hold out data. Evaluation of the testing data is performed with the tuned lambda and the best threshold based on accuracy.
+
+```{r lassoTrainAll, cache=TRUE}
+#- fit the lasso with all the training data and teh best lambda
+lasso_holdout_model = glmnet(x.haitiFull.train, y.haitiFull.train, alpha = 1,          
+                           family="binomial")   
+
+# make test predictions
+lasso.test = predict(lasso_holdout_model, x.haitiHoldout.test, s = 5.630136e-05, type = "response")
+
+lasso_out_confusion = tibble()
+
+#- evaluate fold k
+y_true = y.haitiHoldout.test
+# set the threshold to p
+thres = 0.2
+y_hat = lasso.test > thres
+
+  #- output
+lasso_out_confusion = bind_rows(lasso_out_confusion, 
+          tibble(truth = y.haitiHoldout.test, 
+                 fitted = y_hat))
+
+lasso_out_confusion = lasso_out_confusion %>% mutate(truth = factor(truth), fitted = factor(fitted))
+
+caret::confusionMatrix(lasso_out_confusion$fitted, lasso_out_confusion$truth)
+
+```
+For QDA, the hold-out test results with the tuned threshold of 0.2 are:
+
+<ul>
+<li>Accuracy: 0.9923</li>
+<li>TPR: 14380 / (14480) = 0.993</li>
+<li>FPR: 15316 / (1989697) = 0.008</li>
+<li>Precision: 14380 / (29696) = 0.484</li>
+</ul>
+
+```{r lassoROCTest, cache=TRUE}
+
+function_ROC_AUC(lasso.test, haiti_ho_full$ClassBinary, "ROC Hold-out Lasso")
+
+```
+
+The **AUC** for hold-out the test data using an lasso with tuned lambda and threshold of 0.2 is **0.9997**.
 
 ## Hold-out Results Random Forest
 
@@ -1988,26 +2145,28 @@ lda.test = predict(lda.cv.model, newdata = test.YesNo, type="prob") %>%
   <td><!-- QDA Precision -->TBD</td>
 </tr>
 
+
 <tr>
   <td>KNN</td>
-  <td><!-- KNN Tuning --> k = TBD</td>
-  <td><!-- KNN AUROC -->TBD</td>
-  <td><!-- KNN Threshold -->TBD</td>
-  <td><!-- KNN Accuracy -->TBD</td>
-  <td><!-- KNN TPR -->TBD</td>
-  <td><!-- KNN FPR -->TBD</td>
-  <td><!-- KNN Precision -->TBD</td>
+  <td><!-- KNN Tuning --> k = 27</td>
+  <td><!-- KNN AUROC -->0.954</td>
+  <td><!-- KNN Threshold -->0.5</td>
+  <td><!-- KNN Accuracy -->0.9921</td>
+  <td><!-- KNN TPR -->0.872</td>
+  <td><!-- KNN FPR -->0.007</td>
+  <td><!-- KNN Precision -->0.4739</td>
 </tr>
+
 
 <tr>
   <td>Penalized Log Reg</td>
-  <td><!-- Penalized Log Reg Tuning -->TBD</td>
-  <td><!-- Penalized Log Reg AUROC -->TBD</td>
-  <td><!-- Penalized Log Reg Threshold -->TBD</td>
-  <td><!-- Penalized Log Reg Accuracy -->TBD</td>
-  <td><!-- Penalized Log Reg TPR -->TBD</td>
-  <td><!-- Penalized Log Reg FPR -->TBD</td>
-  <td><!-- Penalized Log Reg Precision -->TBD</td>
+  <td><!-- Penalized Log Reg Tuning -->lamda = 5.630136e-05</td>
+  <td><!-- Penalized Log Reg AUROC -->0.9997</td>
+  <td><!-- Penalized Log Reg Threshold -->0.2</td>
+  <td><!-- Penalized Log Reg Accuracy -->0.9923</td>
+  <td><!-- Penalized Log Reg TPR -->0.993</td>
+  <td><!-- Penalized Log Reg FPR -->0.008</td>
+  <td><!-- Penalized Log Reg Precision -->0.484</td>
 </tr>
 
 <tr>
