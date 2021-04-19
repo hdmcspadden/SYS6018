@@ -1,0 +1,138 @@
+---
+title: "Visualizing LDA in R"
+author: "Diana McSpadden"
+date: "4/19/2021"
+output: html_document
+---
+
+From <https://www.r-bloggers.com/2014/01/computing-and-visualizing-lda-in-r/>
+
+```{r setup}
+library(MASS)
+
+#data(iris)
+
+head(iris)
+```
+
+## call the lda formula with prior probs
+
+The **.** in the formula argument means that we use all the remaining variables in data as covariates. 
+
+The **prior** argument sets the prior probabilities of class membership. If unspecified, the class proportions for the **training** set are used. If present, the probabilities should be specified in the order of the factor levels.
+
+```{r}
+
+lda_model = lda(formula = Species ~ .,
+        data = iris, 
+        prior = c(1,1,1)/3)
+
+lda_model$prior
+
+```
+
+```{r}
+lda_model$counts
+```
+
+```{r}
+lda_model$means
+```
+
+As we can see above, a call to lda returns the prior probability of each class, the counts for each class in the data, the class-specific means for each covariate, the linear combination coefficients (scaling) for each linear discriminant (remember that in this case **with 3 classes we have at most two linear discriminants**) and the singular values (svd) that gives the ratio of the between- and within-group standard deviations on the linear discriminant variables.
+
+```{r}
+lda_model$scaling
+```
+```{r}
+lda_model$svd
+```
+We can use the singular values to compute the amount of the between-group variance that is explained by each linear discriminant. In our example we see that the first linear discriminant explains more than {99\%} of the between-group variance in the iris dataset.
+```{r}
+prop = lda_model$svd^2/sum(lda_model$svd^2)
+prop
+```
+If we call lda with CV = TRUE it uses a leave-one-out cross-validation and returns a named list with components:
+
+* class: the Maximum a Posteriori Probability (MAP) classification (a factor)
+* posterior: posterior probabilities for the classes.
+
+```{r}
+lda_model_cv = lda(formula = Species ~ ., 
+          data = iris, 
+          prior = c(1,1,1)/3,
+          CV = TRUE)
+
+head(lda_model_cv$class)
+
+head(lda_model_cv$posterior, 3)
+```
+There is also a **predict** method implemented for lda objects. It returns the classification and the posterior probabilities of the new data based on the Linear Discriminant model. Below, I use half of the dataset to train the model and the other half is used for predictions.
+
+
+```{r}
+set.seed(1976)
+train = sample(1:150, 75)
+
+lda_model_train = lda(Species ~ ., # training model
+         iris, 
+         prior = c(1,1,1)/3, 
+         subset = train)
+
+plda = predict(object = lda_model_train, # predictions
+               newdata = iris[-train, ])
+
+head(plda$class) # classification result
+
+head(plda$posterior, 3) # posterior prob.
+
+head(plda$x, 3) # LD projections
+```
+## Visualizing the difference between PCA and LDA
+
+As I have mentioned at the end of my post about Reduced-rank DA, PCA is an unsupervised learning technique (don’t use class information) while LDA is a supervised technique (uses class information), but both provide the possibility of dimensionality reduction, which is very useful for visualization. Therefore we would expect (by definition) LDA to provide better data separation when compared to PCA, and this is exactly what we see at the Figure below when both LDA (upper panel) and PCA (lower panel) are applied to the iris dataset. The code to generate this Figure is available on github.
+
+```{r}
+require(MASS)
+require(ggplot2)
+require(scales)
+require(gridExtra)
+
+pca <- prcomp(iris[,-5],
+              center = TRUE,
+              scale. = TRUE) 
+
+prop.pca = pca$sdev^2/sum(pca$sdev^2)
+
+lda <- lda(Species ~ ., 
+           iris, 
+           prior = c(1,1,1)/3)
+
+prop.lda = lda$svd^2/sum(lda$svd^2)
+
+plda <- predict(object = lda,
+                newdata = iris)
+
+dataset = data.frame(species = iris[,"Species"],
+                     pca = pca$x, lda = plda$x)
+
+p1 <- ggplot(dataset) + geom_point(aes(lda.LD1, lda.LD2, colour = species, shape = species), size = 2.5) + 
+  labs(x = paste("LD1 (", percent(prop.lda[1]), ")", sep=""),
+       y = paste("LD2 (", percent(prop.lda[2]), ")", sep=""))
+
+p2 <- ggplot(dataset) + geom_point(aes(pca.PC1, pca.PC2, colour = species, shape = species), size = 2.5) +
+  labs(x = paste("PC1 (", percent(prop.pca[1]), ")", sep=""),
+       y = paste("PC2 (", percent(prop.pca[2]), ")", sep=""))
+
+grid.arrange(p1, p2)
+```
+
+Although we can see that this is an easy dataset to work with, it allow us to clearly see that the versicolor specie is well separated from the virginica one in the upper panel while there is still some overlap between them in the lower panel. This kind of difference is to be expected since PCA tries to retain most of the variability in the data while LDA tries to retain most of the between-class variance in the data. Note also that in this example the first LD explains more than {99\%} of the between-group variance in the data while the first PC explains {73\%} of the total variability in the data.
+
+
+
+Although I have not applied it on my illustrative example above, pre-processing [3] of the data is important for the application of LDA. Users should transform, center and scale the data prior to the application of LDA. It is also useful to remove near-zero variance predictors (almost constant predictors across units). Given that we need to invert the covariance matrix, it is necessary to have less predictors than samples. Attention is therefore needed when using cross-validation.
+
+
+
+
