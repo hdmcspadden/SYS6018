@@ -214,11 +214,15 @@ With what seems a relatively small cost (0.01), with a linear kernel, 468 observ
 ```{r q8c-1}
 set.seed(1976)
 
-q8b_tuned_svm = tune(svm, Purchase~., data=oj_train, kernel="linear", ranges=list(cost=c(0.01)))
+q8b_tuned_svm = tune(svm, Purchase~., data=oj_train, kernel="linear", ranges=list(cost=c(0.01)), probability=TRUE)
 
 summary(q8b_tuned_svm)
 
-pred = predict(q8b_tuned_svm$best.model, newdata = oj_test)
+pred = predict(q8b_tuned_svm$best.model, newdata = oj_test, probability=TRUE)
+
+attr(pred, "probabilities")[1:4,]
+attr(pred, "probabilities")[1:4,"CH"]
+attr(pred, "probabilities")[1:4,"MM"]
 
 length(pred)
 

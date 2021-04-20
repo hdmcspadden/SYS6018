@@ -97,6 +97,7 @@ library(MLeval)
 library(ggplot2)
 library(purrr)
 library(broom)
+library(e1071)
 ```
 
 ```{r load-data, message=FALSE, warning=FALSE}
@@ -1461,6 +1462,100 @@ auc
 ```
 
 ## SVM
+For the support vector machine model I will use the same variables as the random forest model:
+<ul>
+<li>**Red**</li>
+<li>**Blue**</li>
+<li>**Green**</li>
+<li>**RBSqr** = (Red + Blue)^2</li>
+<li>**GBSqr** = (Green + Blue)^2</li>
+<li>**RGSqr** = (Red + Green)^2</li>
+<li>**RGBSqr** = (Red + Blue + Green)^2</li>
+<li>**RG** = (Red * Green)</li>
+<li>**RB** = (Red * Blue)</li>
+<li>**GB** = (Green * Blue)</li>
+</ul>
+
+### Tuning the Support Vector Machine
+
+Based on the 3D visualization of the dataset I generated earlier, I believe the data will separate well with a linear kernel. Using cross validation, I will tune a linear kernel with cost values that include 0.001, 0.01, 0.1, 1, 10, and 100.
+
+<!--https://www.rdocumentation.org/packages/e1071/versions/1.7-6/topics/predict.svm-->
+
+I ran the svm with possible costs including 0.01, 0.1, 1, and 10 and probability thresholds .2, .3, .4, .5, .6, .7, and .8. The best performing model used **cost == 1** and **threshold == 0.2**. For speed of knitting this Rmd I only include those values in the code below:
+```{r svm-training, cache=TRUE}
+
+out_svm = tibble()
+out_svm_accuracy = tibble()
+
+#Perform 10 fold cross validation with various costs
+
+#Create 10 equally size folds
+set.seed(1976)
+folds <- cut(seq(1,nrow(haitiRFShuffled)),breaks=10,labels=FALSE)
+
+
+#for (cost_val in c( 0.01, 0.1, 1, 10))
+for (cost_val in c(1))
+{
+  for(i in 1:10)
+  {
+      
+      # Use my previously generated folds
+      #Segement your data by fold using the which() function 
+      testIndexes = which(folds==i,arr.ind=TRUE)
+      testData = haitiRFShuffled[testIndexes, ]
+      trainData = haitiRFShuffled[-testIndexes, ]
+  
+      svm_model = tune(svm, ClassBinary~Red+Blue+Green+GBSqr+RBSqr+RGSqr+RGBSqr+RG+RB+GB, data=trainData, kernel="linear", ranges=list(cost=c(cost_val)), probability=TRUE)
+      
+      pred = predict(svm_model$best.model, newdata = testData, probability=TRUE)
+      
+      # to speed this up, loop through the preds after the svm has been fit.
+      #for (thres in c(.2,.3,.4,.5,.6,.7,.8))
+      for (thres in c(.2))
+      {
+          y_hat = attr(pred, "probabilities")[,"1"] > thres
+          
+          acc = sum(y_hat == (testData$ClassBinary == "1")) / nrow(testData)
+          
+          out_svm = bind_rows(out_svm, 
+                tibble(thres = thres, cost = cost_val, pred_value = y_hat, truth_value = testData$ClassBinary, accuracy = acc, noProb = attr(pred, "probabilities")[,"0"], yesProb = attr(pred, "probabilities")[,"1"]))
+      }
+  }
+}
+
+```
+
+
+```{r svm-bestCostAndThreshold}
+out_svm %>% group_by(thres, cost) %>% summarize(acc = mean(accuracy)) %>% arrange(desc(acc))
+
+```
+The highest performing cross-validated svm used a **cost of 1 and a threshold of 0.2**.
+
+```{r sv-ConfMatrix}
+best_svm = out_svm %>% filter(thres == 0.2 & cost == 1.00) %>% mutate(truth_value = (truth_value == "1")) %>% mutate(pred_value = factor(pred_value), truth_value = factor(truth_value))
+head(best_svm)
+
+caret::confusionMatrix(best_svm$pred_value, best_svm$truth_value)
+
+```
+
+```{r svm-ROC}
+function_ROC_AUC(best_svm$yesProb, best_svm$truth_value, "ROC Training SVM")
+```
+Using SVM with a threshold = 0.2 and a cost of 1.0:
+<ul>
+<li>Accuracy: 0.9963</li>
+<li>AUC: 0.9995</li>
+<li>TPR: 1945 / 2022 = 0.962</li>
+<li>FPR: 155 / 61219 = 0.0025</li>
+<li>Precision: 1945 / 2100 = 0.9262</li>
+<li>Neg Pred Value: 61064 / 61141 = 0.999</li>
+<li>False Pred Rate: 77 / 2022 = 0.038</li>
+</ul>
+
 
 # Results (Cross-Validation)
 
@@ -1546,13 +1641,13 @@ auc
 
 <tr>
   <td>SVM</td>
-  <td><!-- SVM Tuning -->  </td>
-  <td><!-- SVM AUROC --></td>
-  <td><!-- SVM Threshold --></td>
-  <td><!-- SVM Accuracy --></td>
-  <td><!-- SVM TPR --></td>
-  <td><!-- SVM FPR --></td>
-  <td><!-- SVM Precision --></td>
+  <td><!-- SVM Tuning -->Cost = 1.0</td>
+  <td><!-- SVM AUROC -->0.9995</td>
+  <td><!-- SVM Threshold -->0.2</td>
+  <td><!-- SVM Accuracy -->0.9963</td>
+  <td><!-- SVM TPR -->0.962</td>
+  <td><!-- SVM FPR -->0.0025</td>
+  <td><!-- SVM Precision -->0.9262</td>
 </tr>
 </table>
 
