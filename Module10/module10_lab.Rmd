@@ -112,7 +112,9 @@ cutree(hc.complete, 2)
 cutree(hc.average, 2)
 cutree(hc.single, 2)
 cutree(hc.single, 4)
+```
 
+```{r}
 # scale the values
 xsc=scale(x)
 plot(hclust(dist(xsc), method="complete"), main="Hierarchical Clustering with Scaled Features")

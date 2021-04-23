@@ -1,0 +1,132 @@
+---
+title: "Module 10 Homework"
+author: "Diana McSpadden"
+date: "4/22/2021"
+output: html_document
+---
+
+# Module 10 Homework
+## H. Diana McSpadden (hdm5s)
+
+# Question 8
+On the USArrests data, calculate PVE in two ways:
+
+## (a) Using the sdev output of the prcomp() function, as was done in
+Section 10.2.3.
+
+```{r q8a-1}
+summary(USArrests)
+```
+
+```{r}
+summary(scale(USArrests))
+```
+
+
+```{r q8a-2}
+pr.out = prcomp(USArrests , scale =TRUE)
+pr.var = pr.out$sdev^2
+pve=pr.var/sum(pr.var)
+print("SDEV Calculation of PVE per PC:")
+pve
+```
+
+
+##(b) By applying Equation 10.8 directly. 
+That is, use the prcomp() function to compute the principal component loadings. Then, use those loadings in Equation 10.8 to obtain the PVE.
+
+```{r q8b-1}
+
+head(pr.out$x)
+pr.out$x[1,1]
+```
+``` {r q8b-2}
+numerator_pc = 0
+
+numerator_pc = (pr.out$x^2)
+#head(numerator_pc)
+
+numerator_pc = apply(numerator_pc, 2, sum)  # apply sum on columns (second arg = 2 == columns)
+
+#numerator_pc
+```
+
+```{r q8b-3}
+squared_sum = 0
+
+squared_sum = (scale(USArrests))^2
+#head(squared_sum)
+squared_sum = apply(squared_sum, 2, sum) # apply sum on columns (second arg = 2 == columns)
+sum_squared_sum = sum(squared_sum)
+
+
+print("Manually Calculated PVE per PC:")
+numerator_pc / sum_squared_sum
+
+```
+
+# Question 9
+Consider the USArrests data. We will now perform hierarchical clustering on the states.
+
+## (a) Using hierarchical clustering with complete linkage ...
+and Euclidean distance, cluster the states.
+
+```{r q9a-1, fig.width=10, fig.height=8}
+hc_USArrests_complete = hclust(dist(USArrests), method="complete") # complete linkage
+plot(hc_USArrests_complete,main="Complete Linkage Hierarchical Clustering: USArrests", xlab="", sub="", cex=.9)
+
+```
+
+
+## (b) Cut the dendrogram at a height that results ...
+in three distinct clusters. Which states belong to which clusters?
+
+**Process Q9b: **
+```{r q9-setup}
+library(tidyverse)
+```
+
+
+```{r q9b-1}
+usArrests_cut_3 = cutree(hc_USArrests_complete, k = 3)
+print("Cluster One:")
+usArrests_cut_3[usArrests_cut_3 == 1]
+
+print("Cluster Two:")
+usArrests_cut_3[usArrests_cut_3 == 2]
+
+print("Cluster Three:")
+usArrests_cut_3[usArrests_cut_3 == 3]
+```
+
+## (c) Hierarchically cluster the states using complete linkage...
+and Euclidean distance, after scaling the variables to have standard deviation one.
+
+```{r q9c-1, fig.width=10, fig.height=8}
+hc_USArrests_scaled_complete = hclust(dist(scale(USArrests)), method="complete") # complete linkage
+plot(hc_USArrests_scaled_complete,main="Complete Linkage Hierarchical Clustering: Scaled USArrests", xlab="", sub="", cex=.9)
+```
+
+##(d) What effect does scaling the variables have on the hierarchical
+clustering obtained? In your opinion, should the variables be scaled before the inter-observation dissimilarities are computed?
+
+**Q9d Process:** From the dendrogram it does not appear that there is a cut that produces 3 groups, so I will try for 4 groups because I am curious is the clusters make more sense than the not scaled clusters.
+
+```{r q9d-1}
+usArrests_cut_4 = cutree(hc_USArrests_scaled_complete, k = 4)
+print("Cluster One:")
+usArrests_cut_3[usArrests_cut_4 == 1]
+
+print("Cluster Two:")
+usArrests_cut_3[usArrests_cut_4 == 2]
+
+print("Cluster Three:")
+usArrests_cut_3[usArrests_cut_4 == 3]
+
+print("Cluster Four:")
+usArrests_cut_3[usArrests_cut_4 == 4]
+```
+   Murder          Assault         UrbanPop          Rape  
+   
+   
+**Answer:** Scaling is important as murder, rape and assault are in values per 100,000 and UrbanPop is the percent of urban population in the state. The different variances for each of the un-scaled predictors will result in heavier weighing of observations with greater variance. I do not think Assualt should have greater importance than the other predictors, so I recommend scaling.

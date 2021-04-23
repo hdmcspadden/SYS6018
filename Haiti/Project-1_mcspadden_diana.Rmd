@@ -98,6 +98,8 @@ library(ggplot2)
 library(purrr)
 library(broom)
 library(e1071)
+library(caret)
+library(boot)
 ```
 
 ```{r load-data, message=FALSE, warning=FALSE}
@@ -332,13 +334,6 @@ I am using the 2-Class data set for the following reasons:
 <li>I am using 10-fold cross-validation to evaluate various models.</li>
 </ol>
 
-
-```{r warning=FALSE, message=FALSE}
-library(caret)
-library(boot)
-```
-
-
 ## Cross-Validation Performance 
 
 For logistic regression, LDA, QDA, KNN  and Penalized Logistic Regression Cross-Validation threshold performance use ROC and Accuracy for tuning.
@@ -370,12 +365,10 @@ levels(haitiBinarySqrs$ClassBinary)=c("No","Yes")
 levels(haitiBinarySqrs$ClassBinary)
 
 fct_count(haitiBinarySqrs$ClassBinary)
-
-train = haitiBinarySqrs
 ```
 
 ### Comparison of Three Logistic Regression Models
-Using 10-fold cross validation and p values in the collection (.1,.2,.3,.35,.4,.45, .5,.55,.6,.65,.7,.75,.8,.85,.9,.95,1.0) I tested three models:
+Using 10-fold cross validation and p values in the collection (.1,.2,.3,.35,.4,.5,.6,.7,.8,.9) I tested three models:
 <br />
 ** Model 1: Greatest Complexity:**
 $$ClassBinary = Blue + GBSqr + RBSqr \hspace{.3cm} | \hspace{.3cm} GBSqr = (Green + Blue)^2 \hspace{.3cm} and \hspace{.3cm} RBSqr = (Red + Blue)^2$$
@@ -418,7 +411,7 @@ prec_s_i = rep(NA, out_nvar)
 
 counter = 1
 
-for (j in c(.1,.2,.3,.35,.4,.45, .5,.55,.6,.65,.7,.75,.8,.85,.9,.95,1.0))
+for (j in c(.1,.2,.3,.35,.4, .5,.6,.7,.8,.9))
 { 
 
   p_i[counter] = j
@@ -638,21 +631,17 @@ I tested with thresholds in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95). The
 #y_true
 
 set.seed(1976)
-# number of folds
-haitiBinarySqrsShuffled = haitiBinarySqrs[sample(nrow(haitiBinarySqrs)),]
 
+haitiBinarySqrsShuffled = haitiBinarySqrs[sample(nrow(haitiBinarySqrs)),]
 #Create 10 equally size folds
 folds <- cut(seq(1,nrow(haitiBinarySqrsShuffled)),breaks=10,labels=FALSE)
 
 trctrl <- trainControl(method = "cv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T)
 
 out_lda_p = tibble()
-# TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
-for (p in c(.3, .4)){
-#for (p in c(.2, .8)){
 
-   #Perform 10 fold cross validation
-  for(i in 1:10) {
+#Perform 10 fold cross validation
+for(i in 1:10) {
   
     #Segement your data by fold using the which() function 
     testIndexes = which(folds==i,arr.ind=TRUE)
@@ -667,18 +656,22 @@ for (p in c(.3, .4)){
     #- evaluate fold k
     y_true = testData$ClassBinary
     # check the threshold
-    #y_hat = tibble(hat_pred = preds$Yes > p) %>% mutate(hat_value = ifelse(preds$Yes > p))
-    y_hat = preds %>% mutate(hat_value = ifelse(Yes > p, "Yes", "No")) %>% select(hat_value)
-    acc = apply(y_hat, 2, function(y) mean(y == y_true))
-    
-      #- output
-    out_lda_p = bind_rows(out_lda_p, tibble(threshold = p, accuracy = acc))
-  }
+    # TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
+    #for (p in c(.2, .8)){
+    for (p in c(.3, .4)){
+      #y_hat = tibble(hat_pred = preds$Yes > p) %>% mutate(hat_value = ifelse(preds$Yes > p))
+      y_hat = preds %>% mutate(hat_value = ifelse(Yes > p, "Yes", "No")) %>% select(hat_value)
+      acc = apply(y_hat, 2, function(y) mean(y == y_true))
+      
+        #- output
+      out_lda_p = bind_rows(out_lda_p, tibble(threshold = p, accuracy = acc))
+    }
 }
 
 #out_lda_p
 
 ```
+
 ```{r getMeanLDAAccuracy}
 #-- Get mean accuracy
 perf_lda_p = out_lda_p %>% 
@@ -744,7 +737,7 @@ The **LDA AUC** based on 10-fold cross-validated training data with a threshold 
 
 I trained the QDA model using 10-fold cross validation. 
 
-10-fold cross validation was used for p-values from 0.05 to 1 at 0.05 intervals. Tuning was performed using ROC.
+10-fold cross validation was used and various thresholds were evaluated for best accuracy. **0.8** produced the highest accuracy. For illustrative purposes I only test thresholds of 0.7, 0.8, an 0.9.
 ```{r qdaCrossValidation, warning=FALSE, cache=TRUE}
 set.seed(1976)
 
@@ -755,10 +748,10 @@ trctrl <- trainControl(method = "cv", summaryFunction=twoClassSummary, classProb
 out_qda_p = tibble()
 # TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
 #for (p in c(.3, .4)){
-for (p in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95)){
+
 
    #Perform 10 fold cross validation
-  for(i in 1:10) {
+for(i in 1:10) {
   
     #Segement your data by fold using the which() function 
     testIndexes = which(folds==i,arr.ind=TRUE)
@@ -771,14 +764,15 @@ for (p in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95)){
     preds = predict(train_qda, newdata = testData, type="prob")
     
     #- evaluate fold k
-    y_true = testData$ClassBinary
-    # check the threshold
-    y_hat = preds %>% mutate(hat_value = ifelse(Yes > p, "Yes", "No")) %>% select(hat_value)
-    acc = apply(y_hat, 2, function(y) mean(y == y_true))
-    
-      #- output
-    out_qda_p = bind_rows(out_qda_p, tibble(threshold = p, accuracy = acc))
-  }
+    for (p in c(.7, .8, .9)){
+      y_true = testData$ClassBinary
+      # check the threshold
+      y_hat = preds %>% mutate(hat_value = ifelse(Yes > p, "Yes", "No")) %>% select(hat_value)
+      acc = apply(y_hat, 2, function(y) mean(y == y_true))
+      
+        #- output
+      out_qda_p = bind_rows(out_qda_p, tibble(threshold = p, accuracy = acc))
+    }
 }
 
 
@@ -870,23 +864,25 @@ The **QDA AUC** based on 10-fold cross-validated training data with a threshold 
 
 ### Tuning Parameter $k$
 
-```{r knnTry1-21, cache=TRUE, warning=FALSE}
+After testing over ranges from 1 to 51, the best k was **27**. To speed processing of this document, I include 26, 27, and 28 as values for k.
+
+```{r knnTry1, cache=TRUE, warning=FALSE}
 set.seed(1976)
 
 trControl.knn <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.5)
 
-knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trControl.knn, tuneGrid = expand.grid(k = 1:21))
+knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trControl.knn, tuneGrid = expand.grid(k = 26:28))
 knn.cv.model
 ```
 
-```{r knnTry17-35, warning=FALSE, cache=TRUE}
+```{r knnTry2, warning=FALSE, cache=TRUE, eval=FALSE}
 set.seed(1976)
 
 knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid = expand.grid(k = 17:35))
 knn.cv.model
 ```
 I order to speed up this Rmd file I am no longer evaluating the following code chunk that evaluated k = 27 - 51. When this chunk is run, the best k was still 27.
-```{r knnTry27-51, warning=FALSE, cache=TRUE, eval=FALSE}
+```{r knnTry3, warning=FALSE, cache=TRUE, eval=FALSE}
 set.seed(1976)
 
 knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trctrl, tuneGrid   = expand.grid(k = 27:51))
@@ -922,8 +918,7 @@ haitiBinarySqrsShuffled = haitiBinarySqrsShuffled %>% mutate(ClassBinaryTF = fac
 
 #for (p in c(.1,.2,.3,.7,.8,.9)) 
 #for (p in c(.2,.3,.4,.5,.6,.7,.8)) 
-for (p in c(.4,.5)) 
-{
+
     for (j in 1:10)
     {
   
@@ -937,16 +932,19 @@ for (p in c(.4,.5))
       # test with the fold's test data
       preds = predict(train_knn, newdata = testData, type="prob")
       
-      #- evaluate fold k
-      y_true = testData$ClassBinaryTF
-      # set the threshold to p
-      thres = p
-      y_hat = tibble(preds$Yes > thres)
-      acc = apply(y_hat, 2, function(y) mean(y == y_true))
-    
-        #- output
-      out_knn_p = bind_rows(out_knn_p, tibble(threshold = p, accuracy = acc))
-  }
+      for (p in c(.4,.5)) 
+      {
+      
+        #- evaluate fold k
+        y_true = testData$ClassBinaryTF
+        # set the threshold to p
+        thres = p
+        y_hat = tibble(preds$Yes > thres)
+        acc = apply(y_hat, 2, function(y) mean(y == y_true))
+      
+          #- output
+        out_knn_p = bind_rows(out_knn_p, tibble(threshold = p, accuracy = acc))
+      }
 }
 
 out_knn_p
@@ -1024,6 +1022,8 @@ Using penalized logistic regression (PLR), I evaluated three different PLR metho
 
 For the sake of processing speed I commented out the loop for the extended p values (0.2 was the best threshold when I considered the extended list), and kept 0.1, 0.2, 0.3 for illustrative purposes.
 
+After testing ridge, elasticnet, and lasso, lasso performed the best. For speed of processing, I am only demonstrating the loop with a == 1 == lasso.
+
 ```{r glmnetCrossVal, cache=TRUE}
 library(glmnet)
 
@@ -1036,18 +1036,16 @@ folds = rep(1:K, length=nrow(x.haitiFull.train))
 out = tibble()
 
 # LOOP FOR alpha: 0 (ridge), 0.5 (elasticnet), and 1 (lasso)
-for (a in c(0, .5, 1)){
+#for (a in c(0, .5, 1)){
 
+for (a in c(1)){
   # lambda may be different for the different PLR methods, so this is decided within the alpha loop
   #-- Get lambda sequence so consistent over all folds
   lam_seq = glmnet(x.haitiFull.train, y.haitiFull.train, family="binomial", alpha=a)$lambda
 
-  # TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
-  #for (p in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95)){
-  for (p in c(.1, .2, .3)){
-
-    #-- Loop over K folds
-    for(k in unique(folds)){
+  
+  #-- Loop over K folds
+  for(k in unique(folds)){
       
       #- Get train/test split for fold k
       ind.train = which(folds != k)
@@ -1064,6 +1062,10 @@ for (a in c(0, .5, 1)){
       
       #- evaluate fold k
       y_true = y.haitiFull.train[ind.test]
+      
+      # TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
+       #for (p in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95)){
+      for (p in c(.1, .2, .3)){
       # set the threshold to p
       thres = p
       y_hat = pred > thres
@@ -1078,7 +1080,7 @@ for (a in c(0, .5, 1)){
                        alpha = a,
                        thres = p,
                        k = k))
-    }
+      }
   }
 }
 ```
@@ -1108,7 +1110,7 @@ ggplot(perf, aes(log(lambda), mean_acc)) +
                 color="red", alpha=1)
 ```
 
-From the manual cross-validation testing of accuracy the PLR lasso method with lambda of 5.630136e-05 and a threshold of 0.2 produced the greatest mean accuracy: 0.996.
+From the manual cross-validation testing of accuracy the PLR lasso method with lambda of 5.630136e-05 and a threshold of **0.2** produced the greatest mean accuracy: **0.996**.
 
 
 ```{r lassoBest}
@@ -1302,6 +1304,7 @@ summary(results)
 ```{r eval=FALSE}
 rf.fit$bestTune
 ```
+                                                                            
 ```{r eval=FALSE}
 summary(rf.fit$finalModel$ntree)
 ```
@@ -1347,9 +1350,9 @@ folds <- cut(seq(1,nrow(haitiRFShuffled)),breaks=10,labels=FALSE)
 head(haitiRFShuffled)
 ```
 
-I did run this loop with threshold 0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 and **0.6** performed the best.
+I did run this loop with threshold 0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 and **0.7** performed the best.
 
-For the sake of faster compilation time, I am limited the threshold loop to 0.5,0.6, and 0.7 to illustrate the process.
+For the sake of faster compilation time, I am limited the threshold loop to 0.6, and 0.7 to illustrate the process.
 ```{r rf-checkThreshold, cache=TRUE}
 
 # create storage variables for the p value, Accuracy, ROC, Specificity, and Sensitivity
@@ -1357,16 +1360,11 @@ all_out_yhat_ytrue = tibble()
 out_yhat_ytrue = tibble()
 out_rf = tibble()
 
-
-#for (j in c(.2,.3,.4,.5,.6,.7,.8,.9))
-for (j in c(.6,.7))
-{ 
-  
   # reset the fold accumulator tibble
   out_yhat_ytrue = tibble()
 
   #Perform 10 fold cross validation
-  for(i in 1:10) {
+for(i in 1:10) {
     
       #Segment data by fold using the which() function 
       testIndexes = which(folds==i,arr.ind=TRUE)
@@ -1390,35 +1388,41 @@ for (j in c(.6,.7))
       
       #y_true
       
-      # set the threshold to p
-      y_hat = rf.preds[,2] > j
-      #y_hat
+      #for (j in c(.2,.3,.4,.5,.6,.7,.8,.9))
+      for (j in c(.6,.7)) { 
       
-      #- output
-      out_yhat_ytrue = bind_rows(out_yhat_ytrue, 
+        # set the threshold to p
+        y_hat = rf.preds[,2] > j
+        #y_hat
+        
+        #- output
+        out_yhat_ytrue = bind_rows(out_yhat_ytrue, 
                 tibble(thres = j, true = y_true_val, hat = y_hat, truth0or1 = y_true$Class0or1, X0 = rf.preds[,1], X1 = rf.preds[,2]))
-      
-      all_out_yhat_ytrue = bind_rows(all_out_yhat_ytrue,
+        
+        all_out_yhat_ytrue = bind_rows(all_out_yhat_ytrue,
                 tibble(thres = j, true = y_true_val, hat = y_hat))
-      
-  }
-  
-  acc = sum(out_yhat_ytrue$hat == out_yhat_ytrue$true) / nrow(out_yhat_ytrue)
-  
-  out_rf = bind_rows(out_rf, 
-          tibble(accuracy = acc, thres = j))
+        
+        acc = sum(out_yhat_ytrue$hat == out_yhat_ytrue$true) / nrow(out_yhat_ytrue)
+        
+        out_rf = bind_rows(out_rf, 
+            tibble(accuracy = acc, thres = j))
+      }
 }
 ```
 
 ```{r rfThresholdResults}
-out_rf
+#out_rf
+
+out_rf %>%
+  group_by(thres) %>%
+  summarize_at(vars(accuracy), list(mean_acc=mean))
 
 ```
 Random forest cross validation with:
 <ul>
 <li>ntree = 1000</li>
 <li>mtry = 4</li>
-<li>threshold = 0.6</li>
+<li>threshold = 0.7</li>
 </ul>
 
 These tuning parameters produced the best accuracy.
@@ -1428,37 +1432,18 @@ Next, I produce the confusion matrix and ROC curve
 # filter only the true and hat values where thres == 0.3
 best_rf_df = all_out_yhat_ytrue %>% 
   mutate(factortrue = factor(true), factorhat = factor(hat)) %>% 
-  filter(thres == 0.6)
+  filter(thres == 0.7)
+
 head(best_rf_df)
 
 caret::confusionMatrix(best_rf_df$factorhat, best_rf_df$factortrue)
 
 ```
-
+Produce the ROC and calculate the AUC for the tuned random forest model:
 
 ```{r rfROC, cache=TRUE, fig.width=10}
-#?ROCR::prediction
-par(mfrow=c(1,2))
 
-roc_pred = ROCR::prediction(out_yhat_ytrue$X1, out_yhat_ytrue$truth0or1)
-roc_perf = ROCR::performance(roc_pred, "tpr", "fpr")
-plot(roc_perf, max = "threshold", colorize=TRUE, lwd= 3)
-
-plot(roc_perf, avg= "vertical", spread.estimate="boxplot", lwd=2,col='blue',
-      show.spread.at= seq(0.1, 0.9, by=0.1),
-      main= "Accuracy across cutoffs")
-
-auc = ROCR::performance(roc_pred, measure = "auc")
-auc = auc@y.values[[1]]
-auc
-
-#plot(performance(pred, "cal", window.size= 10),
-#      avg="vertical",
-#      main= "How well are the probability predictions calibrated?")
-
-#plot(0,0,type="n", xlim= c(0,1), ylim=c(0,7),
-#      xlab="Cutoff", ylab="Density",
-#      main="How well do the predictions separate the classes?")
+function_ROC_AUC(out_yhat_ytrue$X1, out_yhat_ytrue$truth0or1, "ROC For Tuned RF Model")
 ```
 
 ## SVM
@@ -2188,6 +2173,60 @@ function_ROC_AUC(lasso.test, haiti_ho_full$ClassBinary, "ROC Hold-out Lasso")
 The **AUC** for hold-out the test data using an lasso with tuned lambda and threshold of 0.2 is **0.9997**.
 
 ## Hold-out Results Random Forest
+```{r rfHoldOut-1, cache=TRUE}
+#- fit the random forest with all the training data and teh best lambda
+# training
+rf.training = randomForest(ClassBinary~Red+Blue+Green+GBSqr+RBSqr+RGSqr+RGBSqr+RG+RB+GB, data = haitiAllTraining, mtry=4, ntree=1000)
+# test
+rf.ho.preds = predict(rf.training, newdata = haiti_ho_full, type="prob")
+
+rf.ho.preds[1:5,]
+
+
+#- evaluate fold
+y_true = haiti_ho_full %>% mutate(ClassBinary = (ClassBinary == "0"), Class0or1 = ifelse(ClassBinary == FALSE,0,1))
+y_true_val = y_true$ClassBinary
+
+
+# use tuned threshold
+y_hat = rf.ho.preds[,2] > 0.6
+
+out_yhat_ytrue = tibble()
+all_out_yhat_ytrue = tibble()
+
+#- output
+out_yhat_ytrue = bind_rows(out_yhat_ytrue, 
+          tibble(truth0or1 = y_true$Class0or1, X0 = rf.ho.preds[,1], X1 = rf.ho.preds[,2]))
+
+all_out_yhat_ytrue = bind_rows(all_out_yhat_ytrue,
+          tibble(true = y_true_val, hat = y_hat))
+
+
+all_out_yhat_ytrue = all_out_yhat_ytrue %>% mutate(true = factor(true), hat = factor(hat))
+
+#fct_count(all_out_yhat_ytrue$hat)
+#fct_count(all_out_yhat_ytrue$true)
+
+caret::confusionMatrix(all_out_yhat_ytrue$hat, all_out_yhat_ytrue$true)
+
+```
+For Random Forest using 1000 trees, and 4 predictors at each split, the hold-out test results with the tuned threshold of 0.6 are:
+
+<ul>
+<li>Accuracy: 0.9934</li>
+<li>TPR: 8232 / (14480) = 0.569</li>
+<li>FPR: 6956 / (1989697) = 0.003</li>
+<li>Precision: 0.5420</li>
+</ul>
+
+```{r rfHoldOut-ROC, cache=TRUE}
+
+head(out_yhat_ytrue)
+
+function_ROC_AUC(out_yhat_ytrue$X1, out_yhat_ytrue$truth0or1, "ROC Hold-out Random Forest")
+
+
+```
 
 
 ## Hold-out Results Support Vector Machine
@@ -2221,23 +2260,24 @@ The **AUC** for hold-out the test data using an lasso with tuned lambda and thre
 <tr>
   <td>LDA</td>
   <td><!-- LDA Tuning --> N/A</td>
-  <td><!-- LDA AUROC -->TBD</td>
-  <td><!-- LDA Threshold -->TBD</td>
-  <td><!-- LDA Accuracy -->TBD</td>
-  <td><!-- LDA TPR -->TBD</td>
-  <td><!-- LDA FPR -->TBD</td>
-  <td><!-- LDA Precision -->TBD</td>
+  <td><!-- LDA AUROC -->0.997</td>
+  <td><!-- LDA Threshold -->0.3</td>
+  <td><!-- LDA Accuracy -->0.9976</td>
+  <td><!-- LDA TPR -->0.856</td>
+  <td><!-- LDA FPR -->0.001</td>
+  <td><!-- LDA Precision -->0.8197</td>
 </tr>
+
 
 <tr>
   <td>QDA</td>
   <td><!-- QDA Tuning --> N/A</td>
-  <td><!-- QDA AUROC -->TBD</td>
-  <td><!-- QDA Threshold -->TBD</td>
-  <td><!-- QDA Accuracy -->TBD</td>
-  <td><!-- QDA TPR -->TBD</td>
-  <td><!-- QDA FPR -->TBD</td>
-  <td><!-- QDA Precision -->TBD</td>
+  <td><!-- QDA AUROC -->0.635</td>
+  <td><!-- QDA Threshold -->0.8</td>
+  <td><!-- QDA Accuracy -->0.9906</td>
+  <td><!-- QDA TPR -->0.397</td>
+  <td><!-- QDA FPR -->0.005</td>
+  <td><!-- QDA Precision -->0.3632</td>
 </tr>
 
 
@@ -2264,15 +2304,16 @@ The **AUC** for hold-out the test data using an lasso with tuned lambda and thre
   <td><!-- Penalized Log Reg Precision -->0.484</td>
 </tr>
 
+
 <tr>
   <td>Random Forest</td>
-  <td><!-- Random Forest Tuning -->TBD</td>
+  <td><!-- Random Forest Tuning -->ntree = 1000, mtry = 4</td>
   <td><!-- Random Forest AUROC -->TBD</td>
-  <td><!-- Random Forest Threshold -->TBD</td>
-  <td><!-- Random Forest Accuracy -->TBD</td>
-  <td><!-- Random Forest TPR -->TBD</td>
-  <td><!-- Random Forest FPR -->TBD</td>
-  <td><!-- Random Forest Precision -->TBD</td>
+  <td><!-- Random Forest Threshold -->0.6</td>
+  <td><!-- Random Forest Accuracy -->0.9934</td>
+  <td><!-- Random Forest TPR -->0.569</td>
+  <td><!-- Random Forest FPR -->0.003</td>
+  <td><!-- Random Forest Precision -->0.542</td>
 </tr>
 
 <tr>
