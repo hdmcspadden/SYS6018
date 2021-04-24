@@ -841,32 +841,13 @@ function_ROC_AUC(out_all_preds_qda$Yes, out_best_qda$truth, "ROC For Tuned QDA M
 
 The **QDA AUC** based on 10-fold cross-validated training data with a threshold of 0.8 is: **0.997**.
 
-```{r qdaTestResults, include=FALSE, echo=FALSE, eval=FALSE}
-#qda.test = predict(qda.cv.model, newdata = test.YesNo, type="prob") %>% 
-#  mutate('ClassBinary'= names(.)[apply(., 1, which.max)])
-```  
-  
-```{r qdaFactor, include=FALSE, echo=FALSE, eval=FALSE}
-#qda.test = qda.test %>% 
-#  mutate(ClassBinary = factor(ClassBinary)) 
-```
-
-```{r qdaTestCM, include=FALSE, echo=FALSE, eval=FALSE}  
-#caret::confusionMatrix(qda.test$ClassBinary, test.YesNo$ClassBinary)
-```
-
-
-```{r qdaROCTest, include=FALSE, echo=FALSE, eval=FALSE}
-#test.qda.result = evalm(qda.test)
-```
-
 ## KNN
 
 ### Tuning Parameter $k$
 
-After testing over ranges from 1 to 51, the best k was **27**. To speed processing of this document, I include 26, 27, and 28 as values for k.
+After testing over ranges from 1 to 51, the best k was **27**. The code used is shown below, but not evaluated.
 
-```{r knnTry1, cache=TRUE, warning=FALSE}
+```{r knnTry1, cache=TRUE, warning=FALSE, eval=FALSE}
 set.seed(1976)
 
 trControl.knn <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.5)
@@ -1216,24 +1197,13 @@ for(i in 1:10) {
 }
 
 caret::confusionMatrix(out_lr.full$prediction, out_lr.full$truth)
-
-##produce the numbers associated with classification table
-rates.full = ROCR::prediction(out_lr.full$fitted, out_lr.full$truth)
-
-##store the true positive and false postive rates
-roc_result.full = performance(rates.full, measure="tpr", x.measure="fpr")
-
-##plot ROC curve and overlay the diagonal line for random guessing
-plot(roc_result.full, main="ROC Curve for Haiti Logisitic Regression Using Lasso Model")
-lines(x = c(0,1), y = c(0,1), col="red")
-
-##compute the AUC
-auc = performance(rates.full, measure = "auc")
-auc@y.values[[1]]
-
-
 ```
-Using logistic regression with a threshold = 0.2 and the model selected by lasso:
+
+```{r lassoTunedROC}
+
+function_ROC_AUC(out_lr.full$fitted, out_lr.full$truth, "ROC For Tuned Lasso Model")
+```
+Using logistic regression with a threshold = **0.2** and the model selected by lasso:
 <ul>
 <li>Accuracy: 0.996</li>
 <li>AUC: 0.9995</li>
@@ -1337,9 +1307,6 @@ Random forest cross validation selected 1000 trees, with 4 predictors:
 Next, I need to test for the best probability threshold using the tuned tree with number of predictors considered at each split == 4, and number of trees =  1000. I will use accuracy for selecting the best p value.
 
 ```{r rf-checkThreshold-setup, cache=TRUE}
-# need to write own cross validation and use randomforest library
-library(randomForest)
-
 set.seed(123)
 #Randomly shuffle the data
 haitiRFShuffled = haitiBinaryRF[sample(nrow(haitiBinarySqrs)),]
@@ -1441,7 +1408,7 @@ caret::confusionMatrix(best_rf_df$factorhat, best_rf_df$factortrue)
 ```
 Produce the ROC and calculate the AUC for the tuned random forest model:
 
-```{r rfROC, cache=TRUE, fig.width=10}
+```{r rfROC, cache=TRUE}
 
 function_ROC_AUC(out_yhat_ytrue$X1, out_yhat_ytrue$truth0or1, "ROC For Tuned RF Model")
 ```
@@ -1500,12 +1467,12 @@ for (cost_val in c(1))
       #for (thres in c(.2,.3,.4,.5,.6,.7,.8))
       for (thres in c(.2))
       {
-          y_hat = attr(pred, "probabilities")[,"1"] > thres
+          y_hat = attr(pred, "probabilities")[,"Yes"] > thres
           
           acc = sum(y_hat == (testData$ClassBinary == "1")) / nrow(testData)
           
           out_svm = bind_rows(out_svm, 
-                tibble(thres = thres, cost = cost_val, pred_value = y_hat, truth_value = testData$ClassBinary, accuracy = acc, noProb = attr(pred, "probabilities")[,"0"], yesProb = attr(pred, "probabilities")[,"1"]))
+                tibble(thres = thres, cost = cost_val, pred_value = y_hat, truth_value = testData$ClassBinary, accuracy = acc, noProb = attr(pred, "probabilities")[,"No"], yesProb = attr(pred, "probabilities")[,"Yes"]))
       }
   }
 }
@@ -1520,7 +1487,7 @@ out_svm %>% group_by(thres, cost) %>% summarize(acc = mean(accuracy)) %>% arrang
 The highest performing cross-validated svm used a **cost of 1 and a threshold of 0.2**.
 
 ```{r sv-ConfMatrix}
-best_svm = out_svm %>% filter(thres == 0.2 & cost == 1.00) %>% mutate(truth_value = (truth_value == "1")) %>% mutate(pred_value = factor(pred_value), truth_value = factor(truth_value))
+best_svm = out_svm %>% filter(thres == 0.2 & cost == 1.00) %>% mutate(truth_value = (truth_value == "Yes")) %>% mutate(pred_value = factor(pred_value), truth_value = factor(truth_value))
 head(best_svm)
 
 caret::confusionMatrix(best_svm$pred_value, best_svm$truth_value)
@@ -1534,11 +1501,11 @@ Using SVM with a threshold = 0.2 and a cost of 1.0:
 <ul>
 <li>Accuracy: 0.9963</li>
 <li>AUC: 0.9995</li>
-<li>TPR: 1945 / 2022 = 0.962</li>
-<li>FPR: 155 / 61219 = 0.0025</li>
-<li>Precision: 1945 / 2100 = 0.9262</li>
+<li>TPR: 1947 / 2022 = 0.962</li>
+<li>FPR: 156 / 61219 = 0.0025</li>
+<li>Precision: 1947 / 2100 = 0.9262</li>
 <li>Neg Pred Value: 61064 / 61141 = 0.999</li>
-<li>False Pred Rate: 77 / 2022 = 0.038</li>
+<li>False Pred Rate: 75 / 2022 = 0.038</li>
 </ul>
 
 
@@ -1927,7 +1894,8 @@ write_csv(df_HoldOut, "holdout.csv")
 Confirm we have the entire training data set for training each model with the tuned parameters
 ```{r allTraining}
 haitiAllTraining = haitiBinaryRF %>%
-  mutate(ClassBinary01 = ifelse(ClassBinary == "No","0","1"))
+  mutate(ClassBinary = ifelse(ClassBinary == "No","0","1")) %>%
+  mutate(ClassBinaryYesNo = ifelse(ClassBinary == 0, "No","Yes")) %>% mutate(ClassBinaryYesNo = factor(ClassBinaryYesNo))
 
 head(haitiAllTraining)
 
@@ -1945,7 +1913,9 @@ Next, I apply the transformations used on the testing data:
 ```{r applyHoldOutTransformations}
 haiti_ho_full = haiti_ho %>%
   mutate(GBSqr = I(((Green + Blue)^2) * .001), RBSqr = I(((Red + Blue)^2) * .001), ClassBinary = factor(ClassBinary)) %>%
-  mutate(RGSqr = I(((Red + Green)^2)),  RGBSqr = I(((Red + Green + Blue)^2)), RG = (Red * Green), RB = (Red * Blue), GB = (Green * Blue)) 
+  mutate(RGSqr = I(((Red + Green)^2)),  RGBSqr = I(((Red + Green + Blue)^2)), RG = (Red * Green), RB = (Red * Blue), GB = (Green * Blue)) %>%
+  mutate(ClassBinaryYesNo = ifelse(ClassBinary == 0, "No","Yes")) %>% mutate(ClassBinaryYesNo = factor(ClassBinaryYesNo)) %>%
+  mutate(ClassBinary = factor(ClassBinary))
 
 head(haiti_ho_full)  
 ```
@@ -1967,7 +1937,7 @@ Our test data is only **1%** Blue Tarps, which is a differente distribution from
 
 ```{r holdout-fitLogisticREgression}
 # train the selected logistic regression model with the complete training data set
-glm.all.train = glm(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = haitiAllTraining)
+glm.all.train = glm(ClassBinaryYesNo ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = haitiAllTraining)
 ```
 
 ``` {r holdout-testLogisticRegression, cache=TRUE}
@@ -2001,7 +1971,7 @@ The **AUC** for hold-out the test data using a logistic regression model is **0.
 # non fits the model on the entire training set
 trctrl.lda.selected = trainControl(method = "none", summaryFunction=twoClassSummary, classProbs=T)
   
-lda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiAllTraining, method = "lda", trControl=trctrl.lda.selected, tuneLength = 10)
+lda.cv.model.selected = train(ClassBinaryYesNo ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiAllTraining, method = "lda", trControl=trctrl.lda.selected, tuneLength = 10)
 
 ```
 
@@ -2041,7 +2011,7 @@ The **AUC** for hold-out the test data using an LDA is **0.997**.
 # fit the model on the entire training set
 trctrl.qda.selected = trainControl(method = "none", summaryFunction=twoClassSummary, classProbs=T)
   
-qda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiAllTraining, method = "qda", trControl=trctrl.qda.selected, tuneLength = 10)
+qda.cv.model.selected = train(ClassBinaryYesNo ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiAllTraining, method = "qda", trControl=trctrl.qda.selected, tuneLength = 10)
 
 ```
 
@@ -2049,6 +2019,8 @@ qda.cv.model.selected = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = h
 ```{r qdaTestResults, cache=TRUE}
 # test with holdout data
 qda.test = predict(qda.cv.model.selected, newdata = haiti_ho_full, type="prob")
+
+#head(qda.test)
 ```  
   
 
@@ -2081,7 +2053,7 @@ The **AUC** for hold-out the test data using an QDA and a threshold of 0.8 is **
 
 ```{r knnTrainAll, cache=TRUE}
 # fit the model on the entire training set
-train_knn <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiAllTraining, method = "knn", tuneGrid = data.frame(k=27))
+train_knn <- train(ClassBinaryYesNo ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiAllTraining, method = "knn", tuneGrid = data.frame(k=27))
 
 # test with the hold out data
 knn.test = predict(train_knn, newdata = haiti_ho_full, type="prob")
@@ -2172,62 +2144,65 @@ function_ROC_AUC(lasso.test, haiti_ho_full$ClassBinary, "ROC Hold-out Lasso")
 
 The **AUC** for hold-out the test data using an lasso with tuned lambda and threshold of 0.2 is **0.9997**.
 
+```{r}
+haitiAllTraining = haitiAllTraining %>% mutate(ClassBinary = factor(ClassBinary))
+head(haitiAllTraining)
+```
+
+
 ## Hold-out Results Random Forest
 ```{r rfHoldOut-1, cache=TRUE}
-#- fit the random forest with all the training data and teh best lambda
+
+
+#- fit the random forest with all the training data use the best tuning
 # training
-rf.training = randomForest(ClassBinary~Red+Blue+Green+GBSqr+RBSqr+RGSqr+RGBSqr+RG+RB+GB, data = haitiAllTraining, mtry=4, ntree=1000)
+rf.haiti_holdout = randomForest(ClassBinary~Red+Blue+Green+GBSqr+RBSqr+RGSqr+RGBSqr+RG+RB+GB, data = haitiAllTraining, mtry=4, ntree=1000)
 # test
-rf.ho.preds = predict(rf.training, newdata = haiti_ho_full, type="prob")
-
-rf.ho.preds[1:5,]
-
+rf.preds_holdout = predict(rf.haiti_holdout, newdata = haiti_ho_full, type="prob")
 
 #- evaluate fold
-y_true = haiti_ho_full %>% mutate(ClassBinary = (ClassBinary == "0"), Class0or1 = ifelse(ClassBinary == FALSE,0,1))
+y_true = haiti_ho_full %>% mutate(ClassBinary = (ClassBinary == "1"))
 y_true_val = y_true$ClassBinary
+head(y_true_val)
+#y_true = haiti_ho_full$ClassBinary
+#unique(y_true)
 
-
-# use tuned threshold
-y_hat = rf.ho.preds[,2] > 0.6
+# set the threshold to p
+y_hat = rf.preds_holdout[,2] > 0.6
+head(y_hat)
 
 out_yhat_ytrue = tibble()
-all_out_yhat_ytrue = tibble()
 
 #- output
 out_yhat_ytrue = bind_rows(out_yhat_ytrue, 
-          tibble(truth0or1 = y_true$Class0or1, X0 = rf.ho.preds[,1], X1 = rf.ho.preds[,2]))
+        tibble(thres = j, true = y_true_val, hat = y_hat, X0 = rf.preds_holdout[,1], X1 = rf.preds_holdout[,2]))
 
-all_out_yhat_ytrue = bind_rows(all_out_yhat_ytrue,
-          tibble(true = y_true_val, hat = y_hat))
+out_yhat_ytrue = out_yhat_ytrue %>% mutate(true = factor(true), hat = factor(hat))
 
+```
 
-all_out_yhat_ytrue = all_out_yhat_ytrue %>% mutate(true = factor(true), hat = factor(hat))
-
-#fct_count(all_out_yhat_ytrue$hat)
-#fct_count(all_out_yhat_ytrue$true)
-
-caret::confusionMatrix(all_out_yhat_ytrue$hat, all_out_yhat_ytrue$true)
+```{r}
+caret::confusionMatrix(out_yhat_ytrue$hat, out_yhat_ytrue$true)
 
 ```
 For Random Forest using 1000 trees, and 4 predictors at each split, the hold-out test results with the tuned threshold of 0.6 are:
 
 <ul>
-<li>Accuracy: 0.9934</li>
-<li>TPR: 8232 / (14480) = 0.569</li>
-<li>FPR: 6956 / (1989697) = 0.003</li>
-<li>Precision: 0.5420</li>
+<li>Accuracy: 0.9937</li>
+<li>TPR: 8520 / (14480) = 0.588</li>
+<li>FPR: 6755 / (1989697) = 0.003</li>
+<li>Precision: 0.5578</li>
 </ul>
 
 ```{r rfHoldOut-ROC, cache=TRUE}
 
-head(out_yhat_ytrue)
+#head(out_yhat_ytrue)
 
-function_ROC_AUC(out_yhat_ytrue$X1, out_yhat_ytrue$truth0or1, "ROC Hold-out Random Forest")
+function_ROC_AUC(out_yhat_ytrue$X1, out_yhat_ytrue$true, "ROC Hold-out Random Forest")
 
 
 ```
-
+The AUC for the testing data on the tuned Random Forest model is **0.977**.
 
 ## Hold-out Results Support Vector Machine
 
@@ -2304,16 +2279,15 @@ function_ROC_AUC(out_yhat_ytrue$X1, out_yhat_ytrue$truth0or1, "ROC Hold-out Rand
   <td><!-- Penalized Log Reg Precision -->0.484</td>
 </tr>
 
-
 <tr>
   <td>Random Forest</td>
   <td><!-- Random Forest Tuning -->ntree = 1000, mtry = 4</td>
-  <td><!-- Random Forest AUROC -->TBD</td>
+  <td><!-- Random Forest AUROC -->0.977</td>
   <td><!-- Random Forest Threshold -->0.6</td>
-  <td><!-- Random Forest Accuracy -->0.9934</td>
-  <td><!-- Random Forest TPR -->0.569</td>
+  <td><!-- Random Forest Accuracy -->0.9937</td>
+  <td><!-- Random Forest TPR -->0.588</td>
   <td><!-- Random Forest FPR -->0.003</td>
-  <td><!-- Random Forest Precision -->0.542</td>
+  <td><!-- Random Forest Precision -->0.5578</td>
 </tr>
 
 <tr>
