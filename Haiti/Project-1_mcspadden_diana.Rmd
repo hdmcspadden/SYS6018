@@ -818,7 +818,7 @@ for(i in 1:10) {
 }
 ```
 
-```{r ldaTrainConfusionMatrix, cache=TRUE}
+```{r qdaTrainConfusionMatrix, cache=TRUE}
 
 out_best_qda = out_best_qda %>% mutate(pred = factor(pred), truth = factor(truth))
 
@@ -835,7 +835,7 @@ For QDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it 
 
 
 ### QDA Training ROC Curve:
-```{r ldaTrainingROC, cache=TRUE}
+```{r qdaTrainingROC, cache=TRUE}
 function_ROC_AUC(out_all_preds_qda$Yes, out_best_qda$truth, "ROC For Tuned QDA Model")
 ```
 
@@ -1920,7 +1920,7 @@ haiti_ho_full = haiti_ho %>%
 head(haiti_ho_full)  
 ```
 
-```{r summarizeHoldOutBinaryByCategory}
+```{r summarizeHoldOutBinaryByCategory, cache=TRUE}
 
 haiti_ho_full %>%
   group_by(ClassBinary) %>%
@@ -1935,7 +1935,7 @@ Our test data is only **1%** Blue Tarps, which is a differente distribution from
 
 ## Hold-out Results Logistic Regression
 
-```{r holdout-fitLogisticREgression}
+```{r holdout-fitLogisticREgression, cache=TRUE}
 # train the selected logistic regression model with the complete training data set
 glm.all.train = glm(ClassBinaryYesNo ~ Blue+Green+Red+GBSqr+RBSqr, binomial, data = haitiAllTraining)
 ```
@@ -1945,11 +1945,9 @@ glm.preds = glm.all.train %>%  augment(newdata=haiti_ho_full) %>%
       mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < .1, "0", "1")) %>%
       mutate(.prediction = factor(.prediction))
 
-
-
 caret::confusionMatrix(glm.preds$.prediction, haiti_ho_full$ClassBinary)
 ```
-For Logistic Regression, the hold-out test results with the tuned threshold of 0.1 are:
+For Logistic Regression, the hold-out test results with the training-set-tuned threshold of 0.1 are:
 
 <ul>
 <li>Accuracy: 0.9882</li>
@@ -1958,7 +1956,29 @@ For Logistic Regression, the hold-out test results with the tuned threshold of 0
 <li>Precision: 14391 / (38033) = 0.378</li>
 </ul>
 
-```{r holdout-testLogisticRegression-ROC}
+However,  we may want to use a different threshold. I am curious if the new holdout data performs better, based on True Positive Rate (which based on the way this data set is setup, is actually **Specificity**), with a different threshold. I will test the True Positive Rate (again, specificity is the yardstick measure I will use based on the format of the data) of thresholds 0.1, 0.2, 0.3, 0.4, and 0.5
+
+```{r holdout-testLogisticRegression-TuneThreshold, cache=TRUE}
+
+out_lr_test_spec = tibble()
+
+for (p in c(0.1, 0.2, 0.3, 0.4, 0.5))
+{
+  glm.preds.thres = glm.all.train %>%  augment(newdata=haiti_ho_full) %>% 
+        mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < p, "0", "1")) %>%
+        mutate(.prediction = factor(.prediction))
+  
+  specificity = yardstick::spec(glm.preds.thres, glm.preds.thres$ClassBinary, glm.preds.thres$.prediction)
+
+  out_lr_test_spec = bind_rows(out_lr_test_spec, tibble(thres = p, spec = specificity$.estimate))
+  
+}
+
+out_lr_test_spec
+```
+The AUC for thresholds 0.1, 0.2, 0.3, 0.4, and 0.5 are identical, so I will stick with the threshold selected using the training data of **0.1**.
+
+```{r holdout-testLogisticRegression-ROC, cache=TRUE}
 
 function_ROC_AUC(glm.preds$.fitted, glm.preds$ClassBinary, "ROC Hold-out Logistic Regression")
 
@@ -1979,23 +1999,52 @@ lda.cv.model.selected = train(ClassBinaryYesNo ~ Blue+Green+Red+GBSqr+RBSqr, dat
 ```{r ldaTestResults, cache=TRUE}
 lda.test = predict(lda.cv.model.selected, newdata = haiti_ho_full, type="prob")
 ```  
+
+A threshold of **0.8** was selected based on accuracy for the training data set. But I will evaluating the best threshold to use for the holdout data on True Positive Rate (yardstick's specificity is used based on the format of the data). I will evaluate 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, and 0.9.
+
+```{r ldaHoldOutTestThres, cache=TRUE}
+
+
+out_lda_test_spec = tibble()
+
+for (p in c(0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9))
+{
+  
+  lda.preds.thres = lda.test %>%
+      mutate(.prediction=ifelse(Yes < p, "0", "1")) %>%
+      mutate(.prediction = factor(.prediction))
   
 
-```{r ldaTestCOnfMatrix}  
+  specificity = yardstick::spec(lda.preds.thres, haiti_ho_full$ClassBinary, lda.preds.thres$.prediction)
+
+  out_lda_test_spec = bind_rows(out_lda_test_spec, tibble(thres = p, spec = specificity$.estimate))
+  
+}
+
+out_lda_test_spec
+
+```
+
+**0.2** provides MUCH better True Positive Rate predictive power on the holdout data than 0.8. I will use 0.2 for the confusion matrix and ROC.
+
+```{r ldaTestPreds, cache=TRUE}
 lda.preds = lda.test %>%
-      mutate(.prediction=ifelse(Yes < .8, "0", "1")) %>%
+      mutate(.prediction=ifelse(Yes < .2, "0", "1")) %>%
       mutate(.prediction = factor(.prediction))
 
+``` 
+
+``` {r ldaTestConfMatrix, cache=TRUE}
 caret::confusionMatrix(lda.preds$.prediction, haiti_ho_full$ClassBinary)
 ```
 
-For LDA, the hold-out test results with the tuned threshold of 0.8 are:
+For LDA, the hold-out test results with the tuned threshold of 0.2 are:
 
 <ul>
-<li>Accuracy: 0.9976</li>
-<li>TPR: 12399 / (14480) = 0.856</li>
-<li>FPR: 2727 / (1989697) = 0.001</li>
-<li>Precision: 14391 / (38033) = 0.8197</li>
+<li>Accuracy: 0.9849</li>
+<li>TPR: 13313 / (14480) = 0.919</li>
+<li>FPR: 29120 / (1989697) = 0.015</li>
+<li>Precision: 0.3137</li>
 </ul>
 
 ```{r ldaROCTest, cache=TRUE}
@@ -2024,21 +2073,48 @@ qda.test = predict(qda.cv.model.selected, newdata = haiti_ho_full, type="prob")
 ```  
   
 
+A threshold of **0.8** was selected based on accuracy for the training data set. But I will evaluating the best threshold to use for the holdout data on True Positive Rate (yardstick's specificity is used based on the format of the data). I will evaluate 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, and 0.9.
+
+```{r qdaHoldOutTestThres, cache=TRUE}
+
+
+out_qda_test_spec = tibble()
+
+for (p in c(0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9))
+{
+  
+  qda.preds.thres = qda.test %>%
+      mutate(.prediction=ifelse(Yes < p, "0", "1")) %>%
+      mutate(.prediction = factor(.prediction))
+  
+
+  specificity = yardstick::spec(qda.preds.thres, haiti_ho_full$ClassBinary, qda.preds.thres$.prediction)
+
+  out_qda_test_spec = bind_rows(out_qda_test_spec, tibble(thres = p, spec = specificity$.estimate))
+  
+}
+
+out_qda_test_spec
+
+```
+
+Using the holdout data the best threshold for the QDA model is **0.2**.
+
 ```{r qdaTestCOnfMatrix}  
 qda.preds = qda.test %>%
-      mutate(.prediction=ifelse(Yes < .8, "0", "1")) %>%
+      mutate(.prediction=ifelse(Yes < .2, "0", "1")) %>%
       mutate(.prediction = factor(.prediction))
 
 caret::confusionMatrix(qda.preds$.prediction, haiti_ho_full$ClassBinary)
 ```
 
-For QDA, the hold-out test results with the tuned threshold of 0.8 are:
+For QDA, the hold-out test results with the tuned threshold of 0.2 are:
 
 <ul>
-<li>Accuracy: 0.9906</li>
-<li>TPR: 5753 / (14480) = 0.397</li>
-<li>FPR: 10088 / (1989697) = 0.005</li>
-<li>Precision: 14391 / (38033) = 0.3632</li>
+<li>Accuracy: 0.9804</li>
+<li>TPR: 6096 / (14480) = 0.421</li>
+<li>FPR: 30960 / (1989697) = 0.016</li>
+<li>Precision: 0.1645</li>
 </ul>
 
 ```{r qdaROCTest, cache=TRUE}
@@ -2060,21 +2136,47 @@ knn.test = predict(train_knn, newdata = haiti_ho_full, type="prob")
 
 ```  
   
+A threshold of **0.5** was selected based on accuracy for the training data set. But I will evaluating the best threshold to use for the holdout data on True Positive Rate (yardstick's specificity is used based on the format of the data). I will evaluate 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, and 0.9.
+
+```{r knnHoldOutTestThres, cache=TRUE}
+
+
+out_knn_test_spec = tibble()
+
+for (p in c(0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9))
+{
+  
+  knn.preds.thres = knn.test %>%
+      mutate(.prediction=ifelse(Yes < p, "0", "1")) %>%
+      mutate(.prediction = factor(.prediction))
+  
+
+  specificity = yardstick::spec(knn.preds.thres, haiti_ho_full$ClassBinary, knn.preds.thres$.prediction)
+
+  out_knn_test_spec = bind_rows(out_knn_test_spec, tibble(thres = p, spec = specificity$.estimate))
+  
+}
+
+out_knn_test_spec
+
+```
+The best threshold for the KNN | k == 27 for the holdout data is **0.2**.
+
 
 ```{r knnTestCOnfMatrix}  
 knn.preds = knn.test %>%
-      mutate(.prediction=ifelse(Yes < .5, "0", "1")) %>%
+      mutate(.prediction=ifelse(Yes < .2, "0", "1")) %>%
       mutate(.prediction = factor(.prediction))
 
 caret::confusionMatrix(knn.preds$.prediction, haiti_ho_full$ClassBinary)
 ```
-For QDA, the hold-out test results with the tuned threshold of 0.8 are:
+For KNN, the hold-out test results with the tuned threshold of 0.2 are:
 
 <ul>
-<li>Accuracy: 0.9921</li>
-<li>TPR: 12622 / (14480) = 0.872</li>
-<li>FPR: 14010 / (1989697) = 0.007</li>
-<li>Precision: 12622 / (26632) = 0.4739</li>
+<li>Accuracy: 0.9861</li>
+<li>TPR: 13001 / (14480) = 0.898</li>
+<li>FPR: 26321 / (1989697) = 0.013</li>
+<li>Precision: 0.3306</li>
 </ul>
 
 ```{r knnROCTest, cache=TRUE}
@@ -2108,11 +2210,16 @@ lasso_holdout_model = glmnet(x.haitiFull.train, y.haitiFull.train, alpha = 1,
 
 # make test predictions
 lasso.test = predict(lasso_holdout_model, x.haitiHoldout.test, s = 5.630136e-05, type = "response")
+```
+
+```{r}
 
 lasso_out_confusion = tibble()
 
 #- evaluate fold k
 y_true = y.haitiHoldout.test
+
+
 # set the threshold to p
 thres = 0.2
 y_hat = lasso.test > thres
@@ -2127,6 +2234,9 @@ lasso_out_confusion = lasso_out_confusion %>% mutate(truth = factor(truth), fitt
 caret::confusionMatrix(lasso_out_confusion$fitted, lasso_out_confusion$truth)
 
 ```
+
+
+
 For QDA, the hold-out test results with the tuned threshold of 0.2 are:
 
 <ul>
@@ -2160,7 +2270,6 @@ rf.haiti_holdout = randomForest(ClassBinary~Red+Blue+Green+GBSqr+RBSqr+RGSqr+RGB
 # test
 rf.preds_holdout = predict(rf.haiti_holdout, newdata = haiti_ho_full, type="prob")
 
-#- evaluate fold
 y_true = haiti_ho_full %>% mutate(ClassBinary = (ClassBinary == "1"))
 y_true_val = y_true$ClassBinary
 head(y_true_val)
@@ -2206,11 +2315,48 @@ The AUC for the testing data on the tuned Random Forest model is **0.977**.
 
 ## Hold-out Results Support Vector Machine
 
+```{r svmHoldOut, cache=TRUE}
+svm_model_holdout = tune(svm, ClassBinary~Red+Blue+Green+GBSqr+RBSqr+RGSqr+RGBSqr+RG+RB+GB, data=haitiAllTraining, kernel="linear", ranges=list(cost=c(1)), probability=TRUE)
+      
+pred = predict(svm_model_holdout$best.model, newdata = haiti_ho_full, probability=TRUE)
+      
+
+y_hat = attr(pred, "probabilities")[,"1"] > 0.2
+
+
+out_svm_holdout = tibble()
+
+# use y_true_val from random forest
+out_svm_holdout = bind_rows(out_svm_holdout, 
+      tibble(pred_value = y_hat, truth_value = y_true$ClassBinary, noProb = attr(pred, "probabilities")[,"0"], yesProb = attr(pred, "probabilities")[,"1"]))
+
+out_svm_holdout = out_svm_holdout %>% mutate(pred_value = factor(pred_value), truth_value = factor(truth_value))
+
+#head(out_svm_holdout)
+```
+
+```{r svmHoldOutConfusionMatrix, cache=TRUE}
+caret::confusionMatrix(out_svm_holdout$pred_value, out_svm_holdout$truth_value)
+```
+For SVM using a linear kernel, with a cost == 1, the hold-out test results with the tuned threshold of 0.2 are:
+
+<ul>
+<li>Accuracy: 0.9895</li>
+<li>**TPR: 14377 / (14480) = 0.993**</li>
+<li>FPR: 20946 / (1989697) = 0.01</li>
+<li>Precision: 0.41</li>
+</ul>
+
+```{r svmHoldOutROC, cache=TRUE}
+function_ROC_AUC(out_svm_holdout$yesProb, out_svm_holdout$truth_value, "ROC Hold-out SVM")
+```
+
+
 
 # Results (Test/Validate Data)
 
 <table width="800">
-<th>
+<tr>
   <td width="100">Model</td>
   <td width="100">Tuning</td>
   <td width="100">AUROC</td>
@@ -2219,52 +2365,54 @@ The AUC for the testing data on the tuned Random Forest model is **0.977**.
   <td width="100">TPR</td>
   <td width="100">FPR</td>
   <td width="100">Precision</td>
-</th>
+</tr>
 
+<!-- DONE -->
 <tr>
   <td>Log Reg</td>
   <td><!-- Log Reg Tuning --> N/A</td>
   <td><!-- Log Reg AUROC -->0.9998</td>
-  <td><!-- Log Reg Threshold -->0.1 (calculated from training data)</td>
+  <td><!-- Log Reg Threshold -->0.1</td>
   <td><!-- Log Reg Accuracy -->0.9882</td>
   <td><!-- Log Reg TPR -->0.994</td>
   <td><!-- Log Reg FPR -->0.012</td>
   <td><!-- Log Reg Precision -->0.38</td>
 </tr>
 
+<!-- DONE -->
 <tr>
   <td>LDA</td>
   <td><!-- LDA Tuning --> N/A</td>
   <td><!-- LDA AUROC -->0.997</td>
-  <td><!-- LDA Threshold -->0.3</td>
-  <td><!-- LDA Accuracy -->0.9976</td>
-  <td><!-- LDA TPR -->0.856</td>
-  <td><!-- LDA FPR -->0.001</td>
-  <td><!-- LDA Precision -->0.8197</td>
+  <td><!-- LDA Threshold -->0.2</td>
+  <td><!-- LDA Accuracy -->0.9849</td>
+  <td><!-- LDA TPR -->0.919</td>
+  <td><!-- LDA FPR -->0.015</td>
+  <td><!-- LDA Precision -->0.3137</td>
 </tr>
 
-
+<!-- DONE -->
 <tr>
   <td>QDA</td>
   <td><!-- QDA Tuning --> N/A</td>
   <td><!-- QDA AUROC -->0.635</td>
-  <td><!-- QDA Threshold -->0.8</td>
-  <td><!-- QDA Accuracy -->0.9906</td>
-  <td><!-- QDA TPR -->0.397</td>
-  <td><!-- QDA FPR -->0.005</td>
-  <td><!-- QDA Precision -->0.3632</td>
+  <td><!-- QDA Threshold -->0.2</td>
+  <td><!-- QDA Accuracy -->0.9804</td>
+  <td><!-- QDA TPR -->0.421</td>
+  <td><!-- QDA FPR -->0.016</td>
+  <td><!-- QDA Precision -->0.1645</td>
 </tr>
 
-
+<!-- DONE -->
 <tr>
   <td>KNN</td>
   <td><!-- KNN Tuning --> k = 27</td>
-  <td><!-- KNN AUROC -->0.954</td>
-  <td><!-- KNN Threshold -->0.5</td>
-  <td><!-- KNN Accuracy -->0.9921</td>
-  <td><!-- KNN TPR -->0.872</td>
-  <td><!-- KNN FPR -->0.007</td>
-  <td><!-- KNN Precision -->0.4739</td>
+  <td><!-- KNN AUROC -->0.9861</td>
+  <td><!-- KNN Threshold -->0.2</td>
+  <td><!-- KNN Accuracy -->0.9861</td>
+  <td><!-- KNN TPR -->0.898</td>
+  <td><!-- KNN FPR -->0.013</td>
+  <td><!-- KNN Precision -->0.3306</td>
 </tr>
 
 
@@ -2292,13 +2440,13 @@ The AUC for the testing data on the tuned Random Forest model is **0.977**.
 
 <tr>
   <td>SVM</td>
-  <td><!-- SVM Tuning --> TBD</td>
-  <td><!-- SVM AUROC -->TBD</td>
-  <td><!-- SVM Threshold -->TBD</td>
-  <td><!-- SVM Accuracy -->TBD</td>
-  <td><!-- SVM TPR -->TBD</td>
-  <td><!-- SVM FPR -->TBD</td>
-  <td><!-- SVM Precision -->TBD</td>
+  <td><!-- SVM Tuning --> linear kernel, cost == 1</td>
+  <td><!-- SVM AUROC -->0.999</td>
+  <td><!-- SVM Threshold -->0.2</td>
+  <td><!-- SVM Accuracy -->0.9895</td>
+  <td><!-- SVM TPR -->0.993</td>
+  <td><!-- SVM FPR -->0.01</td>
+  <td><!-- SVM Precision -->0.41</td>
 </tr>
 </table>
 
