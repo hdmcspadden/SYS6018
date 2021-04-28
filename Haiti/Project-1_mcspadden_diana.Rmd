@@ -1431,7 +1431,9 @@ For the support vector machine model I will use the same variables as the random
 
 ### Tuning the Support Vector Machine
 
-Based on the 3D visualization of the dataset I generated earlier, I believe the data will separate well with a linear kernel. Using cross validation, I will tune a linear kernel with cost values that include 0.001, 0.01, 0.1, 1, 10, and 100.
+Based on the 3D visualization of the dataset I generated earlier, I believe the data will separate well with a linear kernel. Another reason I only investigate the linear kernel is the poor performance of the QDA model compared to the LDA model.
+
+Using cross validation, I will tune a linear kernel with cost values that include 0.001, 0.01, 0.1, 1, 10, and 100.
 
 <!--https://www.rdocumentation.org/packages/e1071/versions/1.7-6/topics/predict.svm-->
 
@@ -1977,7 +1979,9 @@ for (p in c(0.1, 0.2, 0.3, 0.4, 0.5))
 
 out_lr_test_spec
 ```
-The best True Positive Rate was acheived with a threshold of **0.1**.
+The best True Positive Rate was achieved with a threshold of **0.1**.
+
+
 
 ```{r holdout-testLogisticRegression-ROC, cache=TRUE}
 
@@ -2545,6 +2549,48 @@ function_ROC_AUC(out_svm_holdout$yesProb, out_svm_holdout$truth_value, "ROC Hold
 </tr>
 </table>
 
+# Looking At True Positives vs. False Negatives
+
+I would like to map all the locations that were correctly classified by the best performing model and compare to mapping the locations that were Blue Tarps but were not correctly classified by the best performing model. I am curious if there was a geographic area that was more challenging to the model.
+
+The logistic regression model performed the best based on True Positive Rate and False Positive Rate, so I will use the predictions of the hold out data from the logistic regression model using the threshold of 0.1.
+
+We have 14,391 True Positive locations, and 89 False Negative locations. 
+
+```{r mapping-setup}
+library(ggmap)
+library(sf)
+library(mapview)
+
+head(glm.preds)
+
+true_pos_preds = glm.preds %>% 
+  filter(ClassBinary == 1 & .prediction == 1) %>% mutate(lat = Lat, lon = Lon)
+
+false_negative_preds = glm.preds %>% 
+  filter(ClassBinary == 1 & .prediction == 0) %>% mutate(lat = Lat, lon = Lon)
+
+dim(true_pos_preds)
+
+dim(false_negative_preds)
+```
+
+Below is a map of the **True Positives**, these are all locations in Carrefour.
+```{r mapping-1}
+
+locations_true_pos_sf = st_as_sf(true_pos_preds, coords = c("lon", "lat"), crs = 4326)
+dim(locations_true_pos_sf)
+mapview(locations_true_pos_sf)
+```
+
+Below are the **False Negatives**. An encouraging outcome of the mapping is that it is clear that the False Negatives were pixels that were subsets of a pixels for locations where True Positives were correctly identified. I guess that the false negatives may be pixels from the edges of blue tarps. I am very pleased that the 89 false negatives in the holdout data would not have kept resources from reaching survivors.
+
+```{r mapping-2}
+
+locations_false_neg_sf = st_as_sf(false_negative_preds, coords = c("lon", "lat"), crs = 4326)
+dim(locations_false_neg_sf)
+mapview(locations_false_neg_sf)
+```
 
 # Final Conclusions
 
@@ -2559,17 +2605,25 @@ A discussion of the relevance of the metrics calculated in the tables to this ap
 Your best two additional conclusions will be graded.
 -->
 
-### Conclusion \#1 
+### Conclusion \#1: Modules Assuming A Linear Relationship Perform Best
+**TODO: A discussion of the best performing algorithm(s) in the cross-validation and hold-out data.**
 
-### Conclusion \#2
+### Conclusion \#2: Are Training and Test Results Compatible?
+**TODO A discussion or analysis justifying why your findings above are compatible or reconcilable.**
 
-### Conclusion \#3
+### Conclusion \#3: Logistic Regression is Recommended
+**A recommendation and rationale regarding which algorithm to use for detection of blue tarps.**
 
-### Conclusion \#4 
+1. Performed the best
+2. Easiest to explain to non-statisticians
+3. Very fast to run
 
-### Conclusion \#5
+### Conclusion \#4: Metrics, Measures, and Performance
+**TODO A discussion of the relevance of the metrics calculated in the tables to this application context.**
 
-### Conclusion \#6
+### Conclusion \#5: 
+
+### Conclusion \#6: 
 
 # References
 <ul>
