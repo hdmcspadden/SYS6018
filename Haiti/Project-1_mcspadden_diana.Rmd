@@ -100,6 +100,8 @@ library(broom)
 library(e1071)
 library(caret)
 library(boot)
+library(glmnet)
+library(yardstick)
 ```
 
 ```{r load-data, message=FALSE, warning=FALSE}
@@ -516,7 +518,7 @@ The differences between Model 1, the more complex mode, and Model 2, the additiv
   <li>Model 3: 0.9993</li>
   <li>Model 2 == 0.9988</li>
 </li>
-<li>The highest **specificity** for both models was with p == 0.1: 
+<li>The highest **specificity** (which because of the way the data is setup is actually the **true positive rate**) for both models was with p == 0.1: 
   <li>Model 3: 0.9793</li>
   <li>Model 2: 0.9630</li>
 </li>
@@ -529,7 +531,7 @@ The differences between Model 1, the more complex mode, and Model 2, the additiv
 <br />
 **Model 3**, with the square terms, performed better on all measures.
 <br />
-Because geographic distribution of blue tarps is not included in this data, I will focus on precision and specificity, i.e. the model that identifies the most blue tarps. **p = 0.1** identified the most blue tarps, and had the highest precision when using 10-fold cross validation.
+Because geographic distribution of blue tarps is not included in this data, I will focus on True Positive Rate, because I want to identify the most blue tarps that I can. I could see how in some situations, with limited personelle and resources, other measure may be of more utility. But, I will assume infinite resources, which leads me to use **True Positive Rate** as my measure for tuning and model selection.
 
 ### Logistic Regression Performance
 Below I use the entire training data set on the model with p = 0.1 to get the training Accuracy, TPR, FPR, and Precision:
@@ -659,30 +661,34 @@ for(i in 1:10) {
     # check the threshold
     # TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
     #for (p in c(.2, .8)){
-    for (p in c(.3, .4)){
+    for (p in c(0.1, 0.2, 0.3, 0.4, 0.5)){
       #y_hat = tibble(hat_pred = preds$Yes > p) %>% mutate(hat_value = ifelse(preds$Yes > p))
-      y_hat = preds %>% mutate(hat_value = ifelse(Yes > p, "Yes", "No")) %>% select(hat_value)
-      acc = apply(y_hat, 2, function(y) mean(y == y_true))
+      y_hat = preds %>% mutate(hat_value = factor(ifelse(Yes > p, "Yes", "No")))
+      
+      #spec(two_class_example, truth, predicted)
+      spec = yardstick::spec(preds, y_true, y_hat$hat_value)[[3]]
+      
+      #acc = apply(y_hat, 2, function(y) mean(y == y_true))
       
         #- output
-      out_lda_p = bind_rows(out_lda_p, tibble(threshold = p, accuracy = acc))
+      out_lda_p = bind_rows(out_lda_p, tibble(threshold = p, TPR = spec))
     }
 }
 
-#out_lda_p
+out_lda_p
 
 ```
 
-```{r getMeanLDAAccuracy}
+```{r getMeanLDATPR, cache=TRUE}
 #-- Get mean accuracy
 perf_lda_p = out_lda_p %>% 
   group_by(threshold) %>% 
-  summarize(mean_acc = mean(accuracy)) 
+  summarize(mean_TPR = mean(TPR)) 
 
-perf_lda_p %>% arrange(-mean_acc)
+perf_lda_p %>% arrange(-mean_TPR)
 ```
 
-The threshold with the greatest accuracy using a LDA model uses a probability threshold of **0.3**.
+The threshold with the **greatest true positive rate** using a LDA model uses a probability threshold of **0.1**.
 
 ```{r trainLDAWithBestAccuracy, cache=TRUE, warning=FALSE}
 
@@ -705,7 +711,7 @@ for(i in 1:10) {
   
   #- evaluate fold k
   y_true = testData$ClassBinary
-  y_hat = preds %>% mutate(hat_value = ifelse(Yes > 0.3, "Yes", "No")) %>% select(hat_value)
+  y_hat = preds %>% mutate(hat_value = ifelse(Yes > 0.1, "Yes", "No")) %>% select(hat_value)
 
   #- output
   out_best_lda = bind_rows(out_best_lda, tibble(pred = y_hat$hat_value, truth = testData$ClassBinary))
@@ -721,10 +727,10 @@ caret::confusionMatrix(out_best_lda$pred, out_best_lda$truth)
 ```
 For LDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
 <ul>
-<li>Accuracy: 0.9945</li>
-<li>TPR: 1738 / (1738 + 284): 0.859</li>
-<li>FPR: 66 / (61153 + 66): 0.001</li>
-<li>Precision: 0.9954</li>
+<li>Accuracy: 0.9888</li>
+<li>TPR: 1785 / 2022: 0.8827</li>
+<li>FPR: 472 / 61219: 0.0077</li>
+<li>Precision: 0.7909</li>
 </ul>
 
 ### LDA Training ROC Curve:
@@ -738,7 +744,9 @@ The **LDA AUC** based on 10-fold cross-validated training data with a threshold 
 
 I trained the QDA model using 10-fold cross validation. 
 
-10-fold cross validation was used and various thresholds were evaluated for best accuracy. **0.8** produced the highest accuracy. For illustrative purposes I only test thresholds of 0.7, 0.8, an 0.9.
+10-fold cross validation was used and various thresholds were evaluated for best true positive rate. 
+
+**0.1** produced the highest accuracy. For illustrative purposes I only test thresholds of 0.1, 0.2, an 0.3.
 ```{r qdaCrossValidation, warning=FALSE, cache=TRUE}
 set.seed(1976)
 
@@ -765,14 +773,20 @@ for(i in 1:10) {
     preds = predict(train_qda, newdata = testData, type="prob")
     
     #- evaluate fold k
-    for (p in c(.7, .8, .9)){
+    #for (p in c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9)){
+    for (p in c(0.1, 0.2, 0.3)){
       y_true = testData$ClassBinary
       # check the threshold
-      y_hat = preds %>% mutate(hat_value = ifelse(Yes > p, "Yes", "No")) %>% select(hat_value)
-      acc = apply(y_hat, 2, function(y) mean(y == y_true))
+      y_hat = preds %>% mutate(hat_value = factor(ifelse(Yes > p, "Yes", "No")))
+      
+      
+      #spec(two_class_example, truth, predicted)
+      spec = yardstick::spec(preds, y_true, y_hat$hat_value)[[3]]
+      
+      #acc = apply(y_hat, 2, function(y) mean(y == y_true))
       
         #- output
-      out_qda_p = bind_rows(out_qda_p, tibble(threshold = p, accuracy = acc))
+      out_qda_p = bind_rows(out_qda_p, tibble(threshold = p, TPR = spec))
     }
 }
 
@@ -784,11 +798,11 @@ for(i in 1:10) {
 #-- Get mean accuracy
 perf_qda_p = out_qda_p %>% 
   group_by(threshold) %>% 
-  summarize(mean_acc = mean(accuracy)) 
+  summarize(mean_TPR = mean(TPR)) 
 
-perf_qda_p %>% arrange(-mean_acc)
+perf_qda_p %>% arrange(-mean_TPR)
 ```
-Based on the highest **Mean Accuracy** of cross validation of the training data, I am selecting a threshold of **0.8** for the QDA model.
+Based on the highest **True Positive Rate** of cross validation of the training data, I am selecting a threshold of **0.1** for the QDA model.
 
 ```{r trainQDAWithBestAccuracy, cache=TRUE, warning=FALSE}
 
@@ -811,7 +825,7 @@ for(i in 1:10) {
   
   #- evaluate fold k
   y_true = testData$ClassBinary
-  y_hat = preds %>% mutate(hat_value = ifelse(Yes > 0.8, "Yes", "No")) %>% select(hat_value)
+  y_hat = preds %>% mutate(hat_value = ifelse(Yes > 0.1, "Yes", "No")) %>% select(hat_value)
 
   #- output
   out_best_qda = bind_rows(out_best_qda, tibble(pred = y_hat$hat_value, truth = testData$ClassBinary))
@@ -828,10 +842,10 @@ caret::confusionMatrix(out_best_qda$pred, out_best_qda$truth)
 
 For QDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
 <ul>
-<li>Accuracy: 0.9949</li>
-<li>TPR: 1768 / (1768 + 254): 0.874</li>
-<li>FPR: 70 / (61149 + 70): 0.001</li>
-<li>Precision: 0.9959</li>
+<li>Accuracy: 0.9922</li>
+<li>TPR: 1873 / (2022): 0.926</li>
+<li>FPR: 346 / 61219: 0.006</li>
+<li>Precision: 0.8441</li>
 </ul>
 
 
@@ -840,7 +854,7 @@ For QDA, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it 
 function_ROC_AUC(out_all_preds_qda$Yes, out_best_qda$truth, "ROC For Tuned QDA Model")
 ```
 
-The **QDA AUC** based on 10-fold cross-validated training data with a threshold of 0.8 is: **0.997**.
+The **QDA AUC** based on 10-fold cross-validated training data with a threshold of 0.1 is: **0.997**.
 
 ## KNN
 
@@ -851,7 +865,7 @@ After testing over ranges from 1 to 51, the best k was **27**. The code used is 
 ```{r knnTry1, cache=TRUE, warning=FALSE, eval=FALSE}
 set.seed(1976)
 
-trControl.knn <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T, p = 0.5)
+trControl.knn <- trainControl(method = "repeatedcv", summaryFunction=twoClassSummary, classProbs=T, savePredictions = T)
 
 knn.cv.model = train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = train, method = "knn", trControl=trControl.knn, tuneGrid = expand.grid(k = 26:28))
 knn.cv.model
@@ -886,81 +900,118 @@ From 1 - 51, the best k is **27**. The tables of ROC, Sensitivity and Specificit
 
 ### Tune the probability threshold, p, for KNN | k = 27
 
-Running manual KNN cross validation to tune for p took significant time for my laptop to process. I ran with smaller lists of p just to get a feel for the results. I had previously ran with p = 0.5 and received accuracy of 0.996.
+Running manual KNN cross validation to tune for p took significant time for my laptop to process. I ran with smaller lists of p just to get a feel for the results. 
 
-For processing speed time, I commented out the extending loop of threshold values, and limited the list of 0.4 and 0.5 for illustrative purposes.
+The threshold  0.1 returned the same true positive rate with k == 27.
+
+For processing speed time, I commented out the extending loop of threshold values, and limited the list of 0.1 and 0.2 for illustrative purposes.
 
 ```{r tunePKNN, cache=TRUE}
 library(class)
 
 out_knn_p = tibble()
 
+set.seed(1976)
+
 haitiBinarySqrsShuffled = haitiBinarySqrsShuffled %>% mutate(ClassBinaryTF = factor(if_else(ClassBinary == "No", FALSE, TRUE)))
 
+for (j in 1:10)
+{
 
-#for (p in c(.1,.2,.3,.7,.8,.9)) 
-#for (p in c(.2,.3,.4,.5,.6,.7,.8)) 
+  #Segement your data by fold using the which() function 
+  testIndexes = which(folds==j,arr.ind=TRUE)
+  testData = haitiBinarySqrsShuffled[testIndexes, ]
+  trainData = haitiBinarySqrsShuffled[-testIndexes, ] 
 
-    for (j in 1:10)
-    {
+  train_knn <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = trainData, method = "knn", tuneGrid = data.frame(k=27))
+
+  # test with the fold's test data
+  preds = predict(train_knn, newdata = testData, type="prob")
   
-      #Segement your data by fold using the which() function 
-      testIndexes = which(folds==j,arr.ind=TRUE)
-      testData = haitiBinarySqrsShuffled[testIndexes, ]
-      trainData = haitiBinarySqrsShuffled[-testIndexes, ] 
-
-      train_knn <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = trainData, method = "knn", tuneGrid = data.frame(k=27))
+  #for (p in c(.1,.2,.3,.4,.5))
+  for (p in c(.1,.2)) 
+  {
   
-      # test with the fold's test data
-      preds = predict(train_knn, newdata = testData, type="prob")
-      
-      for (p in c(.4,.5)) 
-      {
-      
-        #- evaluate fold k
-        y_true = testData$ClassBinaryTF
-        # set the threshold to p
-        thres = p
-        y_hat = tibble(preds$Yes > thres)
-        acc = apply(y_hat, 2, function(y) mean(y == y_true))
-      
-          #- output
-        out_knn_p = bind_rows(out_knn_p, tibble(threshold = p, accuracy = acc))
-      }
+    #- evaluate fold k
+    y_true = testData$ClassBinaryTF
+    # set the threshold to p
+    thres = p
+    y_hat = preds %>% mutate(hat_value = (Yes > thres), hat_value = factor(hat_value))
+    
+    #spec(two_class_example, truth, predicted)
+    spec = yardstick::spec(preds, y_true, y_hat$hat_value)[[3]]
+
+    #- output
+    out_knn_p = bind_rows(out_knn_p, tibble(threshold = p, TPR = spec))
+  }
 }
 
-out_knn_p
+#out_knn_p
 ```
 
-```{r getMeanKNNAccuracy}
+```{r getMeanKNNAccuracy, cache=TRUE}
 #-- Get mean accuracy
 perf_knn_p = out_knn_p %>% 
   group_by(threshold) %>% 
-  summarize(mean_acc = mean(accuracy)) 
+  summarize(mean_TPR = mean(TPR)) 
 
-perf_knn_p %>% arrange(-mean_acc)
+perf_knn_p %>% arrange(-mean_TPR)
 ```
 
 #### Results of Tuning for p:
 
-After testing the following values of p: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, **p == 0.5** is the value that produced the highest mean accuracy. This is convenient because caret's cross-validation for KNN models default to a 0.5 threshold.
+After testing the following values of p: 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, **p == 0.1** is the value that produced the highest true positive rate.
+
+```{r knnBestThres, cache=TRUE}
+out_knn_best_thres = tibble()
+
+for (j in 1:10)
+{
+
+  #Segement your data by fold using the which() function 
+  testIndexes = which(folds==j,arr.ind=TRUE)
+  testData = haitiBinarySqrsShuffled[testIndexes, ]
+  trainData = haitiBinarySqrsShuffled[-testIndexes, ] 
+
+  train_knn_best_thres <- train(ClassBinary ~ Blue+Green+Red+GBSqr+RBSqr, data = trainData, method = "knn", tuneGrid = data.frame(k=27))
+
+  # test with the fold's test data
+  preds_best_thres = predict(train_knn_best_thres, newdata = testData, type="prob")
+
+  #- evaluate fold k
+  y_true = testData$ClassBinaryTF
+  y_hat = preds_best_thres %>% mutate(hat_value = (Yes > 0.1), hat_value = factor(hat_value))
+  
+  out_knn_best_thres = bind_rows(out_knn_best_thres,
+                                 tibble(y_true = y_true, pred_Yes = y_hat$Yes, pred_No = y_hat$No, y_hat = y_hat$hat_value))
+}
+
+```
+
 
 
 ```{r knnTrainConfusionMatrix, cache=TRUE}
-caret::confusionMatrix(knn.cv.model)
+out_knn_best_thres = out_knn_best_thres %>%
+  mutate(y_true = factor(y_true), y_hat = factor(y_hat))
+
+caret::confusionMatrix(out_knn_best_thres$y_hat, out_knn_best_thres$y_true)
 ```
+For KNN, my calculations for TPR, FPR, and Precision treat 'Yes', i.e. "yes, it is a blue tarp", as the positive class.
+<ul>
+<li>Accuracy: 0.9948</li>
+<li>TPR: 1995 / (2022): 0.9866</li>
+<li>FPR: 301 / 61219: 0.005</li>
+<li>Precision: 0.8689</li>
+</ul>
+
+
 ### KNN k=27 Training ROC Curve:
-```{r knnTrainingROC}
-result.knn = evalm(knn.cv.model)
-result.knn$roc
+```{r knnTrainingROC, cache=TRUE}
+
+function_ROC_AUC(out_knn_best_thres$pred_Yes, out_knn_best_thres$y_true, "ROC For Tuned KNN | k = 27 Model")
 ```
-  <td><!-- KNN Tuning --> k = 27</td>
-  <td><!-- KNN AUROC -->1.0</td>
-  <td><!-- KNN Threshold -->N/A</td>
-  <td><!-- KNN Accuracy -->0.997</td>
-  <td><!-- KNN TPR -->0.998</td>
-  <td><!-- KNN FPR -->0.0313</td>
-  <td><!-- KNN Precision -->0.999</td>
+  
+
 
 ## Penalized Logistic Regression (ElasticNet)
 Subset selection using glmnet/ElasticNet provides an opportunity for me to see if additional predictors are of use improving the precision of our model.
@@ -1006,28 +1057,25 @@ For the sake of processing speed I commented out the loop for the extended p val
 
 After testing ridge, elasticnet, and lasso, lasso performed the best. For speed of processing, I am only demonstrating the loop with a == 1 == lasso.
 
+**Accuracy** was used for tuning parameter and threshold tuning:
 ```{r glmnetCrossVal, cache=TRUE}
 library(glmnet)
-
 set.seed(1976)
 # number of folds
 K = 10
 # make folds
 folds = rep(1:K, length=nrow(x.haitiFull.train)) 
-
 out = tibble()
-
 # LOOP FOR alpha: 0 (ridge), 0.5 (elasticnet), and 1 (lasso)
-#for (a in c(0, .5, 1)){
-
 for (a in c(1)){
   # lambda may be different for the different PLR methods, so this is decided within the alpha loop
   #-- Get lambda sequence so consistent over all folds
   lam_seq = glmnet(x.haitiFull.train, y.haitiFull.train, family="binomial", alpha=a)$lambda
-
-  
-  #-- Loop over K folds
-  for(k in unique(folds)){
+  # TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
+  #for (p in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95)){
+  for (p in c(0.1,0.2,0.3)){
+    #-- Loop over K folds
+    for(k in unique(folds)){
       
       #- Get train/test split for fold k
       ind.train = which(folds != k)
@@ -1044,13 +1092,8 @@ for (a in c(1)){
       
       #- evaluate fold k
       y_true = y.haitiFull.train[ind.test]
-      
-      # TO DO: ADD LOOP OVER p values of .1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95
-       #for (p in c(.1, .2, .3, .4, .5, .6, .7, .8, .85, .9, .95)){
-      for (p in c(.1, .2, .3)){
       # set the threshold to p
-      thres = p
-      y_hat = pred > thres
+      y_hat = pred > p
       acc = apply(y_hat, 2, function(y) mean(y == y_true))
       
       #- output
@@ -1062,35 +1105,22 @@ for (a in c(1)){
                        alpha = a,
                        thres = p,
                        k = k))
-      }
+    }
   }
 }
 ```
 
-```{r}
-out %>% filter(accuracy == max(accuracy))
-```
+```{r glmnetLassoAlpha, cache=TRUE}
+#head(out)
 
-```{r glmnet-getBestAccuracy}
-#-- Get mean accuracy
+#-- Get mean TPR by alpha, threshold, and lambda for 10 fold cross validation
 perf = out %>% 
   group_by(alpha, thres, lambda) %>% 
-  summarize(mean_acc = mean(accuracy), se_acc = sd(accuracy)/k) 
+  summarize(mean_accuracy = mean(accuracy), se_accuracy = sd(accuracy)/k) 
 
-perf %>% arrange(-mean_acc)
+head(perf %>% arrange(-mean_accuracy) %>% top_n(10))
 ```
-
-```{r}
-log(5.630136e-05)
-```
-
-The plot below charts the change in mean accuracy as the log of lambda increases for each of the 10 folds. The red error bars display the difference between the (mean accuracy - standard error accuracy) and the (max accuracy + the standard error accuracy) - giving the range of mean accuracy for  log lambda. The plot demonstrates that generally accuracy decreases, and the standard error of accuracy increases as log lambda increases. The highest mean accuracy is at a log lambda -9.78.
-```{r fig.width=8, fig.height=6}
-ggplot(perf, aes(log(lambda), mean_acc)) +
-  geom_point() + geom_line() +
-  geom_errorbar(aes(ymin=mean_acc-se_acc, ymax=mean_acc + se_acc), 
-                color="red", alpha=1)
-```
+Based on **accuracy** the best **threshold == 0.2**, lasso (**alpha == 1**) and **lambda == 1.530602e-05** performed the best.
 
 From the manual cross-validation testing of accuracy the PLR lasso method with lambda of 5.630136e-05 and a threshold of **0.2** produced the greatest mean accuracy: **0.996**.
 
@@ -1116,9 +1146,8 @@ for(k in unique(folds)){
   
   #- evaluate fold k
   y_true = y.haitiFull.train[ind.test]
-  # set the threshold to p
-  thres = 0.2
-  y_hat = pred > thres
+  # set the threshold
+  y_hat = pred > 0.2
 
     #- output
   out_confusion = bind_rows(out_confusion, 
@@ -1135,20 +1164,20 @@ summary(out_confusion)
 ```
 
 The optimal lambda:
-```{r}
-
+```{r, cache=TRUE}
 coef(cv.glmnet.model, 0.00005630136)
 ```
 
 This resulting model is interesting. Cross-validated lasso, with p = 0.2 set the coefficients for GBSqr, RBSqr and RGBSqr to 0. This could be due to collinearity with Blue, or because the variables are truly not significant to the accuracy of the model. This did determine that the new variable RGSqr was significant.
 
-```{r glmnetConfM}
+```{r glmnetConfM, cache=TRUE}
+
 out_confusion %>% 
   mutate(truth = factor(truth), glmnet.fitted = factor(glmnet.fitted)) %>%
   conf_mat(truth, glmnet.fitted)
 ```
 
-```{r glmnetAUC}
+```{r glmnetAUC, cache=TRUE}
 assess.glmnet(pred, newy = y.haitiFull.train[ind.test], family="binomial")
 ```
 **AUC** for the lasso PLR model with a lambda of 0.00005630136 is 0.9996.
@@ -1247,7 +1276,7 @@ I did run the ntree loop for 250, 500, and 1000 trees. The best performing numbe
 I tuned with a list of mtry values of 3,4,5,6,7,8,9 and 10. **4** was the best performing. In order to lessen the amount of timed needed to knit this Rmd I am not evaluating the following code block.
 
 ```{r rf-numtrees, cache=TRUE, eval=FALSE}
-control = trainControl(method = 'repeatedcv', number = 10, repeats = 3, search = 'grid')
+control = trainControl(method = 'cv', number = 10, search = 'grid')
 
 # possible mtry values
 tunegrid = expand.grid(.mtry = c(3,4,5,6,7,8,9,10))
@@ -1526,52 +1555,55 @@ Using SVM with a threshold = 0.2 and a cost of 1.0:
   <td width="100">Precision</td>
 </tr>
 
+<!-- DONE -->
 <tr>
   <td>Log Reg</td>
-  <td><!-- LDA Tuning --> N/A</td>
-  <td><!-- LDA AUROC -->0.9996</td>
-  <td><!-- LDA Threshold -->0.1</td>
-  <td><!-- LDA Accuracy -->0.9957</td>
-  <td><!-- LDA TPR -->0.9802</td>
-  <td><!-- LDA FPR -->0.0038</td>
-  <td><!-- LDA Precision -->0.896</td>
+  <td><!-- LDA Tuning --> N/A </td>
+  <td><!-- LDA AUROC -->0.9996 </td>
+  <td><!-- LDA Threshold -->0.1 </td>
+  <td><!-- LDA Accuracy --> 0.9957</td>
+  <td><!-- LDA TPR --> 0.9802</td>
+  <td><!-- LDA FPR --> 0.0038</td>
+  <td><!-- LDA Precision --> 0.896</td>
 </tr>
 
-
+<!-- DONE -->
 <tr>
   <td>LDA</td>
-  <td><!-- LDA Tuning --> N/A</td>
-  <td><!-- LDA AUROC --> 0.9945<td>
-  <td><!-- LDA Threshold -->0.3</td>
-  <td><!-- LDA Accuracy -->0.9945</td>
-  <td><!-- LDA TPR -->0.859</td>
-  <td><!-- LDA FPR -->0.001</td>
-  <td><!-- LDA Precision -->0.9954</td>
+  <td><!-- LDA Tuning --> N/A </td>
+  <td><!-- LDA AUROC --> 0.994 </td>
+  <td><!-- LDA Threshold -->0.1 </td>
+  <td><!-- LDA Accuracy -->0.9888 </td>
+  <td><!-- LDA TPR -->0.8827 </td>
+  <td><!-- LDA FPR -->0.0077 </td>
+  <td><!-- LDA Precision -->0.7909 </td>
 </tr>
 
-
+<!-- DONE -->
 <tr>
   <td>QDA</td>
   <td><!-- QDA Tuning --> N/A</td>
   <td><!-- QDA AUROC -->0.997</td>
-  <td><!-- QDA Threshold -->0.8</td>
-  <td><!-- QDA Accuracy -->0.9949</td>
-  <td><!-- QDA TPR -->0.874</td>
-  <td><!-- QDA FPR -->0.001</td>
-  <td><!-- QDA Precision -->0.9959</td>
+  <td><!-- QDA Threshold -->0.1</td>
+  <td><!-- QDA Accuracy -->0.9922</td>
+  <td><!-- QDA TPR -->0.926</td>
+  <td><!-- QDA FPR -->0.006</td>
+  <td><!-- QDA Precision -->0.8441</td>
 </tr>
 
+<!-- DONE -->
 <tr>
   <td>KNN</td>
   <td><!-- KNN Tuning --> k = 27</td>
-  <td><!-- KNN AUROC -->1.0</td>
-  <td><!-- KNN Threshold -->0.5</td>
-  <td><!-- KNN Accuracy -->0.997</td>
-  <td><!-- KNN TPR -->0.998</td>
-  <td><!-- KNN FPR -->0.0313</td>
-  <td><!-- KNN Precision -->0.999</td>
+  <td><!-- KNN AUROC -->0.9997</td>
+  <td><!-- KNN Threshold -->0.1</td>
+  <td><!-- KNN Accuracy -->0.9948</td>
+  <td><!-- KNN TPR -->0.9866</td>
+  <td><!-- KNN FPR -->0.005</td>
+  <td><!-- KNN Precision -->0.8689</td>
 </tr>
 
+<!-- DONE -->
 <tr>
   <td>Pen Log Reg</td>
   <td><!-- Penalized Log Reg Tuning -->alpha = 1, lambda = 5.630136e-05</td>
@@ -2562,6 +2594,8 @@ library(ggmap)
 library(sf)
 library(mapview)
 
+#remotes::install_github("r-spatial/mapview")
+
 head(glm.preds)
 
 true_pos_preds = glm.preds %>% 
@@ -2575,38 +2609,28 @@ dim(true_pos_preds)
 dim(false_negative_preds)
 ```
 
-Below is a map of the **True Positives**, these are all locations in Carrefour.
-```{r mapping-1}
+Below is a map of the **True Positives**, these are all locations in Carrefour. Based on inspecting this map, it appears the 14,391 pixels correspond to approximately 28 locations of blue tarps.
+```{r mapping-1, cache=TRUE}
 
 locations_true_pos_sf = st_as_sf(true_pos_preds, coords = c("lon", "lat"), crs = 4326)
 dim(locations_true_pos_sf)
-mapview(locations_true_pos_sf)
+mapview(locations_true_pos_sf)@map
 ```
 
-Below are the **False Negatives**. An encouraging outcome of the mapping is that it is clear that the False Negatives were pixels that were subsets of a pixels for locations where True Positives were correctly identified. I guess that the false negatives may be pixels from the edges of blue tarps. I am very pleased that the 89 false negatives in the holdout data would not have kept resources from reaching survivors.
+Below are the **False Negatives**. An encouraging outcome of visualizing false negative locations on a map of Haiti that each of the false negative locations have geographically near pixels of locations where true positives were correctly predicted. I believe the false negatives are from the edges of three blue tarps. I am very pleased that the 89 false negatives in the holdout data would not have kept resources from reaching the three groups of  survivors.
 
 ```{r mapping-2}
 
 locations_false_neg_sf = st_as_sf(false_negative_preds, coords = c("lon", "lat"), crs = 4326)
 dim(locations_false_neg_sf)
-mapview(locations_false_neg_sf)
+mapview(locations_false_neg_sf)@map
 ```
 
 # Final Conclusions
 
-<!--
-Report on at least 6 conclusions. Give sufficient explanation and justification for each conclusion.
-
-Four of your conclusions must be the following:
-A discussion of the best performing algorithm(s) in the cross-validation and hold-out data.
-A discussion or analysis justifying why your findings above are compatible or reconcilable.
-A recommendation and rationale regarding which algorithm to use for detection of blue tarps.
-A discussion of the relevance of the metrics calculated in the tables to this application context.
-Your best two additional conclusions will be graded.
--->
-
 ### Conclusion \#1: Modules Assuming A Linear Relationship Perform Best
-**TODO: A discussion of the best performing algorithm(s) in the cross-validation and hold-out data.**
+<!--TODO: A discussion of the best performing algorithm(s) in the cross-validation and hold-out data.-->
+The logistic regression model using an additive model of Blue, Green, Red, (Green + Blue)^2, and (Red + Blue)^2 as a threshold of 0.1 performed the best of the tested models. The logistic regression model performed best when comparing true positive rate, AUC, and accuracy.
 
 ### Conclusion \#2: Are Training and Test Results Compatible?
 **TODO A discussion or analysis justifying why your findings above are compatible or reconcilable.**
@@ -2621,9 +2645,10 @@ Your best two additional conclusions will be graded.
 ### Conclusion \#4: Metrics, Measures, and Performance
 **TODO A discussion of the relevance of the metrics calculated in the tables to this application context.**
 
-### Conclusion \#5: 
+### Conclusion \#5: Does The Evidence Warrant Concern About False Negatives?
 
-### Conclusion \#6: 
+
+### Conclusion \#6:  
 
 # References
 <ul>

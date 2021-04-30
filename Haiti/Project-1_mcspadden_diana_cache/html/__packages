@@ -29,3 +29,6 @@ class
 Matrix
 glmnet
 e1071
+ggmap
+sf
+mapview
