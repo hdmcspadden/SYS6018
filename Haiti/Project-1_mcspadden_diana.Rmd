@@ -1233,6 +1233,7 @@ caret::confusionMatrix(out_lr.full$prediction, out_lr.full$truth)
 
 function_ROC_AUC(out_lr.full$fitted, out_lr.full$truth, "ROC For Tuned Lasso Model")
 ```
+
 Using logistic regression with a threshold = **0.2** and the model selected by lasso:
 <ul>
 <li>Accuracy: 0.996</li>
@@ -1315,10 +1316,10 @@ as.data.frame(rf.fit$finalModel$importance) %>% arrange(MeanDecreaseGini)
 
 **The above code took such a long time to run, I am not longer evaluating in my Rmd. Here are screen shots of the output to support my further evaluation of the selected random forest model:**
 
-![RF Tuning Reuslts](RFTuning.JPG)
+![RF Tuning Results](RFTuning.JPG)
 
 
-![RF MTRY Reuslts](RF_MTRY_RESULT.JPG)
+![RF MTRY Results](RF_MTRY_RESULT.JPG)
 
 
 ![RF Importance Results](RF_ImportanceResult.JPG)
@@ -1337,7 +1338,7 @@ Random forest cross validation selected 1000 trees, with 4 predictors:
 Next, I need to test for the best probability threshold using the tuned tree with number of predictors considered at each split == 4, and number of trees =  1000. I will use accuracy for selecting the best p value.
 
 ```{r rf-checkThreshold-setup, cache=TRUE}
-set.seed(123)
+set.seed(1976)
 #Randomly shuffle the data
 haitiRFShuffled = haitiBinaryRF[sample(nrow(haitiBinarySqrs)),]
 
@@ -1347,9 +1348,9 @@ folds <- cut(seq(1,nrow(haitiRFShuffled)),breaks=10,labels=FALSE)
 head(haitiRFShuffled)
 ```
 
-I did run this loop with threshold 0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 and **0.7** performed the best.
+I did run this loop with threshold 0.1,0.2,0.3,0.4,0.5,0.6,0.7,0.8,0.9 and **0.1** performed the best using **true positive rate**.
 
-For the sake of faster compilation time, I am limited the threshold loop to 0.6, and 0.7 to illustrate the process.
+For the sake of faster compilation time, I am limited the threshold loop to 0.1, 0.2, 0.3, 0.4, 0.5, 0.6.
 ```{r rf-checkThreshold, cache=TRUE}
 
 # create storage variables for the p value, Accuracy, ROC, Specificity, and Sensitivity
@@ -1385,8 +1386,8 @@ for(i in 1:10) {
       
       #y_true
       
-      #for (j in c(.2,.3,.4,.5,.6,.7,.8,.9))
-      for (j in c(.6,.7)) { 
+      #for (j in c(.1, .2,.3,.4,.5,.6,.7,.8,.9))
+      for (j in c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6)) { 
       
         # set the threshold to p
         y_hat = rf.preds[,2] > j
@@ -1400,26 +1401,45 @@ for(i in 1:10) {
                 tibble(thres = j, true = y_true_val, hat = y_hat))
         
         acc = sum(out_yhat_ytrue$hat == out_yhat_ytrue$true) / nrow(out_yhat_ytrue)
-        
+
         out_rf = bind_rows(out_rf, 
             tibble(accuracy = acc, thres = j))
       }
 }
 ```
 
-```{r rfThresholdResults}
-#out_rf
+Below, I examine the best threshold tested by both **true positive rate** and **accuracy**.
+
+```{r rfThresholdTPRResults, cache=TRUE}
+#head(out_yhat_ytrue)
+#head(all_out_yhat_ytrue)
+
+all_out_yhat_ytrue %>%
+  mutate(true = factor(true), hat=(factor(hat))) %>%
+  group_by(thres) %>%
+  mutate(TPR = yardstick::spec_vec(true, hat)) %>%
+  group_by(thres) %>%
+  summarize_at(vars(TPR), list(mean_TPR=mean)) %>%
+  arrange(-mean_TPR)
+```
+
+
+```{r rfThresholdAccuracyResults, cache=TRUE}
+#head(out_rf)
+
+#head(all_out_yhat_ytrue)
 
 out_rf %>%
   group_by(thres) %>%
-  summarize_at(vars(accuracy), list(mean_acc=mean))
+  summarize_at(vars(accuracy), list(mean_acc=mean))%>%
+  arrange(-mean_acc)
 
 ```
 Random forest cross validation with:
 <ul>
 <li>ntree = 1000</li>
 <li>mtry = 4</li>
-<li>threshold = 0.7</li>
+<li>threshold = 0.1</li>
 </ul>
 
 These tuning parameters produced the best accuracy.
@@ -1429,7 +1449,7 @@ Next, I produce the confusion matrix and ROC curve
 # filter only the true and hat values where thres == 0.3
 best_rf_df = all_out_yhat_ytrue %>% 
   mutate(factortrue = factor(true), factorhat = factor(hat)) %>% 
-  filter(thres == 0.7)
+  filter(thres == 0.1)
 
 head(best_rf_df)
 
@@ -1439,9 +1459,20 @@ caret::confusionMatrix(best_rf_df$factorhat, best_rf_df$factortrue)
 Produce the ROC and calculate the AUC for the tuned random forest model:
 
 ```{r rfROC, cache=TRUE}
-
 function_ROC_AUC(out_yhat_ytrue$X1, out_yhat_ytrue$truth0or1, "ROC For Tuned RF Model")
 ```
+mtry and ntree were tuned using accuracy, threshold was tuned by true positive rate.
+
+Using random forests with a threshold = **0.1**, mtry == **4**, and ntree == **1000** the model produced the following results:
+
+<ul>
+<li>Accuracy: 0.9954</li>
+<li>AUC: 0.994</li>
+<li>TPR: 1992 / 2022 = 0.985</li>
+<li>FPR: 261 / 61219 = 0.004</li>
+<li>Precision: 1949 / 2129 = 0.884</li>
+</ul>
+
 
 ## SVM
 For the support vector machine model I will use the same variables as the random forest model:
@@ -1466,7 +1497,7 @@ Using cross validation, I will tune a linear kernel with cost values that includ
 
 <!--https://www.rdocumentation.org/packages/e1071/versions/1.7-6/topics/predict.svm-->
 
-I ran the svm with possible costs including 0.01, 0.1, 1, and 10 and probability thresholds .2, .3, .4, .5, .6, .7, and .8. The best performing model used **cost == 1** and **threshold == 0.2**. For speed of knitting this Rmd I only include those values in the code below:
+I ran the svm with possible costs including 0.01, 0.1, 1, and 10 and probability thresholds .2, .3, .4, .5, .6, .7, and .8. The best performing model based on TPR uses **cost == 1** and **threshold == 0.2**. For speed of knitting this Rmd I only include those values in the code below:
 ```{r svm-training, cache=TRUE}
 
 out_svm = tibble()
@@ -1480,7 +1511,7 @@ folds <- cut(seq(1,nrow(haitiRFShuffled)),breaks=10,labels=FALSE)
 
 
 #for (cost_val in c( 0.01, 0.1, 1, 10))
-for (cost_val in c(1))
+for (cost_val in c(0.1,1,10))
 {
   for(i in 1:10)
   {
@@ -1497,7 +1528,7 @@ for (cost_val in c(1))
       
       # to speed this up, loop through the preds after the svm has been fit.
       #for (thres in c(.2,.3,.4,.5,.6,.7,.8))
-      for (thres in c(.2))
+      for (thres in c(0.1,0.2,0.3,0.4,0.5,0.6))
       {
           y_hat = attr(pred, "probabilities")[,"Yes"] > thres
           
@@ -1511,15 +1542,23 @@ for (cost_val in c(1))
 
 ```
 
+```{r svm-BestTPR, cache=TRUE}
+#head(out_yhat_ytrue)
+#head(all_out_yhat_ytrue)
 
-```{r svm-bestCostAndThreshold}
-out_svm %>% group_by(thres, cost) %>% summarize(acc = mean(accuracy)) %>% arrange(desc(acc))
-
+out_svm %>% mutate(truth_value = (truth_value == 'Yes')) %>%
+  mutate(true = factor(truth_value), hat=(factor(pred_value))) %>%
+  group_by(thres, cost) %>%
+  mutate(TPR = yardstick::spec_vec(true, hat)) %>%
+  group_by(thres, cost) %>%
+  summarize_at(vars(TPR), list(mean_TPR=mean)) %>%
+  arrange(-mean_TPR)
 ```
-The highest performing cross-validated svm used a **cost of 1 and a threshold of 0.2**.
 
-```{r sv-ConfMatrix}
-best_svm = out_svm %>% filter(thres == 0.2 & cost == 1.00) %>% mutate(truth_value = (truth_value == "Yes")) %>% mutate(pred_value = factor(pred_value), truth_value = factor(truth_value))
+The highest performing, based on **true positive rate** cross-validated svm used a **cost of 1 and a threshold of 0.1**.
+
+```{r sv-ConfMatrix, cache=TRUE}
+best_svm = out_svm %>% filter(thres == 0.1 & cost == 1.00) %>% mutate(truth_value = (truth_value == "Yes")) %>% mutate(pred_value = factor(pred_value), truth_value = factor(truth_value))
 head(best_svm)
 
 caret::confusionMatrix(best_svm$pred_value, best_svm$truth_value)
@@ -1529,19 +1568,20 @@ caret::confusionMatrix(best_svm$pred_value, best_svm$truth_value)
 ```{r svm-ROC}
 function_ROC_AUC(best_svm$yesProb, best_svm$truth_value, "ROC Training SVM")
 ```
-Using SVM with a threshold = 0.2 and a cost of 1.0:
+
+Using SVM with a threshold = 0.1 and a cost of 1.0:
 <ul>
-<li>Accuracy: 0.9963</li>
+<li>Accuracy: 0.9962</li>
 <li>AUC: 0.9995</li>
-<li>TPR: 1947 / 2022 = 0.962</li>
-<li>FPR: 156 / 61219 = 0.0025</li>
-<li>Precision: 1947 / 2100 = 0.9262</li>
-<li>Neg Pred Value: 61064 / 61141 = 0.999</li>
-<li>False Pred Rate: 75 / 2022 = 0.038</li>
+<li>TPR: 1972 / 2022 = 0.975</li>
+<li>FPR: 190 / 61219 = 0.003</li>
+<li>Precision: 0.9121</li>
 </ul>
 
 
 # Results (Cross-Validation)
+
+Results of cross-validation on training data have been re-calculated since submission of Part One. For Part One I had used accuracy for tuning. In Part Two, I re-trained and used **true positive rate** for most of the parameter tuning.
 
 <table width="800">
 <tr>
@@ -1615,31 +1655,34 @@ Using SVM with a threshold = 0.2 and a cost of 1.0:
   <td><!-- Penalized Log Reg Precision -->0.918</td>
 </tr>
 
+<!-- DONE -->
 <tr>
   <td>Random Forest</td>
   <td><!-- Random Forest Tuning -->mtry = 4, ntree = 1000</td>
   <td><!-- Random Forest AUROC -->0.994</td>
-  <td><!-- Random Forest Threshold -->0.6</td>
-  <td><!-- Random Forest Accuracy -->0.997</td>
-  <td><!-- Random Forest TPR -->0.932</td>
-  <td><!-- Random Forest FPR -->0.0009</td>
-  <td><!-- Random Forest Precision -->0.9706</td>
+  <td><!-- Random Forest Threshold -->0.1</td>
+  <td><!-- Random Forest Accuracy -->0.9954</td>
+  <td><!-- Random Forest TPR -->0.985</td>
+  <td><!-- Random Forest FPR -->0.004</td>
+  <td><!-- Random Forest Precision -->0.884</td>
 </tr>
 
 <tr>
   <td>SVM</td>
   <td><!-- SVM Tuning -->Cost = 1.0</td>
   <td><!-- SVM AUROC -->0.9995</td>
-  <td><!-- SVM Threshold -->0.2</td>
-  <td><!-- SVM Accuracy -->0.9963</td>
-  <td><!-- SVM TPR -->0.962</td>
-  <td><!-- SVM FPR -->0.0025</td>
-  <td><!-- SVM Precision -->0.9262</td>
+  <td><!-- SVM Threshold -->0.1</td>
+  <td><!-- SVM Accuracy -->0.9962</td>
+  <td><!-- SVM TPR -->0.975</td>
+  <td><!-- SVM FPR -->0.003</td>
+  <td><!-- SVM Precision -->0.9121</td>
 </tr>
 </table>
 
 
-# Conclusions
+#  PART ONE: Training Conclusions 
+
+Part One's training conclusions were written based on tuning by accuracy on all models. Before submitting Part Two, I reworked much of the training to use **true positive rate** for parameter and threshold tuning.
 
 ## Conclusion \#1 
 
@@ -1966,9 +2009,27 @@ haiti_ho_full %>%
 
 Our test data is only **1%** Blue Tarps, which is a differente distribution from our training data.
 
+```{r colorValuesBinarySqrsCatsHoldout, cache=TRUE, fig.height=5, fig.width=5}
+library(ggplot2)
+
+ggplot(haiti_ho_full, aes(x=ClassBinary, y=Red)) + geom_boxplot()
+
+redplotB = ggplot(haiti_ho_full, aes(x=ClassBinary, y=RBSqr)) + geom_boxplot(col='red')
+
+greenplotB = ggplot(haiti_ho_full, aes(x=ClassBinary, y=GBSqr)) + geom_boxplot(col='darkgreen')
+
+blueplotB = ggplot(haiti_ho_full, aes(x=ClassBinary, y=Blue)) + geom_boxplot(col='darkblue')
+
+
+grid.arrange(redplotB, greenplotB, blueplotB)
+```
+
+
 # Results (Hold-Out)
 
 ## Hold-out Results Logistic Regression
+
+The training-tuned threshold for the logistic regression model was 0.1. I will use this threshold when predicting the hold out data.
 
 ```{r holdout-fitLogisticREgression, cache=TRUE}
 # train the selected logistic regression model with the complete training data set
@@ -1990,30 +2051,6 @@ For Logistic Regression, the hold-out test results with the training-set-tuned t
 <li>FPR: 23642 / (1989697) = 0.012</li>
 <li>Precision: 14391 / (38033) = 0.378</li>
 </ul>
-
-However,  we may want to use a different threshold. I am curious if the new holdout data performs better, based on True Positive Rate (which based on the way this data set is setup, is actually **Specificity**), with a different threshold. I will test the True Positive Rate (again, specificity is the yardstick measure I will use based on the format of the data) of thresholds 0.1, 0.2, 0.3, 0.4, and 0.5
-
-```{r holdout-testLogisticRegression-TuneThreshold, cache=TRUE}
-
-out_lr_test_spec = tibble()
-
-for (p in c(0.1, 0.2, 0.3, 0.4, 0.5))
-{
-  glm.preds.thres = glm.all.train %>%  augment(newdata=haiti_ho_full) %>% 
-        mutate(.prediction=ifelse(1 - 1/(1 + exp(.fitted)) < p, "0", "1")) %>%
-        mutate(.prediction = factor(.prediction))
-  
-  specificity = yardstick::spec(glm.preds.thres, glm.preds.thres$ClassBinary, glm.preds.thres$.prediction)
-
-  out_lr_test_spec = bind_rows(out_lr_test_spec, tibble(thres = p, spec = specificity$.estimate))
-  
-}
-
-out_lr_test_spec
-```
-The best True Positive Rate was achieved with a threshold of **0.1**.
-
-
 
 ```{r holdout-testLogisticRegression-ROC, cache=TRUE}
 
@@ -2037,32 +2074,6 @@ lda.cv.model.selected = train(ClassBinaryYesNo ~ Blue+Green+Red+GBSqr+RBSqr, dat
 lda.test = predict(lda.cv.model.selected, newdata = haiti_ho_full, type="prob")
 ```  
 
-A threshold of **0.8** was selected based on accuracy for the training data set. But I will evaluating the best threshold to use for the holdout data on True Positive Rate (yardstick's specificity is used based on the format of the data). I will evaluate 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, and 0.9.
-
-```{r ldaHoldOutTestThres, cache=TRUE}
-
-
-out_lda_test_spec = tibble()
-
-for (p in c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9))
-{
-  
-  lda.preds.thres = lda.test %>%
-      mutate(.prediction=ifelse(Yes < p, "0", "1")) %>%
-      mutate(.prediction = factor(.prediction))
-  
-
-  specificity = yardstick::spec(lda.preds.thres, haiti_ho_full$ClassBinary, lda.preds.thres$.prediction)
-
-  out_lda_test_spec = bind_rows(out_lda_test_spec, tibble(thres = p, spec = specificity$.estimate))
-  
-}
-
-out_lda_test_spec
-
-```
-
-**0.1** provides MUCH better True Positive Rate predictive power on the holdout data than 0.8. I will use 0.2 for the confusion matrix and ROC.
 
 ```{r ldaTestPreds, cache=TRUE}
 lda.preds = lda.test %>%
@@ -2110,33 +2121,6 @@ qda.test = predict(qda.cv.model.selected, newdata = haiti_ho_full, type="prob")
 ```  
   
 
-A threshold of **0.8** was selected based on accuracy for the training data set. But I will evaluating the best threshold to use for the holdout data on True Positive Rate (yardstick's specificity is used based on the format of the data). I will evaluate 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, and 0.9.
-
-```{r qdaHoldOutTestThres, cache=TRUE}
-
-
-out_qda_test_spec = tibble()
-
-for (p in c(0.1,0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9))
-{
-  
-  qda.preds.thres = qda.test %>%
-      mutate(.prediction=ifelse(Yes < p, "0", "1")) %>%
-      mutate(.prediction = factor(.prediction))
-  
-
-  specificity = yardstick::spec(qda.preds.thres, haiti_ho_full$ClassBinary, qda.preds.thres$.prediction)
-
-  out_qda_test_spec = bind_rows(out_qda_test_spec, tibble(thres = p, spec = specificity$.estimate))
-  
-}
-
-out_qda_test_spec
-
-```
-
-Using the holdout data the best threshold for the QDA model is **0.1**.
-
 ```{r qdaTestCOnfMatrix}  
 qda.preds = qda.test %>%
       mutate(.prediction=ifelse(Yes < .1, "0", "1")) %>%
@@ -2160,7 +2144,7 @@ function_ROC_AUC(qda.test$Yes, haiti_ho_full$ClassBinary, "ROC Hold-out QDA")
 
 ```
 
-The **AUC** for hold-out the test data using an QDA and a threshold of 0.8 is **0.635**.
+The **AUC** for hold-out the test data using an QDA and a threshold of 0.1 is **0.635**.
 
 ## Hold-out Results KNN
 
@@ -2172,46 +2156,22 @@ train_knn <- train(ClassBinaryYesNo ~ Blue+Green+Red+GBSqr+RBSqr, data = haitiAl
 knn.test = predict(train_knn, newdata = haiti_ho_full, type="prob")
 
 ```  
-  
-A threshold of **0.5** was selected based on accuracy for the training data set. But I will evaluating the best threshold to use for the holdout data on True Positive Rate (yardstick's specificity is used based on the format of the data). I will evaluate 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, and 0.9.
-
-```{r knnHoldOutTestThres, cache=TRUE}
-out_knn_test_spec = tibble()
-
-for (p in c(0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9))
-{
-  
-  knn.preds.thres = knn.test %>%
-      mutate(.prediction=ifelse(Yes < p, "0", "1")) %>%
-      mutate(.prediction = factor(.prediction))
-  
-
-  specificity = yardstick::spec(knn.preds.thres, haiti_ho_full$ClassBinary, knn.preds.thres$.prediction)
-
-  out_knn_test_spec = bind_rows(out_knn_test_spec, tibble(thres = p, spec = specificity$.estimate))
-  
-}
-
-out_knn_test_spec
-
-```
-The best threshold for the KNN | k == 27 for the holdout data is **0.2**.
 
 
 ```{r knnTestCOnfMatrix}  
 knn.preds = knn.test %>%
-      mutate(.prediction=ifelse(Yes < .2, "0", "1")) %>%
+      mutate(.prediction=ifelse(Yes < .1, "0", "1")) %>%
       mutate(.prediction = factor(.prediction))
 
 caret::confusionMatrix(knn.preds$.prediction, haiti_ho_full$ClassBinary)
 ```
-For KNN, the hold-out test results with the tuned threshold of 0.2 are:
+For KNN, the hold-out test results with the tuned threshold of 0.1 are:
 
 <ul>
-<li>Accuracy: 0.9861</li>
-<li>TPR: 13001 / (14480) = 0.898</li>
-<li>FPR: 26321 / (1989697) = 0.013</li>
-<li>Precision: 0.3306</li>
+<li>Accuracy: 0.9827</li>
+<li>TPR: 13100 / (14480) = 0.905</li>
+<li>FPR: 33313 / (1989697) = 0.017</li>
+<li>Precision: 0.2822</li>
 </ul>
 
 ```{r knnROCTest, cache=TRUE}
@@ -2231,9 +2191,6 @@ x.haitiHoldout.test = model.matrix(frmla, data = haiti_ho_full)[,-1] # removing 
 
 # switch ClassBinary to TRUE FALSE to facilitate the next bit of code
 y.haitiHoldout.test = (haiti_ho_full %>% mutate(ClassBinary = ifelse(ClassBinary == '0', FALSE, TRUE)))$ClassBinary
-
-#-- Get lambda sequence so consistent over all folds
-lam_seq = glmnet(x.haitiFull.train, y.haitiFull.train, family="binomial", alpha=a)$lambda
 ```
 
 Training on entire training data set, and predict with the hold out data. Evaluation of the testing data is performed with the tuned lambda and the best threshold based on accuracy.
@@ -2249,39 +2206,6 @@ lasso.test = predict(lasso_holdout_model, x.haitiHoldout.test, s = 5.630136e-05,
 head(lasso.test)
 ```
 
-Alpha and lambda were tuned using accuracy using the training data. I will use these values, but tune the holdout threshold by using True Positive Rate. 
-
-```{r lassoHoldOutTuneThreshold, cache=TRUE}
-
-
-out_lasso_test_spec = tibble()
-
-for (p in c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9))
-{
-    out_lasso_test = tibble()
-  
-    y_hat = lasso.test > p
-    
-
-    #- output
-    out_lasso_test = tibble(truth = y.haitiHoldout.test, fitted = y_hat) %>% 
-      mutate(truth = factor(truth), fitted = factor(fitted))
-    
-    #head(out_lasso_test)
-  
-
-    specificity = yardstick::spec(out_lasso_test, out_lasso_test$truth, out_lasso_test$fitted)
-
-    out_lasso_test_spec = bind_rows(out_lasso_test_spec, tibble(thres = p, spec = specificity$.estimate))
-  
-}
-
-out_lasso_test_spec
-
-
-```
-A threshold of **0.1** is the best choice on the holdout data based on True Positive Rate (due to data structure this is yardstick's specificity).
-
 ```{r lassoHoldOutConfMatrix, cache=TRUE}
 
 lasso_out_confusion = tibble()
@@ -2291,7 +2215,7 @@ y_true = y.haitiHoldout.test
 
 
 # set the threshold to p
-thres = 0.1
+thres = 0.2
 y_hat = lasso.test > thres
 
   #- output
@@ -2305,13 +2229,13 @@ caret::confusionMatrix(lasso_out_confusion$fitted, lasso_out_confusion$truth)
 
 ```
 
-For Lasso, the hold-out test results with the tuned threshold of 0.1 are:
+For Lasso, the hold-out test results with the tuned threshold of 0.2 are:
 
 <ul>
-<li>Accuracy: 0.9876</li>
-<li>TPR: 14396 / (14480) = 0.994</li>
-<li>FPR: 24746 / (1989697) = 0.012</li>
-<li>Precision: 14380 / (29696) = 0.3678</li>
+<li>Accuracy: 0.9923</li>
+<li>TPR: 14380 / (14480) = 0.993</li>
+<li>FPR: 15316 / (1989697) = 0.008</li>
+<li>Precision: 0.4842</li>
 </ul>
 
 ```{r lassoROCTest, cache=TRUE}
@@ -2342,35 +2266,6 @@ y_true = haiti_ho_full %>% mutate(ClassBinary = (ClassBinary == "1"))
 y_true_val = y_true$ClassBinary
 head(y_true_val)
 ```
-
-I will tune the Random Forrest (mtry == 4 and ntree = 1000) model's threshold using True Positive Rate. It is important to note that mtry and ntree were selected using best accuracy.
-
-```{r rfHoldOutTuneThreshold, cache=TRUE}
-out_rf_test_spec = tibble()
-
-for (p in c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9))
-{
-  y_hat = rf.preds_holdout[,2] > p
-  #head(y_hat)
-  
-  out_yhat_ytrue = tibble()
-  
-  #- output
-  out_yhat_ytrue = bind_rows(out_yhat_ytrue, 
-          tibble(thres = p, true = y_true_val, hat = y_hat, X0 = rf.preds_holdout[,1], X1 = rf.preds_holdout[,2]))
-  
-  out_yhat_ytrue = out_yhat_ytrue %>% mutate(true = factor(true), hat = factor(hat))
-
-  specificity = yardstick::spec(out_yhat_ytrue, out_yhat_ytrue$true, out_yhat_ytrue$hat)
-
-  out_rf_test_spec = bind_rows(out_rf_test_spec, tibble(thres = p, spec = specificity$.estimate))
-  
-}
-
-out_rf_test_spec
-```
-A threshold of **0.1** produces the best True Positive Rate on the random forest model using mtry == 4 and ntree == 1000.
-
 
 ``` {r rfHoldOutWithBestThreshold, cache=TRUE}
 # set the threshold to p
@@ -2418,35 +2313,6 @@ svm_model_holdout = tune(svm, ClassBinary~Red+Blue+Green+GBSqr+RBSqr+RGSqr+RGBSq
 svm.preds_holdout = predict(svm_model_holdout$best.model, newdata = haiti_ho_full, probability=TRUE)
 ```      
 
-```{r svmHoldOutFindBestThreshold, cache=TRUE}
-out_svm_test_spec = tibble()
-
-#head(haiti_ho_full)
-
-for (p in c(0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9))
-{
-  y_hat = attr(svm.preds_holdout, "probabilities")[,"1"] > p
-  #head(y_hat)
-  
-  out_yhat_ytrue = tibble()
-  
-  #- output
-  out_yhat_ytrue = bind_rows(out_yhat_ytrue, 
-          tibble(thres = p, true = haiti_ho_full$ClassBinary, hat = y_hat, X0 = attr(svm.preds_holdout, "probabilities")[,"0"], X1 = attr(svm.preds_holdout, "probabilities")[,"1"]))
-  
-  out_yhat_ytrue = out_yhat_ytrue %>% mutate(true = (true == '1'), true = factor(true), hat = factor(hat))
-
-  specificity = yardstick::spec(out_yhat_ytrue, out_yhat_ytrue$true, out_yhat_ytrue$hat)
-
-  out_svm_test_spec = bind_rows(out_svm_test_spec, tibble(thres = p, spec = specificity$.estimate))
-  
-}
-
-out_svm_test_spec
-
-```
-
-The threshold of **0.1** produced the best True Positive Rate for the SVM model with a linear kernel and cost == 1.
 
 ``` {r svmHoldOutBestThreshold, cache=TRUE}
 y_hat = attr(svm.preds_holdout, "probabilities")[,"1"] > 0.1
@@ -2468,10 +2334,10 @@ caret::confusionMatrix(out_svm_holdout$pred_value, out_svm_holdout$truth_value)
 For SVM using a linear kernel, with a cost == 1, the hold-out test results with the tuned threshold of 0.1 are:
 
 <ul>
-<li>Accuracy: 0.9818</li>
-<li>**TPR: 14393 / (14480) = 0.994**</li>
-<li>FPR: 36477 / (1989697) = 0.018</li>
-<li>Precision: 0.2829</li>
+<li>Accuracy: 0.9816</li>
+<li>TPR: 14393 / (14480) = 0.994</li>
+<li>FPR: 36821 / (1989697) = 0.018</li>
+<li>Precision: 0.28 </li>
 </ul>
 
 ```{r svmHoldOutROC, cache=TRUE}
@@ -2532,28 +2398,30 @@ function_ROC_AUC(out_svm_holdout$yesProb, out_svm_holdout$truth_value, "ROC Hold
   <td><!-- QDA Precision -->0.1369</td>
 </tr>
 
+
 <!-- DONE -->
 <tr>
   <td>KNN</td>
   <td><!-- KNN Tuning --> k = 27</td>
   <td><!-- KNN AUROC -->0.9861</td>
-  <td><!-- KNN Threshold -->0.2</td>
-  <td><!-- KNN Accuracy -->0.9861</td>
-  <td><!-- KNN TPR -->0.898</td>
-  <td><!-- KNN FPR -->0.013</td>
-  <td><!-- KNN Precision -->0.3306</td>
+  <td><!-- KNN Threshold -->0.1</td>
+  <td><!-- KNN Accuracy -->0.9827</td>
+  <td><!-- KNN TPR -->0.905</td>
+  <td><!-- KNN FPR -->0.017</td>
+  <td><!-- KNN Precision -->0.2822</td>
 </tr>
+
 
 <!-- DONE -->
 <tr>
   <td>Penalized Log Reg</td>
-  <td><!-- Penalized Log Reg Tuning -->lamda = 5.630136e-05</td>
-  <td><!-- Penalized Log Reg AUROC -->0.9876</td>
-  <td><!-- Penalized Log Reg Threshold -->0.1</td>
-  <td><!-- Penalized Log Reg Accuracy -->0.9876</td>
-  <td><!-- Penalized Log Reg TPR -->0.994</td>
-  <td><!-- Penalized Log Reg FPR -->0.012</td>
-  <td><!-- Penalized Log Reg Precision -->0.3678</td>
+  <td><!-- Penalized Log Reg Tuning -->alpha = 1, lamda = 5.630136e-05</td>
+  <td><!-- Penalized Log Reg AUROC -->0.997</td>
+  <td><!-- Penalized Log Reg Threshold -->0.2</td>
+  <td><!-- Penalized Log Reg Accuracy -->0.9923</td>
+  <td><!-- Penalized Log Reg TPR -->0.993</td>
+  <td><!-- Penalized Log Reg FPR -->0.008</td>
+  <td><!-- Penalized Log Reg Precision -->0.4842</td>
 </tr>
 
 <!-- DONE -->
@@ -2568,87 +2436,196 @@ function_ROC_AUC(out_svm_holdout$yesProb, out_svm_holdout$truth_value, "ROC Hold
   <td><!-- Random Forest Precision -->0.3028</td>
 </tr>
 
+
 <!-- DONE -->
 <tr>
   <td>SVM</td>
   <td><!-- SVM Tuning --> linear kernel, cost == 1</td>
   <td><!-- SVM AUROC -->0.9995</td>
   <td><!-- SVM Threshold -->0.1</td>
-  <td><!-- SVM Accuracy -->0.9818</td>
+  <td><!-- SVM Accuracy -->0.9816</td>
   <td><!-- SVM TPR -->**0.994**</td>
   <td><!-- SVM FPR -->0.018</td>
-  <td><!-- SVM Precision -->0.2829</td>
+  <td><!-- SVM Precision -->0.2810</td>
 </tr>
 </table>
 
-# Looking At True Positives vs. False Negatives
-
-I would like to map all the locations that were correctly classified by the best performing model and compare to mapping the locations that were Blue Tarps but were not correctly classified by the best performing model. I am curious if there was a geographic area that was more challenging to the model.
-
-The logistic regression model performed the best based on True Positive Rate and False Positive Rate, so I will use the predictions of the hold out data from the logistic regression model using the threshold of 0.1.
-
-We have 14,391 True Positive locations, and 89 False Negative locations. 
-
-```{r mapping-setup}
-library(ggmap)
-library(sf)
-library(mapview)
-
-#remotes::install_github("r-spatial/mapview")
-
-head(glm.preds)
-
-true_pos_preds = glm.preds %>% 
-  filter(ClassBinary == 1 & .prediction == 1) %>% mutate(lat = Lat, lon = Lon)
-
-false_negative_preds = glm.preds %>% 
-  filter(ClassBinary == 1 & .prediction == 0) %>% mutate(lat = Lat, lon = Lon)
-
-dim(true_pos_preds)
-
-dim(false_negative_preds)
-```
-
-Below is a map of the **True Positives**, these are all locations in Carrefour. Based on inspecting this map, it appears the 14,391 pixels correspond to approximately 28 locations of blue tarps.
-```{r mapping-1, cache=TRUE}
-
-locations_true_pos_sf = st_as_sf(true_pos_preds, coords = c("lon", "lat"), crs = 4326)
-dim(locations_true_pos_sf)
-mapview(locations_true_pos_sf)@map
-```
-
-Below are the **False Negatives**. An encouraging outcome of visualizing false negative locations on a map of Haiti that each of the false negative locations have geographically near pixels of locations where true positives were correctly predicted. I believe the false negatives are from the edges of three blue tarps. I am very pleased that the 89 false negatives in the holdout data would not have kept resources from reaching the three groups of  survivors.
-
-```{r mapping-2}
-
-locations_false_neg_sf = st_as_sf(false_negative_preds, coords = c("lon", "lat"), crs = 4326)
-dim(locations_false_neg_sf)
-mapview(locations_false_neg_sf)@map
-```
 
 # Final Conclusions
 
-### Conclusion \#1: Modules Assuming A Linear Relationship Perform Best
+## Conclusion \#1: Modules Assuming A Linear Relationship Perform Best
+<!-- DONE -->
 <!--TODO: A discussion of the best performing algorithm(s) in the cross-validation and hold-out data.-->
-The logistic regression model using an additive model of Blue, Green, Red, (Green + Blue)^2, and (Red + Blue)^2 as a threshold of 0.1 performed the best of the tested models. The logistic regression model performed best when comparing true positive rate, AUC, and accuracy.
+
+### Training Data
+When using the training data, the KNN, Random Forest, and Logistic Regression models performed the best, and similarly with true positive rates of 98.66%, 98.5% and 98% respectively. 
+
+All three models were tuned for the best threshold using true positive rate, and all three had 0.1 as the best threshold.
+
+#### KKN Model
+The KNN model was tuned for threshold and number of neighbors using true positive rate. The model used the additive model with the following features:
+<ul>
+<li>Blue</li>
+<li>Green</li>
+<li>Red</li>
+<li>(Green + Blue)^2</li>
+<li>(Red + Blue)^2</li>
+</ul>
+
+The KNN model was tuned for number of neighbors using true positive rate to number of neighbors == 27. The best threshold, by true positive rate, was 0.1.
+
+#### Random Forest
+
+Features were added to the random forest because of a random forest ability to identify and used the following features:
+<ul>
+<li>**Red**</li>
+<li>**Blue**</li>
+<li>**Green**</li>
+<li>**RBSqr** = (Red + Blue)^2</li>
+<li>**GBSqr** = (Green + Blue)^2</li>
+<li>**RGSqr** = (Red + Green)^2</li>
+<li>**RGBSqr** = (Red + Blue + Green)^2</li>
+<li>**RG** = (Red * Green)</li>
+<li>**RB** = (Red * Blue)</li>
+<li>**GB** = (Green * Blue)</li>
+</ul>
+
+The random forest model was tuned using true positive rate to use 4 parameters at each split and 1000 trees. The best threshold, by true positive rate, was 0.1.
+
+#### Logistic Regression
+
+The logistic regression model used an additive model of Blue, Green, Red, (Green + Blue)^2, and (Red + Blue)^2. The best threshold, by true positive rate, was 0.1.
+
+#### Comments On The Three Cross-Validation Best Performing Models
+
+All three of the best performing models use a runed threshold of 0.1; however, 0.1 was the lowests threshold evaluated for best true positive rate. A lower threshold may have performed better by true positive rate. The downside of a lowering the threshold is that there will be more false positives identified.
+
+The logistic regression model had a **much lower** training time as cpompared to the other two best performing models. Both the KNN and random forest models took significant time to train with only ~60,000 observations. The 60,000 observations only included locations in a small area of haiti, so larger search areas would result in much longer training time.
+
+### Hold-out Data Results
+
+Using training-data-tuned parameters, two models performed best on the hold-out data evaluated on true positive rate:
+
+1. Logistic Regression Model correctly classified 99.4% of the blue tarps.
+2. The Support Vector Machine correctly classified 99.4% of the blue tarps.
+
+Both the logistic regression and the SVM correctly classified 99.4% of the holdout data; however the logistic regression model classified fewer false positives (1.2% vs. 1.8%) which would result in fewer wasted resources.
+
+While the logistic regression and SVM models performed better on true positive rate on the hold-out data as compared to the training data, they performed significantly worse on precision when comparing the hold-out data to training data (0.38 and 0.28 respectively). None of the models had precision over 0.50 using the hold-out data indicating that there were many false positives identified in the hold-out data. The tuned threshold would need to be tuned differently on the training data if there were limited volunteers and little time to find survivors, which would mean that false positives would result in wasted time and resources.
 
 ### Conclusion \#2: Are Training and Test Results Compatible?
-**TODO A discussion or analysis justifying why your findings above are compatible or reconcilable.**
+<!-- TODO A discussion or analysis justifying why your findings above are compatible or reconcilable.-->
+
+My training and hold-out results are compatible. The logistic regression model performed in the top three models based on TPR on the training data, and was second (tied) for AUC. Based on visual inspection of the training data the data could be linearly separated, and the good performance of the logistic regression model makes sense.
+
+It also makes sense that there were differences in performance between the training and hold-out data because
+
+1. the hold-out data was different
+2. the hold-out data had proportionally even fewer blue tarps (1% compared to 3%). Predicting rare occurances is challenging, but both on training and test data we were able to classify blue tarps.
 
 ### Conclusion \#3: Logistic Regression is Recommended
-**A recommendation and rationale regarding which algorithm to use for detection of blue tarps.**
+<!-- A recommendation and rationale regarding which algorithm to use for detection of blue tarps. -->
 
 1. Performed the best
 2. Easiest to explain to non-statisticians
 3. Very fast to run
 
 ### Conclusion \#4: Metrics, Measures, and Performance
-**TODO A discussion of the relevance of the metrics calculated in the tables to this application context.**
+<!-- DONE -->
+<!-- TODO A discussion of the relevance of the metrics calculated in the tables to this application context.-->
+
+The metric in the results tables for both training and hold-out data sets are:
+<ul>
+<li>**AUROC** (area under the Receover Operator Characteristic curve)
+<br />
+provides a measure of how well, i.e. how effectively, out model turns posterior probabilities into true classifications. An ROC curve is plotted by sensistivity (true positive rate) by (1 - specificity) (false positive rate). The AUC values allow us to compare one model to another: the greater the AUC, the better. Using the training data KNN, lasso, and logistic regression performed best on AUC. Lasso and logistic regression performed equally well: 0.9996, while KNN performed slightly better with 0.9997 AUC.
+</li>
+<li>**Accuracy**
+<br />
+provides a measure of total correct predictions over the total number of observations. This measure is not of as much utility in the haiti example for a few reasons: 1) the unbalanced data set. There are few blue tarps in the training data set (3%) and proportionally evern fewer in the hold-out data set (1%). A random guess of "not blue tarp" would be "accruate" 97% of the time in the training data, and 99% of the time for the hold-out data. 
+
+Also, because I have made the decision to not particularly care whether I correctly identify non-blue tarps, and because non-blue tarps make up the vast majority of my data, accuracy is not the best metric to use to tune or evaluate the models in this toy problem. Although of less utility, this metric was used to tune some of the tuning parameters from the training models.
+
+It is of interest that using the hold-out/test data none of the models performed better than 99% accuracy, which would be the best odds guess. However, we aren't interested in accuracy, but in true positive rate ...
+</li>
+<li>**TPR** (true positive rate)
+<br />
+is the metric of most utility in this toy problem as this identifies which model predicts the highest percentage of blue tarps. THis metric was used for tuning thresholds and some tuning parameters.
+</li>
+<li>**FPR** (false positive rate)
+<br />
+measure how many non-blue tarps were predicted to be blue tarps. If resources, volunteers, or time is severly limited, this metric should be examined and used for the Haiti problem.
+</li>
+<li>**Precision**
+<br />
+provides a similar/mirror measure to false positive rate when examining the performance of our Haiti models. Precision provides a metric of true positives over predicted condition positive. In other words of all the "yes" blue tarp predictions, what proportion are truely blue tarps. Like FPR, this provides an idea of resource efficiency.
+</li>
+</ul>
 
 ### Conclusion \#5: Does The Evidence Warrant Concern About False Negatives?
+<!-- DONE -->
+#### A Map View of True Positives and False Negatives
+
+I would like to map all the locations that were correctly classified by the best performing model, i.e. the logistic regression model, and compare the true positives and false negatives. This visualization should allow us to determine if we should be concerned about missing blue tarps since we do not have a 100% true positive rate. 
+
+The logistic regression model performed the best based on True Positive Rate and False Positive Rate, so I will use the predictions of the hold out data from the logistic regression model using the threshold of 0.1.
+
+We have 14,391 True Positive locations, and 89 False Negative locations. 
+
+```{r mapping-setup}
+#library(ggmap)
+library(sf)
+library(mapview)
+library(leaflet)
+
+```
+
+``` {r mapping1, cache=TRUE}
+glm.preds = glm.preds %>% mutate(lat = Lat, lng = Lon)
+
+#head(glm.preds)
+
+true_pos_or_false_negs_preds = glm.preds %>% 
+  filter((ClassBinary == 1 & .prediction == 1) | (ClassBinary == 1 & .prediction == 0))
+
+```
+
+Below is a map of the **True Positives** and **False Negatives**. Based on inspecting this map, it appears the 14,391 true positive observations (shown in blue) correspond to approximately 28 locations of blue tarps in Dufour and Tesserot, and the false negative observations (shown in red, but you need to zoom in to see them) correspond to 3 areas on the edges of blue tarps that were correctly identified.
+
+```{r mapLeafLetTruePosAndFalseNegatives, cache=TRUE}
+# Create a palette that maps factor levels to colors
+pal <- colorFactor(c("red", "blue"), domain = c("0", "1"))
+
+leaflet(true_pos_or_false_negs_preds) %>%
+  addTiles() %>%
+  addCircleMarkers(lng = ~lng, lat = ~lat, color = ~pal(.prediction))
+```
+The leaflet library maps do not allow for zooming in at the individual pixel level of the dataset; however, the mapview library does. However, I was unable to get the mapview library to knit to html, so I include the code below and screen shots from example "blue tarps" in the dataframe containing labeled "True Positive" and "False Negative" results from the holdout data set. From this visualization you can see the that the false negatives are all from tarps where the majority of pixels were correctly predicted as true positives.
 
 
-### Conclusion \#6:  
+```{r mapViewVersion, eval = FALSE, cache=TRUE}
+
+true_pos_or_false_negs_preds_sf = st_as_sf(true_pos_or_false_negs_preds, coords = c("lon", "lat"), crs = 4326)
+
+mapview(true_pos_or_false_negs_preds_sf, zcol = ".prediction", burst = TRUE)
+```
+#### Using mapview Library:
+![All True Positive (yellow) and False Negative (purple) predictions](MapViewExampleAll.JPG)
+
+
+![Example Tarp 1: True Positives (yellow) and False Negative (purple)](FalseNegativeExample1.JPG)
+
+
+![Example Tarp 2: True Positives (yellow) and False Negative (purple)](FalseNegativeExample2.JPG)
+
+
+![Example Tarp 3: True Positives (yellow) and False Negative (purple)](FalseNegativeExample3.JPG)
+
+### Conclusion \#6: Another Reason to Use Logistic Regression
+<!-- DONE -->
+<!-- TODO A discussion of processing speed. -->
+
+KNN, random forest, SVM, and lasso models performed better than the LDA, QDA. However, KNN, random forest, SVM, lasso models took significantly more time to train than the simplier logistic regression, LDA and QDA models. I would imagine that if rescue efforts continue for many days the model would be periodically re-trained with new labeled/validated data. If time is of the essence, which in this scenario it would be because getting predictions for locations of survivors is only the first step in making a plan for volunteers to reach the survivors, it may make sense to select a model that does not take as long to train. Luckily, the data was linearly separable and the logistic regression model performed well, and took little time to train.
 
 # References
 <ul>
@@ -2662,4 +2639,5 @@ The logistic regression model using an additive model of Blue, Green, Red, (Gree
 <li>Caret Model Training and Tuning: <https://topepo.github.io/caret/model-training-and-tuning.html></li>
 <li>Random Hyperparameter Search: <https://topepo.github.io/caret/random-hyperparameter-search.html></li
 <li>randomforest cross validation: <https://www.rdocumentation.org/packages/rfUtilities/versions/2.1-5/topics/rf.crossValidation></li>
+<li>ROC and AUC Explained: <https://statquest.org/roc-and-auc-clearly-explained/></li>
 </ul>
